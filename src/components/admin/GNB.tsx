@@ -1,12 +1,19 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown } from 'lucide-react';
+import { useAuthStore } from '@/lib/stores/authStore';
+import { useEffect } from 'react';
+import { LogOut } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function GNB() {
   const pathname = usePathname();
+  const { currentUser, hydrate, logout } = useAuthStore();
   const isIngang = pathname.startsWith('/ingang');
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   return (
     <header
@@ -29,14 +36,10 @@ export default function GNB() {
                 : 'text-white/60 hover:text-white/80 hover:bg-white/5',
             )}
           >
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: '#4fc3a1' }}
-            />
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#4fc3a1' }} />
             학원 관리
           </Link>
 
-          {/* 인강 탭 — 추후 개발 */}
           <span
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium text-white/30 cursor-not-allowed select-none"
             title="추후 개발 예정"
@@ -47,13 +50,21 @@ export default function GNB() {
         </nav>
       </div>
 
-      {/* User Info */}
-      <div className="flex items-center gap-2">
-        <span className="text-[12px] text-white/60">세계로학원</span>
+      {/* User Info + Logout */}
+      <div className="flex items-center gap-3">
+        <span className="text-[12px] text-white/60">
+          {currentUser?.academyName ?? '세계로학원'}
+        </span>
         <span className="text-white/40 text-[11px]">·</span>
-        <button className="flex items-center gap-1 text-[12.5px] text-white/80 hover:text-white transition-colors cursor-pointer">
-          원장
-          <ChevronDown size={12} className="text-white/50" />
+        <span className="text-[12.5px] text-white/80">
+          {currentUser?.name ?? '원장'}
+        </span>
+        <button
+          onClick={logout}
+          className="flex items-center gap-1 text-[12px] text-white/50 hover:text-white/90 transition-colors cursor-pointer ml-1"
+          title="로그아웃"
+        >
+          <LogOut size={13} />
         </button>
       </div>
     </header>

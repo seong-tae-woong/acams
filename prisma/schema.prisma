@@ -1,0 +1,543 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// TENANT / AUTH LAYER
+// ─────────────────────────────────────────────
+
+model Academy {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  phone     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  students           Student[]
+  teachers           Teacher[]
+  classes            Class[]
+  bills              Bill[]
+  expenses           Expense[]
+  exams              Exam[]
+  gradeRecords       GradeRecord[]
+  attendance         AttendanceRecord[]
+  makeupClasses      MakeupClass[]
+  calendarEvents     CalendarEvent[]
+  notifications      Notification[]
+  consultations      ConsultationRecord[]
+  announcements      Announcement[]
+
+  @@map("academies")
+}
+
+enum UserRole {
+  super_admin
+  director
+  teacher
+  parent
+  student
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  academyId    String?
+  academy      Academy?  @relation(fields: [academyId], references: [id])
+
+  teacherProfile   Teacher?       @relation("TeacherUser")
+  parentProfile    Parent?        @relation("ParentUser")
+  studentProfile   Student?       @relation("StudentUser")
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// PEOPLE
+// ─────────────────────────────────────────────
+
+enum StudentStatus {
+  ACTIVE
+  ON_LEAVE
+  WITHDRAWN
+  WAITING
+}
+
+model Student {
+  id               String        @id @default(cuid())
+  academyId        String
+  academy          Academy       @relation(fields: [academyId], references: [id])
+
+  name             String
+  school           String        @default("")
+  grade            Int           @default(1)
+  phone            String?
+  status           StudentStatus @default(ACTIVE)
+  enrollDate       DateTime      @default(now())
+  memo             String        @default("")
+  avatarColor      String        @default("#4A90D9")
+  attendanceNumber String        @default("")
+  qrCode           String        @default("")
+
+  userId           String?       @unique
+  user             User?         @relation("StudentUser", fields: [userId], references: [id])
+
+  parentLinks      StudentParent[]
+  classEnrollments ClassEnrollment[]
+  siblingLinks     StudentSibling[]  @relation("StudentA")
+  siblingOf        StudentSibling[]  @relation("StudentB")
+  attendance       AttendanceRecord[]
+  gradeRecords     GradeRecord[]
+  bills            Bill[]
+  makeupTargets    MakeupClassTarget[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("students")
+}
+
+model StudentSibling {
+  studentAId String
+  studentBId String
+  studentA   Student @relation("StudentA", fields: [studentAId], references: [id])
+  studentB   Student @relation("StudentB", fields: [studentBId], references: [id])
+
+  @@id([studentAId, studentBId])
+  @@map("student_siblings")
+}
+
+model Parent {
+  id       String @id @default(cuid())
+  name     String
+  phone    String @default("")
+
+  userId   String? @unique
+  user     User?   @relation("ParentUser", fields: [userId], references: [id])
+
+  children StudentParent[]
+
+  @@map("parents")
+}
+
+model StudentParent {
+  studentId String
+  parentId  String
+  student   Student @relation(fields: [studentId], references: [id])
+  parent    Parent  @relation(fields: [parentId], references: [id])
+
+  @@id([studentId, parentId])
+  @@map("student_parents")
+}
+
+model Teacher {
+  id          String  @id @default(cuid())
+  academyId   String
+  academy     Academy @relation(fields: [academyId], references: [id])
+
+  name        String
+  subject     String  @default("")
+  phone       String  @default("")
+  email       String  @default("")
+  avatarColor String  @default("#4A90D9")
+  isActive    Boolean @default(true)
+  permissions Json    @default("{\"manageStudents\":false,\"manageClasses\":false,\"manageAttendance\":true,\"manageGrades\":true,\"manageFinance\":false,\"manageNotifications\":false,\"viewReports\":true,\"admin\":false}")
+
+  userId      String? @unique
+  user        User?   @relation("TeacherUser", fields: [userId], references: [id])
+
+  classes            ClassTeacher[]
+  checkedAttendance  AttendanceRecord[] @relation("CheckedBy")
+  makeupClasses      MakeupClass[]
+  consultations      ConsultationRecord[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("teachers")
+}
+
+// ─────────────────────────────────────────────
+// CLASSES
+// ─────────────────────────────────────────────
+
+model Class {
+  id          String  @id @default(cuid())
+  academyId   String
+  academy     Academy @relation(fields: [academyId], references: [id])
+
+  name        String
+  subject     String  @default("")
+  level       String  @default("")
+  color       String  @default("#4fc3a1")
+  room        String  @default("")
+  fee         Int     @default(0)
+  maxStudents Int     @default(10)
+  description String  @default("")
+  isActive    Boolean @default(true)
+
+  teachers    ClassTeacher[]
+  enrollments ClassEnrollment[]
+  schedules   ClassSchedule[]
+  attendance  AttendanceRecord[]
+  exams       Exam[]
+  bills       Bill[]
+  makeupClasses MakeupClass[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("classes")
+}
+
+model ClassTeacher {
+  classId   String
+  teacherId String
+  isPrimary Boolean @default(true)
+  class     Class   @relation(fields: [classId], references: [id])
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
+  @@id([classId, teacherId])
+  @@map("class_teachers")
+}
+
+model ClassEnrollment {
+  id         String    @id @default(cuid())
+  classId    String
+  studentId  String
+  enrolledAt DateTime  @default(now())
+  droppedAt  DateTime?
+  isActive   Boolean   @default(true)
+  class      Class     @relation(fields: [classId], references: [id])
+  student    Student   @relation(fields: [studentId], references: [id])
+
+  @@unique([classId, studentId])
+  @@map("class_enrollments")
+}
+
+model ClassSchedule {
+  id        String @id @default(cuid())
+  classId   String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  class     Class  @relation(fields: [classId], references: [id])
+
+  @@map("class_schedules")
+}
+
+// ─────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EARLY_LEAVE
+}
+
+model AttendanceRecord {
+  id           String           @id @default(cuid())
+  academyId    String
+  academy      Academy          @relation(fields: [academyId], references: [id])
+
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id])
+  classId      String
+  class        Class            @relation(fields: [classId], references: [id])
+
+  date         DateTime
+  status       AttendanceStatus
+  checkInTime  String?
+  checkOutTime String?
+  memo         String           @default("")
+
+  checkedById  String?
+  checkedBy    Teacher?         @relation("CheckedBy", fields: [checkedById], references: [id])
+  checkedAt    DateTime         @default(now())
+
+  @@unique([studentId, classId, date])
+  @@map("attendance_records")
+}
+
+model MakeupClass {
+  id               String   @id @default(cuid())
+  academyId        String
+  academy          Academy  @relation(fields: [academyId], references: [id])
+
+  originalClassId  String
+  originalClass    Class    @relation(fields: [originalClassId], references: [id])
+  originalDate     DateTime
+
+  makeupDate       DateTime
+  makeupTime       String   @default("")
+
+  teacherId        String
+  teacher          Teacher  @relation(fields: [teacherId], references: [id])
+
+  reason           String   @default("")
+  attendanceChecked Boolean @default(false)
+
+  targets          MakeupClassTarget[]
+
+  createdAt        DateTime @default(now())
+
+  @@map("makeup_classes")
+}
+
+model MakeupClassTarget {
+  makeupClassId String
+  studentId     String
+  makeupClass   MakeupClass @relation(fields: [makeupClassId], references: [id])
+  student       Student     @relation(fields: [studentId], references: [id])
+
+  @@id([makeupClassId, studentId])
+  @@map("makeup_class_targets")
+}
+
+// ─────────────────────────────────────────────
+// GRADES
+// ─────────────────────────────────────────────
+
+model Exam {
+  id          String  @id @default(cuid())
+  academyId   String
+  academy     Academy @relation(fields: [academyId], references: [id])
+
+  classId     String
+  class       Class   @relation(fields: [classId], references: [id])
+
+  name        String
+  subject     String  @default("")
+  date        DateTime
+  totalScore  Int     @default(100)
+  description String  @default("")
+
+  gradeRecords GradeRecord[]
+
+  createdAt   DateTime @default(now())
+
+  @@map("exams")
+}
+
+model GradeRecord {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  examId    String
+  exam      Exam    @relation(fields: [examId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  score     Float
+  rank      Int?
+  memo      String  @default("")
+
+  @@unique([examId, studentId])
+  @@map("grade_records")
+}
+
+// ─────────────────────────────────────────────
+// FINANCE
+// ─────────────────────────────────────────────
+
+enum BillStatus {
+  PAID
+  UNPAID
+  PARTIAL
+}
+
+enum PaymentMethod {
+  CARD
+  TRANSFER
+  CASH
+}
+
+model Bill {
+  id         String        @id @default(cuid())
+  academyId  String
+  academy    Academy       @relation(fields: [academyId], references: [id])
+
+  studentId  String
+  student    Student       @relation(fields: [studentId], references: [id])
+  classId    String
+  class      Class         @relation(fields: [classId], references: [id])
+
+  month      String
+  amount     Int
+  paidAmount Int           @default(0)
+  status     BillStatus    @default(UNPAID)
+  dueDate    DateTime
+  paidDate   DateTime?
+  method     PaymentMethod?
+  memo       String        @default("")
+
+  receipts   Receipt[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([studentId, classId, month])
+  @@map("bills")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id])
+
+  category    String
+  description String
+  amount      Int
+  date        DateTime
+  memo        String   @default("")
+
+  createdAt   DateTime @default(now())
+
+  @@map("expenses")
+}
+
+model Receipt {
+  id         String        @id @default(cuid())
+  billId     String
+  bill       Bill          @relation(fields: [billId], references: [id])
+
+  studentId  String
+  amount     Int
+  issuedDate DateTime
+  method     PaymentMethod
+  memo       String        @default("")
+
+  createdAt  DateTime @default(now())
+
+  @@map("receipts")
+}
+
+// ─────────────────────────────────────────────
+// COMMUNICATIONS
+// ─────────────────────────────────────────────
+
+enum NotificationType {
+  ANNOUNCEMENT
+  ATTENDANCE_ALERT
+  PAYMENT_ALERT
+  CONSULTATION_ALERT
+  GENERAL
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  academyId String
+  academy   Academy          @relation(fields: [academyId], references: [id])
+
+  type      NotificationType
+  title     String
+  content   String
+  sentAt    DateTime         @default(now())
+
+  recipients NotificationRecipient[]
+
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  notificationId String
+  studentId      String
+  readAt         DateTime?
+
+  notification   Notification @relation(fields: [notificationId], references: [id])
+
+  @@id([notificationId, studentId])
+  @@map("notification_recipients")
+}
+
+model ConsultationRecord {
+  id        String  @id @default(cuid())
+  academyId String
+  studentId String
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  date      DateTime
+  time      String   @default("")
+  duration  Int      @default(30)
+  type      String
+  topic     String
+  content   String   @default("")
+  followUp  String   @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("consultation_records")
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Announcement {
+  id          String             @id @default(cuid())
+  academyId   String
+  academy     Academy            @relation(fields: [academyId], references: [id])
+
+  title       String
+  content     String
+  authorId    String
+  status      AnnouncementStatus @default(DRAFT)
+  pinned      Boolean            @default(false)
+  publishedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("announcements")
+}
+
+// ─────────────────────────────────────────────
+// CALENDAR
+// ─────────────────────────────────────────────
+
+enum CalendarEventType {
+  ACADEMY_SCHEDULE
+  CONSULTATION_SCHEDULE
+  MAKEUP_SCHEDULE
+}
+
+model CalendarEvent {
+  id          String            @id @default(cuid())
+  academyId   String
+  academy     Academy           @relation(fields: [academyId], references: [id])
+
+  title       String
+  date        DateTime
+  startTime   String?
+  endTime     String?
+  type        CalendarEventType
+  isPublic    Boolean           @default(true)
+  description String            @default("")
+  color       String            @default("#4fc3a1")
+
+  createdAt   DateTime @default(now())
+
+  @@map("calendar_events")
+}
