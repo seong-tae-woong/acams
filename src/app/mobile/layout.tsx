@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import ToastContainer from '@/components/shared/ToastContainer';
 
 export const metadata: Metadata = {
   title: '세계로학원 — 학부모 앱',
@@ -19,6 +20,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-screen bg-[#f4f6f8] flex flex-col max-w-[430px] mx-auto relative">
       {children}
+      <ToastContainer />
     </div>
   );
 }

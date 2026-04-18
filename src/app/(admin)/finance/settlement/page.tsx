@@ -6,6 +6,7 @@ import { useFinanceStore } from '@/lib/stores/financeStore';
 import { mockExpenses } from '@/lib/mock/finance';
 import { BillStatus } from '@/lib/types/finance';
 import { FileDown } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -46,7 +47,7 @@ export default function SettlementPage() {
       <Topbar
         title="매출/지출 정산"
         badge="2026년 4월"
-        actions={<Button variant="default" size="sm"><FileDown size={13} /> 정산서 내보내기</Button>}
+        actions={<Button variant="default" size="sm" onClick={() => toast('정산서가 다운로드됩니다. (추후 연동 예정)', 'info')}><FileDown size={13} /> 정산서 내보내기</Button>}
       />
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 손익 요약 */}

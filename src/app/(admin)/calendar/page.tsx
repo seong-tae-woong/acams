@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { mockCalendarEvents } from '@/lib/mock/calendar';
 import type { CalendarEvent } from '@/lib/types/calendar';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const DAYS_OF_WEEK = ['월', '화', '수', '목', '금', '토', '일'];
@@ -56,7 +57,7 @@ export default function CalendarPage() {
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="캘린더"
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 일정 추가</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('일정 추가 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 일정 추가</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 캘린더 */}

@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useGradeStore } from '@/lib/stores/gradeStore';
 import { formatKoreanDate } from '@/lib/utils/format';
+import { toast } from '@/lib/stores/toastStore';
 import { Plus } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -27,7 +28,7 @@ export default function GradesPage() {
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="성적/시험 결과 관리"
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 시험 등록</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('시험 등록 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 시험 등록</Button>}
       />
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 반 선택 */}
@@ -98,7 +99,7 @@ export default function GradesPage() {
               <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
                 <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
                   <span className="text-[12.5px] font-semibold text-[#111827]">학생별 성적</span>
-                  <Button variant="default" size="sm">성적 입력</Button>
+                  <Button variant="default" size="sm" onClick={() => toast('성적 입력 기능은 추후 지원 예정입니다.', 'info')}>성적 입력</Button>
                 </div>
                 <table className="w-full text-[12.5px]">
                   <thead>

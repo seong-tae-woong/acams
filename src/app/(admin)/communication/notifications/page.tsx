@@ -6,6 +6,7 @@ import { useCommunicationStore } from '@/lib/stores/communicationStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import type { NotificationType } from '@/lib/types/notification';
 import { Send, Plus } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const TYPE_STYLE: Record<NotificationType, { bg: string; text: string }> = {
@@ -154,7 +155,7 @@ export default function NotificationsPage() {
             <Button
               variant="dark"
               size="md"
-              onClick={() => { alert('알림이 발송되었습니다.'); setComposing(false); setNewTitle(''); setNewContent(''); }}
+              onClick={() => { toast('알림이 성공적으로 발송되었습니다.', 'success'); setComposing(false); setNewTitle(''); setNewContent(''); }}
             >
               <Send size={13} /> 발송
             </Button>

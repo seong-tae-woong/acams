@@ -8,6 +8,7 @@ import type { Teacher } from '@/lib/types/teacher';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
 import { Plus, Trash2, Shield } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const PERM_LABELS: Record<keyof typeof DEFAULT_PERMISSIONS, string> = {
@@ -93,7 +94,7 @@ export default function SettingsPage() {
                 ))}
               </div>
               <div className="p-2 border-t border-[#e2e8f0]">
-                <Button variant="dark" size="sm" onClick={() => alert('강사 등록 모달 (추후 구현)')}>
+                <Button variant="dark" size="sm" onClick={() => toast('강사 추가 기능은 추후 지원 예정입니다.', 'info')}>
                   <Plus size={13} /> 강사 추가
                 </Button>
               </div>
@@ -116,7 +117,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="default" size="sm">수정</Button>
+                    <Button variant="default" size="sm" onClick={() => toast('정보 수정 기능은 추후 지원 예정입니다.', 'info')}>수정</Button>
                     <Button
                       variant={selected.isActive ? 'danger' : 'primary'}
                       size="sm"
@@ -162,7 +163,7 @@ export default function SettingsPage() {
                   })}
                 </div>
                 <div className="mt-3 flex justify-end">
-                  <Button variant="primary" size="sm" onClick={() => alert('권한이 저장되었습니다.')}>권한 저장</Button>
+                  <Button variant="primary" size="sm" onClick={() => toast(`${selected.name} 강사 권한이 저장되었습니다.`, 'success')}>권한 저장</Button>
                 </div>
               </div>
             </div>
@@ -187,7 +188,7 @@ export default function SettingsPage() {
                   </div>
                 ))}
                 <div className="pt-2">
-                  <Button variant="dark" size="md" onClick={() => alert('저장되었습니다.')}>저장</Button>
+                  <Button variant="dark" size="md" onClick={() => toast('학원 정보가 저장되었습니다.', 'success')}>저장</Button>
                 </div>
               </div>
 

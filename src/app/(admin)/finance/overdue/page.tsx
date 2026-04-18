@@ -4,6 +4,7 @@ import Button from '@/components/shared/Button';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
+import { toast } from '@/lib/stores/toastStore';
 import { Send, Phone } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -42,7 +43,7 @@ export default function OverduePage() {
       <Topbar
         title="미납 관리"
         badge={`미납 ${overdueBills.length}명`}
-        actions={<Button variant="default" size="sm"><Send size={13} /> 미납 알림 일괄 발송</Button>}
+        actions={<Button variant="default" size="sm" onClick={() => toast(`미납 학생 ${overdueBills.length}명에게 알림을 발송했습니다.`, 'success')}><Send size={13} /> 미납 알림 일괄 발송</Button>}
       />
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 미납 현황 KPI */}
@@ -106,7 +107,7 @@ export default function OverduePage() {
                       <td className="px-4 py-3 text-[#6b7280]">{b.memo || '-'}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          <Button variant="default" size="sm">
+                          <Button variant="default" size="sm" onClick={() => toast(`${b.studentName} 학부모에게 연락을 시도합니다.`, 'info')}>
                             <Phone size={11} /> 연락
                           </Button>
                           <Button

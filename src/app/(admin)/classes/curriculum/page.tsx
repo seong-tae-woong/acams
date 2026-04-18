@@ -4,6 +4,7 @@ import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import { useClassStore } from '@/lib/stores/classStore';
 import { Plus, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 // 더미 교재 데이터
@@ -71,7 +72,7 @@ export default function CurriculumPage() {
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="교재 및 커리큘럼"
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 항목 추가</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('항목 추가 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 항목 추가</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 반 선택 */}
@@ -188,7 +189,7 @@ export default function CurriculumPage() {
                   <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
                     <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
                       <span className="text-[12.5px] font-semibold text-[#111827]">사용 교재</span>
-                      <Button variant="default" size="sm"><Plus size={12} /> 교재 추가</Button>
+                      <Button variant="default" size="sm" onClick={() => toast('교재 추가 기능은 추후 지원 예정입니다.', 'info')}><Plus size={12} /> 교재 추가</Button>
                     </div>
                     {textbooks.length === 0 ? (
                       <div className="p-8 text-center text-[13px] text-[#9ca3af]">등록된 교재가 없습니다</div>

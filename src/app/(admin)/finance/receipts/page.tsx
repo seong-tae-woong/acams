@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { mockReceipts } from '@/lib/mock/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { FileDown, Printer } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const METHOD_STYLE: Record<string, { bg: string; text: string }> = {
@@ -26,7 +27,7 @@ export default function ReceiptsPage() {
         title="수납 영수증 이력"
         badge={`${mockReceipts.length}건`}
         actions={
-          <Button variant="default" size="sm"><FileDown size={13} /> 전체 내보내기</Button>
+          <Button variant="default" size="sm" onClick={() => toast('영수증 목록을 CSV로 내보냅니다. (추후 연동 예정)', 'info')}><FileDown size={13} /> 전체 내보내기</Button>
         }
       />
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -72,7 +73,7 @@ export default function ReceiptsPage() {
                     <td className="px-4 py-3 text-center text-[#374151]">{formatKoreanDate(r.issuedDate)}</td>
                     <td className="px-4 py-3 text-[#6b7280]">{r.memo || '-'}</td>
                     <td className="px-4 py-3 text-center">
-                      <Button variant="default" size="sm" onClick={() => alert(`영수증 ${r.id}를 출력합니다.`)}>
+                      <Button variant="default" size="sm" onClick={() => toast(`영수증 ${r.id.toUpperCase()} 출력 중...`, 'info')}>
                         <Printer size={12} /> 출력
                       </Button>
                     </td>

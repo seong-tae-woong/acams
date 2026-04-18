@@ -8,6 +8,7 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { Plus, MessageSquare } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const TYPE_STYLE: Record<string, { bg: string; text: string }> = {
@@ -33,7 +34,7 @@ export default function ConsultationPage() {
       <Topbar
         title="상담 기록 관리"
         badge={`총 ${consultations.length}건`}
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 상담 등록</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('상담 등록 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 상담 등록</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 패널 1: 학생 목록 */}
@@ -113,7 +114,7 @@ export default function ConsultationPage() {
                     <MessageSquare size={16} className="text-[#4fc3a1]" />
                     <span className="text-[14px] font-bold text-[#111827]">{selectedConsult.topic}</span>
                   </div>
-                  <Button variant="default" size="sm">수정</Button>
+                  <Button variant="default" size="sm" onClick={() => toast('수정 기능은 추후 지원 예정입니다.', 'info')}>수정</Button>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-[12px] mb-4">
                   <div>

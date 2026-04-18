@@ -7,6 +7,7 @@ import { mockStudents } from '@/lib/mock/students';
 import { useClassStore } from '@/lib/stores/classStore';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { Plus, CheckCheck } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 export default function MakeupPage() {
@@ -24,7 +25,7 @@ export default function MakeupPage() {
       <Topbar
         title="보강 수업 관리"
         badge={`${mockMakeupClasses.length}건`}
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 보강 등록</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('보강 등록 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 보강 등록</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 보강 목록 */}
@@ -74,7 +75,7 @@ export default function MakeupPage() {
             <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[14px] font-bold text-[#111827]">{selected.originalClassName} 보강</span>
-                <Button variant="default" size="sm">수정</Button>
+                <Button variant="default" size="sm" onClick={() => toast('보강 수정 기능은 추후 지원 예정입니다.', 'info')}>수정</Button>
               </div>
               <div className="grid grid-cols-3 gap-4 text-[12px]">
                 <div>
@@ -201,7 +202,7 @@ export default function MakeupPage() {
                 </tbody>
               </table>
               <div className="px-5 py-3 border-t border-[#e2e8f0] flex justify-end">
-                <Button variant="dark" size="md" onClick={() => alert('보강 출결이 저장되었습니다.')}>
+                <Button variant="dark" size="md" onClick={() => toast('보강 출결이 저장되었습니다.', 'success')}>
                   출결 저장
                 </Button>
               </div>

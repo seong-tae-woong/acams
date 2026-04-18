@@ -7,10 +7,12 @@ import Badge from '@/components/shared/Badge';
 import SearchInput from '@/components/shared/SearchInput';
 import FilterTags from '@/components/shared/FilterTags';
 import Tabs from '@/components/shared/Tabs';
+import Modal from '@/components/shared/Modal';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate, formatPhone } from '@/lib/utils/format';
+import { toast } from '@/lib/stores/toastStore';
 import { Plus, Phone, School, Calendar, StickyNote, Users } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -31,28 +33,127 @@ const DETAIL_TABS = [
   { value: 'consult', label: '상담정보' },
 ];
 
+const AVATAR_COLORS = ['#4A90D9','#7B68EE','#20B2AA','#FF6B6B','#FFD93D','#6BCB77','#F4A261','#A78BFA','#34D399','#FB7185'];
+
+interface StudentForm {
+  name: string; school: string; grade: string;
+  phone: string; parentName: string; parentPhone: string;
+  status: StudentStatus; enrollDate: string; memo: string;
+}
+
+const EMPTY_FORM: StudentForm = {
+  name: '', school: '', grade: '3',
+  phone: '', parentName: '', parentPhone: '',
+  status: StudentStatus.ACTIVE, enrollDate: new Date().toISOString().slice(0, 10), memo: '',
+};
+
+function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: StudentForm) => void }) {
+  const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {[
+        { label: '이름 *', key: 'name', type: 'text', placeholder: '홍길동' },
+        { label: '학교 *', key: 'school', type: 'text', placeholder: '한국초등학교' },
+        { label: '학년', key: 'grade', type: 'number', placeholder: '3' },
+        { label: '입원일', key: 'enrollDate', type: 'date', placeholder: '' },
+        { label: '학생 연락처 *', key: 'phone', type: 'tel', placeholder: '010-0000-0000' },
+        { label: '보호자 이름', key: 'parentName', type: 'text', placeholder: '홍부모' },
+        { label: '보호자 연락처 *', key: 'parentPhone', type: 'tel', placeholder: '010-0000-0000' },
+      ].map(({ label, key, type, placeholder }) => (
+        <div key={key}>
+          <label className="text-[11.5px] text-[#6b7280] block mb-1">{label}</label>
+          <input
+            type={type}
+            value={(form as unknown as Record<string, string>)[key]}
+            onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+            placeholder={placeholder}
+            className={fieldClass}
+          />
+        </div>
+      ))}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">상태</label>
+        <select
+          value={form.status}
+          onChange={(e) => setForm({ ...form, status: e.target.value as StudentStatus })}
+          className={fieldClass}
+        >
+          {STATUS_OPTIONS.slice(1).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+      <div className="col-span-2">
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">메모</label>
+        <textarea
+          value={form.memo}
+          onChange={(e) => setForm({ ...form, memo: e.target.value })}
+          rows={2}
+          className={`${fieldClass} resize-none`}
+          placeholder="내부 메모 (보호자 비공개)"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function StudentsPage() {
   const { students, selectedStudentId, filterStatus, search, getFilteredStudents, getStudent,
-    setSelectedStudent, setFilterStatus, setSearch } = useStudentStore();
+    setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus } = useStudentStore();
   const { classes } = useClassStore();
   const [detailTab, setDetailTab] = useState('info');
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [registerForm, setRegisterForm] = useState<StudentForm>(EMPTY_FORM);
+  const [editForm, setEditForm] = useState<StudentForm>(EMPTY_FORM);
+  const [newStatus, setNewStatus] = useState<StudentStatus>(StudentStatus.ACTIVE);
 
   const filtered = getFilteredStudents();
   const selected = selectedStudentId ? getStudent(selectedStudentId) : null;
-
-  const statusCounts = STATUS_OPTIONS.slice(1).reduce<Record<string, number>>((acc, opt) => {
-    acc[opt.value] = students.filter((s) => s.status === opt.value).length;
-    return acc;
-  }, {});
-
+  const studentClasses = selected ? classes.filter((c) => selected.classes.includes(c.id)) : [];
   const filterOptions = STATUS_OPTIONS.map((opt) => ({
     ...opt,
-    count: opt.value === 'all' ? students.length : statusCounts[opt.value],
+    count: opt.value === 'all' ? students.length : students.filter((s) => s.status === opt.value).length,
   }));
 
-  const studentClasses = selected
-    ? classes.filter((c) => selected.classes.includes(c.id))
-    : [];
+  const handleRegister = () => {
+    if (!registerForm.name || !registerForm.phone || !registerForm.parentPhone) {
+      toast('필수 항목을 입력해주세요.', 'error'); return;
+    }
+    addStudent({
+      ...registerForm,
+      grade: Number(registerForm.grade),
+      classes: [], siblingIds: [],
+      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+      attendanceNumber: `${1000 + students.length + 1}`,
+    });
+    toast(`${registerForm.name} 학생이 등록되었습니다.`);
+    setRegisterOpen(false);
+    setRegisterForm(EMPTY_FORM);
+  };
+
+  const handleEdit = () => {
+    if (!selected) return;
+    updateStudent(selected.id, { ...editForm, grade: Number(editForm.grade) });
+    toast('학생 정보가 수정되었습니다.');
+    setEditOpen(false);
+  };
+
+  const openEdit = () => {
+    if (!selected) return;
+    setEditForm({
+      name: selected.name, school: selected.school, grade: String(selected.grade),
+      phone: selected.phone, parentName: selected.parentName, parentPhone: selected.parentPhone,
+      status: selected.status, enrollDate: selected.enrollDate, memo: selected.memo,
+    });
+    setEditOpen(true);
+  };
+
+  const handleStatusChange = () => {
+    if (!selected) return;
+    changeStatus(selected.id, newStatus);
+    toast(`${selected.name} 학생 상태가 '${newStatus}'로 변경되었습니다.`);
+    setStatusOpen(false);
+  };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -60,7 +161,7 @@ export default function StudentsPage() {
         title="학생 등록/정보 관리"
         badge={`총 ${students.filter(s => s.status === StudentStatus.ACTIVE).length}명 재원`}
         actions={
-          <Button variant="dark" size="sm">
+          <Button variant="dark" size="sm" onClick={() => setRegisterOpen(true)}>
             <Plus size={13} /> 학생 등록
           </Button>
         }
@@ -70,54 +171,37 @@ export default function StudentsPage() {
         {/* 좌측 학생 목록 */}
         <div className="w-64 shrink-0 flex flex-col border-r border-[#e2e8f0] bg-white overflow-hidden">
           <div className="p-3 border-b border-[#e2e8f0] space-y-2">
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="이름, 학교 검색"
-              className="w-full"
-            />
-            <FilterTags
-              options={filterOptions}
-              value={filterStatus}
-              onChange={(v) => setFilterStatus(v as StudentStatus | 'all')}
-            />
+            <SearchInput value={search} onChange={setSearch} placeholder="이름, 학교 검색" className="w-full" />
+            <FilterTags options={filterOptions} value={filterStatus} onChange={(v) => setFilterStatus(v as StudentStatus | 'all')} />
           </div>
-
           <div className="flex-1 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="p-6 text-center text-[12px] text-[#9ca3af]">검색 결과가 없습니다</div>
-            ) : (
-              filtered.map((student) => (
-                <button
-                  key={student.id}
-                  onClick={() => { setSelectedStudent(student.id); setDetailTab('info'); }}
-                  className={clsx(
-                    'w-full flex items-center gap-3 px-3 py-2.5 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
-                    selectedStudentId === student.id
-                      ? 'bg-[#E1F5EE]'
-                      : 'hover:bg-[#f4f6f8]',
-                  )}
-                >
-                  <Avatar name={student.name} color={student.avatarColor} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[13px] font-medium text-[#111827] truncate">{student.name}</span>
-                      <Badge label={student.status} />
-                    </div>
-                    <div className="text-[11px] text-[#6b7280] mt-0.5">
-                      {student.school} · {student.grade}학년
-                    </div>
+            ) : filtered.map((student) => (
+              <button
+                key={student.id}
+                onClick={() => { setSelectedStudent(student.id); setDetailTab('info'); }}
+                className={clsx(
+                  'w-full flex items-center gap-3 px-3 py-2.5 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
+                  selectedStudentId === student.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
+                )}
+              >
+                <Avatar name={student.name} color={student.avatarColor} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[13px] font-medium text-[#111827] truncate">{student.name}</span>
+                    <Badge label={student.status} />
                   </div>
-                </button>
-              ))
-            )}
+                  <div className="text-[11px] text-[#6b7280] mt-0.5">{student.school} · {student.grade}학년</div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* 우측 상세 */}
         {selected ? (
           <div className="flex-1 flex flex-col overflow-hidden bg-[#f4f6f8]">
-            {/* 헤더 */}
             <div className="bg-white border-b border-[#e2e8f0] px-5 py-4">
               <div className="flex items-center gap-4">
                 <Avatar name={selected.name} color={selected.avatarColor} size="lg" />
@@ -134,20 +218,17 @@ export default function StudentsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="default" size="sm">정보 수정</Button>
-                  <Button variant="dark" size="sm">상태 변경</Button>
+                  <Button variant="default" size="sm" onClick={openEdit}>정보 수정</Button>
+                  <Button variant="dark" size="sm" onClick={() => { setNewStatus(selected.status); setStatusOpen(true); }}>상태 변경</Button>
                 </div>
               </div>
             </div>
 
-            {/* 탭 */}
             <Tabs tabs={DETAIL_TABS} value={detailTab} onChange={setDetailTab} className="bg-white px-5" />
 
-            {/* 탭 내용 */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {detailTab === 'info' && (
                 <div className="grid grid-cols-2 gap-4">
-                  {/* 인적사항 */}
                   <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                     <div className="text-[12.5px] font-semibold text-[#111827] mb-3">인적사항</div>
                     <dl className="space-y-2">
@@ -166,8 +247,6 @@ export default function StudentsPage() {
                       ))}
                     </dl>
                   </div>
-
-                  {/* 형제/자매 + 등록일 */}
                   <div className="space-y-4">
                     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                       <div className="text-[12.5px] font-semibold text-[#111827] mb-2 flex items-center gap-1">
@@ -175,20 +254,16 @@ export default function StudentsPage() {
                       </div>
                       {selected.siblingIds.length === 0 ? (
                         <p className="text-[12px] text-[#9ca3af]">등록된 형제/자매 없음</p>
-                      ) : (
-                        selected.siblingIds.map((id) => {
-                          const sibling = students.find((s) => s.id === id);
-                          return sibling ? (
-                            <div key={id} className="flex items-center gap-2 text-[12px]">
-                              <Avatar name={sibling.name} color={sibling.avatarColor} size="sm" />
-                              {sibling.name} ({sibling.school} {sibling.grade}학년)
-                            </div>
-                          ) : null;
-                        })
-                      )}
+                      ) : selected.siblingIds.map((id) => {
+                        const sibling = students.find((s) => s.id === id);
+                        return sibling ? (
+                          <div key={id} className="flex items-center gap-2 text-[12px]">
+                            <Avatar name={sibling.name} color={sibling.avatarColor} size="sm" />
+                            {sibling.name} ({sibling.school} {sibling.grade}학년)
+                          </div>
+                        ) : null;
+                      })}
                     </div>
-
-                    {/* 내부 메모 */}
                     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                       <div className="text-[12.5px] font-semibold text-[#111827] mb-2 flex items-center gap-1">
                         <StickyNote size={13} /> 내부 메모 <span className="text-[10px] font-normal text-[#9ca3af]">(보호자 비공개)</span>
@@ -198,12 +273,12 @@ export default function StudentsPage() {
                         rows={4}
                         className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] p-2 resize-none focus:outline-none focus:border-[#4fc3a1] text-[#374151]"
                         placeholder="메모를 입력하세요..."
+                        onBlur={(e) => updateStudent(selected.id, { memo: e.target.value })}
                       />
                     </div>
                   </div>
                 </div>
               )}
-
               {detailTab === 'class' && (
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                   <div className="text-[12.5px] font-semibold text-[#111827] mb-3">수강 중인 반</div>
@@ -219,7 +294,7 @@ export default function StudentsPage() {
                               <span className="text-[13px] font-medium text-[#111827]">{cls.name}</span>
                             </div>
                             <div className="text-[11.5px] text-[#6b7280] mt-0.5 ml-4">
-                              {cls.teacherName} · {cls.schedule.map(s => `${['', '월', '화', '수', '목', '금', '토', '일'][s.dayOfWeek]}${s.startTime}`).join(', ')}
+                              {cls.teacherName} · {cls.schedule.map(s => `${['','월','화','수','목','금','토','일'][s.dayOfWeek]}${s.startTime}`).join(', ')}
                             </div>
                           </div>
                           <span className="text-[12px] text-[#6b7280]">{cls.fee.toLocaleString()}원/월</span>
@@ -229,11 +304,9 @@ export default function StudentsPage() {
                   )}
                 </div>
               )}
-
               {(detailTab === 'attendance' || detailTab === 'grade' || detailTab === 'payment' || detailTab === 'consult') && (
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-8 text-center">
-                  <p className="text-[13px] text-[#9ca3af]">해당 탭의 데이터를 불러오는 중...</p>
-                  <p className="text-[12px] text-[#9ca3af] mt-1">좌측 메뉴에서 전용 화면을 이용하세요.</p>
+                  <p className="text-[13px] text-[#9ca3af]">좌측 메뉴에서 전용 화면을 이용하세요.</p>
                 </div>
               )}
             </div>
@@ -244,6 +317,60 @@ export default function StudentsPage() {
           </div>
         )}
       </div>
+
+      {/* 학생 등록 모달 */}
+      <Modal
+        open={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        title="학생 등록"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setRegisterOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleRegister}>등록</Button>
+          </>
+        }
+      >
+        <StudentFormFields form={registerForm} setForm={setRegisterForm} />
+      </Modal>
+
+      {/* 정보 수정 모달 */}
+      <Modal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="학생 정보 수정"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setEditOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleEdit}>저장</Button>
+          </>
+        }
+      >
+        <StudentFormFields form={editForm} setForm={setEditForm} />
+      </Modal>
+
+      {/* 상태 변경 모달 */}
+      <Modal
+        open={statusOpen}
+        onClose={() => setStatusOpen(false)}
+        title="학생 상태 변경"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setStatusOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleStatusChange}>변경</Button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <p className="text-[12.5px] text-[#6b7280] mb-3">{selected?.name} 학생의 상태를 변경합니다.</p>
+          {STATUS_OPTIONS.slice(1).map((opt) => (
+            <label key={opt.value} className="flex items-center gap-3 p-3 rounded-[8px] border cursor-pointer hover:bg-[#f4f6f8]" style={{ borderColor: newStatus === opt.value ? '#4fc3a1' : '#e2e8f0', backgroundColor: newStatus === opt.value ? '#E1F5EE' : '' }}>
+              <input type="radio" value={opt.value} checked={newStatus === opt.value} onChange={() => setNewStatus(opt.value as StudentStatus)} className="accent-[#4fc3a1]" />
+              <span className="text-[13px] font-medium text-[#111827]">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

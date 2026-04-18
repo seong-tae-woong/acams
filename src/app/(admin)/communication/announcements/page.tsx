@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { useCommunicationStore } from '@/lib/stores/communicationStore';
 import type { AnnouncementStatus } from '@/lib/types/notification';
 import { Pin, Plus, Edit2 } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const STATUS_STYLE: Record<AnnouncementStatus, { bg: string; text: string }> = {
@@ -30,7 +31,7 @@ export default function AnnouncementsPage() {
       <Topbar
         title="공지사항 발송"
         badge={`${announcements.filter((a) => a.status === '게시됨').length}건 게시 중`}
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 공지 작성</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('공지 작성 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 공지 작성</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 공지 목록 */}
@@ -105,7 +106,7 @@ export default function AnnouncementsPage() {
                     {selected.status === '게시됨' && ` · 읽음 ${selected.readCount}/${selected.totalCount}명`}
                   </div>
                 </div>
-                <Button variant="default" size="sm"><Edit2 size={12} /> 수정</Button>
+                <Button variant="default" size="sm" onClick={() => toast('수정 기능은 추후 지원 예정입니다.', 'info')}><Edit2 size={12} /> 수정</Button>
               </div>
 
               {/* 내용 */}
@@ -131,8 +132,8 @@ export default function AnnouncementsPage() {
               {/* 액션 버튼 */}
               {selected.status === '임시저장' && (
                 <div className="mt-4 pt-4 border-t border-[#e2e8f0] flex gap-2">
-                  <Button variant="dark" size="md" onClick={() => alert('공지가 게시되었습니다.')}>게시하기</Button>
-                  <Button variant="default" size="md">저장</Button>
+                  <Button variant="dark" size="md" onClick={() => toast('공지가 게시되었습니다.', 'success')}>게시하기</Button>
+                  <Button variant="default" size="md" onClick={() => toast('임시저장 되었습니다.', 'info')}>저장</Button>
                 </div>
               )}
             </div>

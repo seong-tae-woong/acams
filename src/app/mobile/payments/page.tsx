@@ -4,6 +4,7 @@ import { mockBills, mockReceipts } from '@/lib/mock/finance';
 import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import Link from 'next/link';
 import clsx from 'clsx';
 
@@ -79,7 +80,7 @@ export default function MobilePaymentsPage() {
                       <button
                         className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white"
                         style={{ backgroundColor: '#4fc3a1' }}
-                        onClick={() => alert('결제 페이지로 이동합니다. (추후 연동 예정)')}
+                        onClick={() => toast('결제 페이지로 이동합니다. (추후 연동 예정)', 'info')}
                       >
                         {b.status === BillStatus.PARTIAL
                           ? `잔여 ${(b.amount - b.paidAmount).toLocaleString()}원 납부`

@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
+import Modal from '@/components/shared/Modal';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { DAY_NAMES } from '@/lib/types/class';
+import { toast } from '@/lib/stores/toastStore';
 import { Plus } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -16,11 +18,23 @@ export default function ClassesPage() {
   const { students } = useStudentStore();
   const selected = classes.find((c) => c.id === selectedClassId);
 
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', teacher: '', fee: '', room: '' });
+
+  const handleAddClass = () => {
+    if (!addForm.name.trim()) { toast('반 이름을 입력해주세요.', 'error'); return; }
+    toast(`'${addForm.name}' 반이 등록되었습니다.`, 'success');
+    setAddForm({ name: '', teacher: '', fee: '', room: '' });
+    setAddOpen(false);
+  };
+
+  const fieldCls = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="반 편성 및 시간표"
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 반 추가</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => setAddOpen(true)}><Plus size={13} /> 반 추가</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 반 목록 */}
@@ -69,7 +83,7 @@ export default function ClassesPage() {
                     <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selected.color }} />
                     <span className="text-[15px] font-bold text-[#111827]">{selected.name}</span>
                   </div>
-                  <Button variant="default" size="sm">반 수정</Button>
+                  <Button variant="default" size="sm" onClick={() => toast('반 수정 기능은 추후 지원 예정입니다.', 'info')}>반 수정</Button>
                 </div>
                 <div className="grid grid-cols-4 gap-4 text-[12px]">
                   <div>
@@ -137,7 +151,7 @@ export default function ClassesPage() {
               <div className="bg-white rounded-[10px] border border-[#e2e8f0]">
                 <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
                   <span className="text-[12.5px] font-semibold text-[#111827]">수강생 목록</span>
-                  <Button variant="default" size="sm">학생 추가</Button>
+                  <Button variant="default" size="sm" onClick={() => toast('학생 추가 기능은 추후 지원 예정입니다.', 'info')}>학생 추가</Button>
                 </div>
                 <div className="p-3 flex flex-wrap gap-2">
                   {students.filter((s) => s.classes.includes(selected.id)).map((s) => (
@@ -154,6 +168,39 @@ export default function ClassesPage() {
           )}
         </div>
       </div>
+
+      {/* 반 추가 모달 */}
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="반 추가"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setAddOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleAddClass}>등록</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">반 이름 *</label>
+            <input className={fieldCls} value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} placeholder="예: 초등수학 기초반" />
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label>
+            <input className={fieldCls} value={addForm.teacher} onChange={(e) => setAddForm((f) => ({ ...f, teacher: e.target.value }))} placeholder="예: 김선생" />
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">수강료 (원/월)</label>
+            <input type="number" className={fieldCls} value={addForm.fee} onChange={(e) => setAddForm((f) => ({ ...f, fee: e.target.value }))} placeholder="예: 280000" />
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">강의실</label>
+            <input className={fieldCls} value={addForm.room} onChange={(e) => setAddForm((f) => ({ ...f, room: e.target.value }))} placeholder="예: A강의실" />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

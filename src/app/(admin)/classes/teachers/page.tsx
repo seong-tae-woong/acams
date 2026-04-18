@@ -8,6 +8,7 @@ import { mockTeachers } from '@/lib/mock/teachers';
 import { DAY_NAMES } from '@/lib/types/class';
 import { formatPhone } from '@/lib/utils/format';
 import { Plus } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const HOURS = ['14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
@@ -35,7 +36,7 @@ export default function TeachersPage() {
       <Topbar
         title="강사 배정"
         badge={`총 ${mockTeachers.filter(t => t.isActive).length}명`}
-        actions={<Button variant="dark" size="sm"><Plus size={13} /> 강사 등록</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => toast('강사 등록 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 강사 등록</Button>}
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 강사 목록 */}
@@ -71,7 +72,7 @@ export default function TeachersPage() {
                     <div className="text-[12px] text-[#6b7280]">{selected.subject} · {formatPhone(selected.phone)}</div>
                   </div>
                 </div>
-                <Button variant="default" size="sm">정보 수정</Button>
+                <Button variant="default" size="sm" onClick={() => toast('정보 수정 기능은 추후 지원 예정입니다.', 'info')}>정보 수정</Button>
               </div>
 
               {/* 담당 반 */}
@@ -129,7 +130,7 @@ export default function TeachersPage() {
             <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12.5px] font-semibold text-[#111827]">메뉴 접근 권한</span>
-                <Button variant="primary" size="sm">권한 저장</Button>
+                <Button variant="primary" size="sm" onClick={() => toast(`${selected.name} 강사 권한이 저장되었습니다.`, 'success')}>권한 저장</Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(PERM_LABELS).map(([key, label]) => {

@@ -14,6 +14,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
 } from 'recharts';
 import { FileDown, Send } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 
 const ATTITUDE_COLORS: Record<string, string> = {
   'Excellent': 'bg-[#D1FAE5] text-[#065f46]',
@@ -67,8 +68,8 @@ export default function StudentReportPage() {
         badge="성적·태도·결석 종합"
         actions={
           <>
-            <Button variant="default" size="sm"><FileDown size={13} /> PDF 생성</Button>
-            <Button variant="dark" size="sm"><Send size={13} /> 학부모 발송</Button>
+            <Button variant="default" size="sm" onClick={() => toast('PDF 생성 기능은 추후 지원 예정입니다.', 'info')}><FileDown size={13} /> PDF 생성</Button>
+            <Button variant="dark" size="sm" onClick={() => toast('리포트가 학부모에게 발송되었습니다.', 'success')}><Send size={13} /> 학부모 발송</Button>
           </>
         }
       />

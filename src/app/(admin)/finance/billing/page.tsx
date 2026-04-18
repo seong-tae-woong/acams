@@ -2,10 +2,13 @@
 import { useState } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
+import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { BillStatus } from '@/lib/types/finance';
+import type { Bill, PaymentMethod } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
+import { toast } from '@/lib/stores/toastStore';
 import { Plus, Send } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -22,6 +25,13 @@ export default function BillingPage() {
   const [filterClass, setFilterClass] = useState<string>('all');
   const [search, setSearch] = useState('');
 
+  // 수납 처리 모달
+  const [payOpen, setPayOpen] = useState(false);
+  const [payTarget, setPayTarget] = useState<Bill | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('카드');
+  const [payDate, setPayDate] = useState('2026-04-18');
+
   const totalBilled = bills.reduce((s, b) => s + b.amount, 0);
   const totalPaid = bills.reduce((s, b) => s + b.paidAmount, 0);
   const totalUnpaid = totalBilled - totalPaid;
@@ -36,6 +46,26 @@ export default function BillingPage() {
 
   const unpaidBills = bills.filter((b) => b.status === BillStatus.UNPAID);
 
+  const openPay = (b: Bill) => {
+    setPayTarget(b);
+    setPayAmount(String(b.amount - b.paidAmount));
+    setPayMethod('카드');
+    setPayDate('2026-04-18');
+    setPayOpen(true);
+  };
+
+  const handlePay = () => {
+    if (!payTarget) return;
+    const amount = Number(payAmount);
+    if (!amount || amount <= 0) { toast('수납 금액을 입력해주세요.', 'error'); return; }
+    if (amount > payTarget.amount - payTarget.paidAmount) { toast('수납액이 잔여 금액을 초과합니다.', 'error'); return; }
+    payBill(payTarget.id, amount, payMethod, payDate);
+    toast(`${payTarget.studentName} 수납 처리 완료 (${amount.toLocaleString()}원)`);
+    setPayOpen(false);
+  };
+
+  const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
@@ -43,8 +73,8 @@ export default function BillingPage() {
         badge="2026년 4월"
         actions={
           <>
-            <Button variant="default" size="sm"><Send size={13} /> 청구서 발송</Button>
-            <Button variant="dark" size="sm"><Plus size={13} /> 청구 등록</Button>
+            <Button variant="default" size="sm" onClick={() => toast('청구서가 발송되었습니다.', 'info')}><Send size={13} /> 청구서 발송</Button>
+            <Button variant="dark" size="sm" onClick={() => toast('청구 등록은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 청구 등록</Button>
           </>
         }
       />
@@ -119,23 +149,12 @@ export default function BillingPage() {
                     <td className="px-4 py-3 text-right text-[#111827]">{b.paidAmount.toLocaleString()}원</td>
                     <td className="px-4 py-3 text-center text-[#374151]">{formatKoreanDate(b.dueDate)}</td>
                     <td className="px-4 py-3 text-center">
-                      <span
-                        className="px-2.5 py-1 rounded-[20px] text-[11px] font-medium"
-                        style={{ backgroundColor: st.bg, color: st.text }}
-                      >
-                        {st.label}
-                      </span>
+                      <span className="px-2.5 py-1 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                     </td>
                     <td className="px-4 py-3 text-center text-[#6b7280]">{b.method ?? '-'}</td>
                     <td className="px-4 py-3 text-center">
                       {b.status !== BillStatus.PAID && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => payBill(b.id, b.amount - b.paidAmount, '카드', '2026-04-17')}
-                        >
-                          수납
-                        </Button>
+                        <Button variant="primary" size="sm" onClick={() => openPay(b)}>수납</Button>
                       )}
                     </td>
                   </tr>
@@ -145,7 +164,6 @@ export default function BillingPage() {
           </table>
         </div>
 
-        {/* 미납 현황 요약 */}
         {unpaidBills.length > 0 && (
           <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-[10px] p-4">
             <div className="text-[12.5px] font-semibold text-[#991B1B] mb-2">미납 학생 {unpaidBills.length}명</div>
@@ -159,6 +177,46 @@ export default function BillingPage() {
           </div>
         )}
       </div>
+
+      {/* 수납 처리 모달 */}
+      <Modal
+        open={payOpen}
+        onClose={() => setPayOpen(false)}
+        title="수납 처리"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setPayOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handlePay}>수납 완료</Button>
+          </>
+        }
+      >
+        {payTarget && (
+          <div className="space-y-3">
+            <div className="p-3 bg-[#f4f6f8] rounded-[8px] text-[12.5px]">
+              <div className="font-semibold text-[#111827]">{payTarget.studentName}</div>
+              <div className="text-[#6b7280]">{payTarget.className} · 청구 {payTarget.amount.toLocaleString()}원</div>
+              <div className="text-[#991B1B] font-medium">잔여 {(payTarget.amount - payTarget.paidAmount).toLocaleString()}원</div>
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">수납 금액 *</label>
+              <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className={fieldClass} />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">납부 방법</label>
+              <select value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentMethod)} className={fieldClass}>
+                <option value="카드">카드</option>
+                <option value="계좌이체">계좌이체</option>
+                <option value="현금">현금</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">납부일</label>
+              <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className={fieldClass} />
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

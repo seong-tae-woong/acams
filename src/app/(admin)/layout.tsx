@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import GNB from '@/components/admin/GNB';
 import Sidebar from '@/components/admin/Sidebar';
+import ToastContainer from '@/components/shared/ToastContainer';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <ToastContainer />
     </div>
   );
 }

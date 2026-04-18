@@ -8,6 +8,7 @@ import { AttendanceStatus } from '@/lib/types/attendance';
 import { DAY_NAMES } from '@/lib/types/class';
 import clsx from 'clsx';
 import { CheckCheck, XCircle, Save, Bell } from 'lucide-react';
+import { toast } from '@/lib/stores/toastStore';
 
 const STATUS_OPTIONS = [
   { value: AttendanceStatus.PRESENT, label: '출석', color: '#065f46', bg: '#D1FAE5' },
@@ -44,9 +45,9 @@ export default function ClassAttendancePage() {
   const absentCount = Object.values(attMap).filter((v) => v === AttendanceStatus.ABSENT).length;
 
   const handleSave = () => {
-    if (!allFilled) { alert('모든 학생의 출결을 입력해주세요.'); return; }
+    if (!allFilled) { toast('모든 학생의 출결을 입력해주세요.', 'error'); return; }
     setSaved(true);
-    alert(`출결이 저장되었습니다.\n결석 ${absentCount}명에게 카카오 알림톡을 발송합니다. (20분 후)`);
+    toast(`출결 저장 완료. 결석 ${absentCount}명에게 알림톡 발송 예정 (20분 후)`, 'success');
   };
 
   return (
