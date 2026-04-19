@@ -113,7 +113,13 @@ export default function StudentReportPage() {
         if (!exam) return null;
         const examMs = new Date(exam.date).getTime();
         if (examMs < startMs || examMs > endMs) return null;
-        return { name: exam.name.slice(0, 6), score: g.score, total: exam.totalScore, date: exam.date };
+        return {
+          name: exam.name,
+          shortName: exam.name.length > 8 ? exam.name.slice(0, 8) + '…' : exam.name,
+          score: g.score,
+          total: exam.totalScore,
+          date: exam.date,
+        };
       })
       .filter(Boolean)
       .sort((a, b) => new Date(a!.date).getTime() - new Date(b!.date).getTime());
@@ -215,7 +221,7 @@ export default function StudentReportPage() {
                     <ResponsiveContainer width="100%" height={160}>
                       <LineChart data={studentGrades} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                        <XAxis dataKey="shortName" tick={{ fontSize: 10 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
                         <Tooltip contentStyle={{ fontSize: 12 }} />
                         <Line type="monotone" dataKey="score" stroke="#4fc3a1" strokeWidth={2} dot={{ r: 4 }} />
@@ -268,9 +274,9 @@ export default function StudentReportPage() {
                     <div className="space-y-3">
                       {studentGrades.filter((g) => g && g.score !== null).slice(0, 3).map((g) => g && (
                         <div key={g.name}>
-                          <div className="flex justify-between text-[12px] mb-1">
-                            <span className="text-[#374151]">{g.name}</span>
-                            <span className="font-semibold text-[#111827]">{g.score}점</span>
+                          <div className="flex justify-between gap-2 text-[12px] mb-1">
+                            <span className="text-[#374151] whitespace-normal break-keep">{g.name}</span>
+                            <span className="font-semibold text-[#111827] shrink-0">{g.score}점</span>
                           </div>
                           <div className="h-2 bg-[#f1f5f9] rounded-full overflow-hidden">
                             <div

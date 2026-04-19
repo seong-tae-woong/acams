@@ -106,25 +106,39 @@ export default function StudentAttendancePage() {
                   ))}
                 </div>
 
-                {/* 날짜 셀 */}
-                <div className="grid grid-cols-7 gap-0.5">
-                  {Array.from({ length: firstDay }).map((_, i) => (
-                    <div key={`empty-${i}`} className="h-9" />
-                  ))}
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const status = recordMap[dateStr];
-                    return (
-                      <div key={day} className="h-9 flex flex-col items-center justify-center rounded-[6px] text-[11.5px]">
-                        <span className="text-[#374151] font-medium leading-none">{day}</span>
-                        {status && (
-                          <span className={clsx('text-[9px] font-bold w-5 text-center rounded-full mt-0.5', STATUS_COLORS[status])}>
-                            {STATUS_SHORT[status]}
-                          </span>
-                        )}
+                {/* 날짜 셀 — 주(row)별 flex-1 균등 분배 */}
+                <div className="flex-1 flex flex-col gap-1 min-h-0">
+                  {(() => {
+                    const cells: (number | null)[] = [
+                      ...Array.from({ length: firstDay }, () => null),
+                      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+                    ];
+                    while (cells.length < 42) cells.push(null);
+                    const weeks: (number | null)[][] = [];
+                    for (let i = 0; i < 6; i++) weeks.push(cells.slice(i * 7, (i + 1) * 7));
+                    return weeks.map((week, wi) => (
+                      <div key={wi} className="flex-1 grid grid-cols-7 gap-1 min-h-0">
+                        {week.map((day, di) => {
+                          if (day === null) return <div key={di} />;
+                          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                          const status = recordMap[dateStr];
+                          return (
+                            <div
+                              key={di}
+                              className="flex flex-col items-center justify-center rounded-[6px] border border-[#f1f5f9] text-[12.5px] bg-white hover:bg-[#f9fafb] transition-colors"
+                            >
+                              <span className="text-[#374151] font-semibold leading-none">{day}</span>
+                              {status && (
+                                <span className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1.5', STATUS_COLORS[status])}>
+                                  {STATUS_SHORT[status]}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
 
                 {/* 범례 */}

@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
+import { StudentStatus } from '@/lib/types/student';
 import { DAY_NAMES } from '@/lib/types/class';
 import { toast } from '@/lib/stores/toastStore';
 import { Plus } from 'lucide-react';
@@ -40,8 +41,11 @@ export default function ClassesPage() {
         {/* 좌측: 반 목록 */}
         <div className="w-56 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           {classes.map((cls) => {
-            const pct = Math.round((cls.currentStudents / cls.maxStudents) * 100);
-            const isFull = cls.currentStudents >= cls.maxStudents;
+            const clsMembers = students.filter((s) => s.classes.includes(cls.id));
+            const activeN = clsMembers.filter((s) => s.status === StudentStatus.ACTIVE).length;
+            const onLeaveN = clsMembers.filter((s) => s.status === StudentStatus.ON_LEAVE).length;
+            const pct = Math.round((activeN / cls.maxStudents) * 100);
+            const isFull = activeN >= cls.maxStudents;
             return (
               <button
                 key={cls.id}
@@ -58,9 +62,12 @@ export default function ClassesPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-[#6b7280]">{cls.teacherName}</span>
                   <span className={clsx('text-[11px] font-medium', isFull ? 'text-[#991B1B]' : 'text-[#065f46]')}>
-                    {cls.currentStudents}/{cls.maxStudents}명
+                    재원 {activeN}/{cls.maxStudents}
                   </span>
                 </div>
+                {onLeaveN > 0 && (
+                  <div className="text-[10.5px] text-[#92400E] mt-0.5">휴원 {onLeaveN}명</div>
+                )}
                 <div className="mt-1.5 h-1 bg-[#f1f5f9] rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
@@ -74,7 +81,13 @@ export default function ClassesPage() {
 
         {/* 우측: 시간표 + 반 상세 */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {selected && (
+          {selected && (() => {
+            const classStudents = students.filter((s) => s.classes.includes(selected.id));
+            const activeCount = classStudents.filter((s) => s.status === StudentStatus.ACTIVE).length;
+            const onLeaveCount = classStudents.filter((s) => s.status === StudentStatus.ON_LEAVE).length;
+            const activeStudents = classStudents.filter((s) => s.status === StudentStatus.ACTIVE);
+            const onLeaveStudents = classStudents.filter((s) => s.status === StudentStatus.ON_LEAVE);
+            return (
             <>
               {/* 반 정보 카드 */}
               <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
@@ -91,8 +104,14 @@ export default function ClassesPage() {
                     <div className="font-medium text-[#111827]">{selected.teacherName}</div>
                   </div>
                   <div>
-                    <div className="text-[#6b7280] mb-0.5">정원/현원</div>
-                    <div className="font-medium text-[#111827]">{selected.currentStudents}/{selected.maxStudents}명</div>
+                    <div className="text-[#6b7280] mb-0.5">정원 / 재원 / 휴원</div>
+                    <div className="font-medium text-[#111827]">
+                      {selected.maxStudents}명 ·{' '}
+                      <span className="text-[#065f46]">재원 {activeCount}</span>
+                      {onLeaveCount > 0 && (
+                        <> · <span className="text-[#92400E]">휴원 {onLeaveCount}</span></>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <div className="text-[#6b7280] mb-0.5">수강료</div>
@@ -153,19 +172,48 @@ export default function ClassesPage() {
                   <span className="text-[12.5px] font-semibold text-[#111827]">수강생 목록</span>
                   <Button variant="default" size="sm" onClick={() => toast('학생 추가 기능은 추후 지원 예정입니다.', 'info')}>학생 추가</Button>
                 </div>
-                <div className="p-3 flex flex-wrap gap-2">
-                  {students.filter((s) => s.classes.includes(selected.id)).map((s) => (
-                    <div key={s.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#f4f6f8] rounded-[8px]">
-                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white" style={{ backgroundColor: s.avatarColor }}>
-                        {s.name[0]}
-                      </span>
-                      <span className="text-[12px] text-[#374151]">{s.name}</span>
+                <div className="p-3 space-y-3">
+                  {/* 재원 */}
+                  <div>
+                    <div className="text-[11px] font-semibold text-[#065f46] mb-1.5">재원 · {activeStudents.length}명</div>
+                    {activeStudents.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {activeStudents.map((s) => (
+                          <div key={s.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#f4f6f8] rounded-[8px]">
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white" style={{ backgroundColor: s.avatarColor }}>
+                              {s.name[0]}
+                            </span>
+                            <span className="text-[12px] text-[#374151]">{s.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11.5px] text-[#9ca3af]">재원생 없음</div>
+                    )}
+                  </div>
+
+                  {/* 휴원 (있을 때만) */}
+                  {onLeaveStudents.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-semibold text-[#92400E] mb-1.5">휴원 · {onLeaveStudents.length}명</div>
+                      <div className="flex flex-wrap gap-2">
+                        {onLeaveStudents.map((s) => (
+                          <div key={s.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#FEF3C7] rounded-[8px] opacity-75" title={s.memo || '휴원'}>
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white" style={{ backgroundColor: s.avatarColor }}>
+                              {s.name[0]}
+                            </span>
+                            <span className="text-[12px] text-[#92400E]">{s.name}</span>
+                            <span className="text-[9.5px] px-1 rounded bg-[#FEF3C7] text-[#92400E] border border-[#fcd34d]">휴원</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </>
-          )}
+            );
+          })()}
         </div>
       </div>
 
