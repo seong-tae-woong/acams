@@ -13,7 +13,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate, formatPhone } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Phone, School, Calendar, StickyNote, Users, KeyRound } from 'lucide-react';
+import { Plus, Phone, School, Calendar, StickyNote, Users, KeyRound, X } from 'lucide-react';
 import clsx from 'clsx';
 
 const STATUS_OPTIONS = [
@@ -108,7 +108,7 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
 export default function StudentsPage() {
   const { students, selectedStudentId, filterStatus, search, getFilteredStudents, getStudent,
     setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus,
-    addSiblingLink } = useStudentStore();
+    addSiblingLink, syncSiblings } = useStudentStore();
   const { classes } = useClassStore();
   const [detailTab, setDetailTab] = useState('info');
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -119,6 +119,11 @@ export default function StudentsPage() {
   const [newStatus, setNewStatus] = useState<StudentStatus>(StudentStatus.ACTIVE);
   const [postRegister, setPostRegister] = useState<PostRegisterInfo | null>(null);
 
+  // 형제/자매 관리 모달
+  const [siblingOpen, setSiblingOpen] = useState(false);
+  const [siblingSearch, setSiblingSearch] = useState('');
+  const [siblingChecked, setSiblingChecked] = useState<Set<string>>(new Set());
+
   const filtered = getFilteredStudents();
   const selected = selectedStudentId ? getStudent(selectedStudentId) : null;
   const studentClasses = selected ? classes.filter((c) => selected.classes.includes(c.id)) : [];
@@ -127,17 +132,61 @@ export default function StudentsPage() {
     count: opt.value === 'all' ? students.length : students.filter((s) => s.status === opt.value).length,
   }));
 
+  // 형제/자매 모달 오픈: 현재 형제 + 같은 보호자 번호 학생 pre-check
+  const openSiblingModal = () => {
+    if (!selected) return;
+    const samePhone = students
+      .filter((s) => s.id !== selected.id && s.parentPhone && s.parentPhone === selected.parentPhone)
+      .map((s) => s.id);
+    const initial = new Set([...selected.siblingIds, ...samePhone]);
+    setSiblingChecked(initial);
+    setSiblingSearch('');
+    setSiblingOpen(true);
+  };
+
+  const toggleSiblingCheck = (id: string) => {
+    setSiblingChecked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleSiblingsSave = () => {
+    if (!selected) return;
+    syncSiblings(selected.id, [...siblingChecked]);
+    setSiblingOpen(false);
+    toast('형제/자매 정보가 저장되었습니다.', 'success');
+  };
+
+  const removeSibling = (siblingId: string) => {
+    if (!selected) return;
+    syncSiblings(selected.id, selected.siblingIds.filter((id) => id !== siblingId));
+  };
+
+  // 형제/자매 모달에 표시할 학생 목록 (자기 자신 제외, 검색 필터 적용)
+  const siblingCandidateList = selected
+    ? students.filter((s) => {
+        if (s.id === selected.id) return false;
+        if (!siblingSearch) return true;
+        return s.name.includes(siblingSearch) || s.school.includes(siblingSearch);
+      })
+    : [];
+
+  // 같은 보호자 번호 학생 ID 집합 (모달 내 뱃지 표시용)
+  const samePhoneIds = selected
+    ? new Set(students.filter((s) => s.id !== selected.id && s.parentPhone && s.parentPhone === selected.parentPhone).map((s) => s.id))
+    : new Set<string>();
+
   const handleRegister = () => {
     if (!registerForm.name || !registerForm.phone || !registerForm.parentPhone) {
       toast('필수 항목을 입력해주세요.', 'error'); return;
     }
 
-    // 출결번호: 연도 + 3자리 순번 (예: 2026021)
     const year = new Date().getFullYear();
     const yearCount = students.filter((s) => s.attendanceNumber.startsWith(String(year))).length;
     const attendanceNumber = `${year}${String(yearCount + 1).padStart(3, '0')}`;
 
-    // 보호자 번호 기반 형제/자매 후보 탐색
     const siblingCandidates = students
       .filter((s) => s.parentPhone && s.parentPhone === registerForm.parentPhone)
       .map(({ id, name, school, grade, avatarColor }) => ({ id, name, school, grade, avatarColor }));
@@ -152,11 +201,9 @@ export default function StudentsPage() {
       birthDate: registerForm.birthDate || undefined,
     });
 
-    // 방금 추가된 학생 ID 획득 (Zustand set은 동기)
     const newStudents = useStudentStore.getState().students;
     const newStudentId = newStudents[newStudents.length - 1].id;
 
-    // 학부모 앱 계정 정보
     const credentialId = registerForm.parentPhone;
     const credentialPw = registerForm.birthDate
       ? registerForm.birthDate.replace(/-/g, '')
@@ -298,21 +345,44 @@ export default function StudentsPage() {
                     </dl>
                   </div>
                   <div className="space-y-4">
+                    {/* 형제/자매 카드 */}
                     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
-                      <div className="text-[12.5px] font-semibold text-[#111827] mb-2 flex items-center gap-1">
-                        <Users size={13} /> 형제/자매
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[12.5px] font-semibold text-[#111827] flex items-center gap-1">
+                          <Users size={13} /> 형제/자매
+                        </div>
+                        <button
+                          onClick={openSiblingModal}
+                          className="flex items-center gap-1 text-[11.5px] text-[#4fc3a1] hover:text-[#3aab8a] font-medium cursor-pointer"
+                        >
+                          <Plus size={12} /> 추가/수정
+                        </button>
                       </div>
                       {selected.siblingIds.length === 0 ? (
                         <p className="text-[12px] text-[#9ca3af]">등록된 형제/자매 없음</p>
-                      ) : selected.siblingIds.map((id) => {
-                        const sibling = students.find((s) => s.id === id);
-                        return sibling ? (
-                          <div key={id} className="flex items-center gap-2 text-[12px]">
-                            <Avatar name={sibling.name} color={sibling.avatarColor} size="sm" />
-                            {sibling.name} ({sibling.school} {sibling.grade}학년)
-                          </div>
-                        ) : null;
-                      })}
+                      ) : (
+                        <div className="space-y-1.5">
+                          {selected.siblingIds.map((id) => {
+                            const sibling = students.find((s) => s.id === id);
+                            return sibling ? (
+                              <div key={id} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 text-[12px]">
+                                  <Avatar name={sibling.name} color={sibling.avatarColor} size="sm" />
+                                  <span className="text-[#111827]">{sibling.name}</span>
+                                  <span className="text-[#9ca3af]">({sibling.school} {sibling.grade}학년)</span>
+                                </div>
+                                <button
+                                  onClick={() => removeSibling(id)}
+                                  className="text-[#9ca3af] hover:text-[#ef4444] cursor-pointer shrink-0"
+                                  title="형제/자매 해제"
+                                >
+                                  <X size={13} />
+                                </button>
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                       <div className="text-[12.5px] font-semibold text-[#111827] mb-2 flex items-center gap-1">
@@ -422,6 +492,72 @@ export default function StudentsPage() {
         </div>
       </Modal>
 
+      {/* 형제/자매 관리 모달 */}
+      <Modal
+        open={siblingOpen}
+        onClose={() => setSiblingOpen(false)}
+        title="형제/자매 관리"
+        size="md"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setSiblingOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleSiblingsSave}>저장</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[12px] text-[#6b7280]">
+            형제/자매로 연결할 학생을 선택하세요. 같은 보호자 번호의 학생은 자동으로 추천됩니다.
+          </p>
+          <input
+            type="text"
+            value={siblingSearch}
+            onChange={(e) => setSiblingSearch(e.target.value)}
+            placeholder="이름, 학교로 검색"
+            className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]"
+          />
+          <div className="max-h-64 overflow-y-auto space-y-1 border border-[#e2e8f0] rounded-[8px] p-1">
+            {siblingCandidateList.length === 0 ? (
+              <p className="text-[12px] text-[#9ca3af] text-center py-4">검색 결과가 없습니다</p>
+            ) : siblingCandidateList.map((s) => {
+              const isSamePhone = samePhoneIds.has(s.id);
+              const isChecked = siblingChecked.has(s.id);
+              return (
+                <label
+                  key={s.id}
+                  className={clsx(
+                    'flex items-center gap-3 px-3 py-2 rounded-[6px] cursor-pointer hover:bg-[#f4f6f8]',
+                    isChecked && 'bg-[#E1F5EE]',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleSiblingCheck(s.id)}
+                    className="accent-[#4fc3a1] shrink-0"
+                  />
+                  <Avatar name={s.name} color={s.avatarColor} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12.5px] font-medium text-[#111827]">{s.name}</span>
+                      {isSamePhone && (
+                        <span className="text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.5 rounded-full font-medium">
+                          보호자 번호 일치
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-[#6b7280]">{s.school} · {s.grade}학년</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          {siblingChecked.size > 0 && (
+            <p className="text-[11.5px] text-[#4fc3a1] font-medium">{siblingChecked.size}명 선택됨</p>
+          )}
+        </div>
+      </Modal>
+
       {/* 등록 완료 모달: 계정 안내 + 형제/자매 감지 */}
       <Modal
         open={!!postRegister}
@@ -440,7 +576,6 @@ export default function StudentsPage() {
         }
       >
         <div className="space-y-4">
-          {/* 학부모 앱 계정 안내 */}
           <div className="bg-[#f4f6f8] rounded-[8px] p-4 space-y-2">
             <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
               <KeyRound size={13} /> 학부모 앱 계정
@@ -456,7 +591,6 @@ export default function StudentsPage() {
             <p className="text-[11px] text-[#9ca3af] pt-1">첫 로그인 후 비밀번호를 변경할 수 있습니다.</p>
           </div>
 
-          {/* 형제/자매 감지 안내 */}
           {postRegister?.siblingCandidates.length ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">
               <div className="text-[12.5px] font-semibold text-[#92400e] mb-2">형제/자매 감지</div>

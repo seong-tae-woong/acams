@@ -20,6 +20,7 @@ interface StudentStore {
   updateStudent: (id: string, updates: Partial<Student>) => void;
   changeStatus: (id: string, status: StudentStatus) => void;
   addSiblingLink: (studentAId: string, studentBId: string) => void;
+  syncSiblings: (studentId: string, newSiblingIds: string[]) => void;
 }
 
 export const useStudentStore = create<StudentStore>((set, get) => ({
@@ -72,6 +73,22 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           return { ...s, siblingIds: [...s.siblingIds, studentBId] };
         if (s.id === studentBId && !s.siblingIds.includes(studentAId))
           return { ...s, siblingIds: [...s.siblingIds, studentAId] };
+        return s;
+      }),
+    }));
+  },
+
+  syncSiblings: (studentId, newSiblingIds) => {
+    const current = get().students.find((s) => s.id === studentId)?.siblingIds ?? [];
+    const toRemove = current.filter((id) => !newSiblingIds.includes(id));
+    const toAdd = newSiblingIds.filter((id) => !current.includes(id));
+    set((state) => ({
+      students: state.students.map((s) => {
+        if (s.id === studentId) return { ...s, siblingIds: newSiblingIds };
+        if (toRemove.includes(s.id))
+          return { ...s, siblingIds: s.siblingIds.filter((id) => id !== studentId) };
+        if (toAdd.includes(s.id) && !s.siblingIds.includes(studentId))
+          return { ...s, siblingIds: [...s.siblingIds, studentId] };
         return s;
       }),
     }));
