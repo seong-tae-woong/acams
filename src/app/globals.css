@@ -79,3 +79,11 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a0a8b4;
 }
+
+/* Print styles — 학생 리포트 PDF 출력 */
+@media print {
+  .no-print { display: none !important; }
+  nav, aside { display: none !important; }
+  body { background: white !important; }
+  .print-area { overflow: visible !important; }
+}

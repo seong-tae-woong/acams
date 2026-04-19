@@ -79,44 +79,44 @@ export default function StudentAttendancePage() {
               {/* 통계 카드 */}
               <div className="grid grid-cols-4 gap-3">
                 {[
-                  { label: '출석', value: `${records.filter(r => r.status === AttendanceStatus.PRESENT).length}일`, color: '#065f46', bg: '#D1FAE5' },
-                  { label: '결석', value: `${records.filter(r => r.status === AttendanceStatus.ABSENT).length}일`, color: '#991B1B', bg: '#FEE2E2' },
-                  { label: '지각', value: `${records.filter(r => r.status === AttendanceStatus.LATE).length}일`, color: '#92400E', bg: '#FEF3C7' },
-                  { label: '출석률', value: `${rate}%`, color: '#0D9E7A', bg: '#E1F5EE' },
+                  { label: '출석', value: `${records.filter(r => r.status === AttendanceStatus.PRESENT).length}일`, color: '#065f46' },
+                  { label: '결석', value: `${records.filter(r => r.status === AttendanceStatus.ABSENT).length}일`, color: '#991B1B' },
+                  { label: '지각', value: `${records.filter(r => r.status === AttendanceStatus.LATE).length}일`, color: '#92400E' },
+                  { label: '출석률', value: `${rate}%`, color: '#0D9E7A' },
                 ].map((stat) => (
-                  <div key={stat.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
-                    <div className="text-[20px] font-bold" style={{ color: stat.color }}>{stat.value}</div>
-                    <div className="text-[11.5px] text-[#6b7280] mt-1">{stat.label}</div>
+                  <div key={stat.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-3 text-center">
+                    <div className="text-[18px] font-bold" style={{ color: stat.color }}>{stat.value}</div>
+                    <div className="text-[11.5px] text-[#6b7280] mt-0.5">{stat.label}</div>
                   </div>
                 ))}
               </div>
 
               {/* 월 선택 + 캘린더 */}
-              <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
-                <div className="flex items-center justify-between mb-4">
+              <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-3">
+                <div className="flex items-center justify-between mb-2">
                   <button onClick={prevMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronLeft size={16} /></button>
                   <span className="text-[14px] font-semibold text-[#111827]">{year}년 {month}월</span>
                   <button onClick={nextMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronRight size={16} /></button>
                 </div>
 
                 {/* 요일 헤더 */}
-                <div className="grid grid-cols-7 mb-2">
+                <div className="grid grid-cols-7 mb-1">
                   {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-                    <div key={d} className="text-center text-[11.5px] text-[#9ca3af] py-1">{d}</div>
+                    <div key={d} className="text-center text-[11.5px] text-[#9ca3af] py-0.5">{d}</div>
                   ))}
                 </div>
 
                 {/* 날짜 셀 */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-0.5">
                   {Array.from({ length: firstDay }).map((_, i) => (
-                    <div key={`empty-${i}`} />
+                    <div key={`empty-${i}`} className="h-9" />
                   ))}
                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const status = recordMap[dateStr];
                     return (
-                      <div key={day} className="aspect-square flex flex-col items-center justify-center rounded-[6px] text-[11.5px]">
-                        <span className="text-[#374151] font-medium">{day}</span>
+                      <div key={day} className="h-9 flex flex-col items-center justify-center rounded-[6px] text-[11.5px]">
+                        <span className="text-[#374151] font-medium leading-none">{day}</span>
                         {status && (
                           <span className={clsx('text-[9px] font-bold w-5 text-center rounded-full mt-0.5', STATUS_COLORS[status])}>
                             {STATUS_SHORT[status]}
@@ -128,7 +128,7 @@ export default function StudentAttendancePage() {
                 </div>
 
                 {/* 범례 */}
-                <div className="flex gap-4 mt-4 pt-3 border-t border-[#f1f5f9]">
+                <div className="flex gap-4 mt-2 pt-2 border-t border-[#f1f5f9]">
                   {Object.entries(STATUS_SHORT).map(([s, short]) => (
                     <div key={s} className="flex items-center gap-1">
                       <span className={clsx('w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center', STATUS_COLORS[s])}>{short}</span>

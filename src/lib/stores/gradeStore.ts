@@ -13,6 +13,7 @@ interface GradeStore {
   setSelectedExam: (id: string | null) => void;
   addExam: (exam: Omit<Exam, 'id'>) => void;
   saveGrades: (grades: Omit<GradeRecord, 'id'>[]) => void;
+  updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>) => void;
 }
 
 export const useGradeStore = create<GradeStore>((set, get) => ({
@@ -38,5 +39,11 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
       }));
       return { grades: [...state.grades, ...newGrades] };
     });
+  },
+
+  updateGrade: (id, updates) => {
+    set((state) => ({
+      grades: state.grades.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+    }));
   },
 }));
