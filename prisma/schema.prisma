@@ -347,7 +347,7 @@ model GradeRecord {
   studentId String
   student   Student @relation(fields: [studentId], references: [id])
 
-  score     Float
+  score     Float?
   rank      Int?
   memo      String  @default("")
 

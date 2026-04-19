@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
@@ -28,13 +28,18 @@ const EMPTY_EXAM_FORM: ExamForm = {
 
 export default function GradesPage() {
   const { classes } = useClassStore();
-  const { exams, selectedExamId, getExamsByClass, getGradesByExam, setSelectedExam, addExam, deleteExam, saveGrades, updateGrade } = useGradeStore();
+  const {
+    exams, selectedExamId, loading,
+    getExamsByClass, getGradesByExam,
+    setSelectedExam, fetchExams, fetchGrades, addExam, deleteExam, saveGrades, updateGrade,
+  } = useGradeStore();
   const { students } = useStudentStore();
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? '');
 
   // 시험 등록 모달
   const [examFormOpen, setExamFormOpen] = useState(false);
   const [examForm, setExamForm] = useState<ExamForm>(EMPTY_EXAM_FORM);
+  const [submitting, setSubmitting] = useState(false);
 
   // 성적 인라인 편집
   const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
@@ -58,47 +63,74 @@ export default function GradesPage() {
 
   const selectedClass = classes.find((c) => c.id === selectedClassId);
 
-  const handleAddExam = () => {
+  // 반 변경 시 시험 목록 로드
+  const loadExams = useCallback(async (classId: string) => {
+    if (!classId) return;
+    await fetchExams(classId);
+  }, [fetchExams]);
+
+  useEffect(() => {
+    if (selectedClassId) loadExams(selectedClassId);
+  }, [selectedClassId, loadExams]);
+
+  // 시험 선택 시 성적 로드
+  const handleSelectExam = useCallback(async (examId: string | null) => {
+    setSelectedExam(examId);
+    if (examId) await fetchGrades(examId);
+  }, [setSelectedExam, fetchGrades]);
+
+  const handleAddExam = async () => {
     if (!examForm.name || !examForm.date) {
       toast('시험명과 날짜를 입력해주세요.', 'error'); return;
     }
-    const examId = addExam({
-      name: examForm.name,
-      subject: selectedClass?.subject ?? '',
-      classId: selectedClassId,
-      className: selectedClass?.name ?? '',
-      date: examForm.date,
-      totalScore: Number(examForm.totalScore) || 100,
-      description: examForm.description,
-    });
+    setSubmitting(true);
+    try {
+      const examId = await addExam({
+        name: examForm.name,
+        subject: selectedClass?.subject ?? '',
+        classId: selectedClassId,
+        className: selectedClass?.name ?? '',
+        date: examForm.date,
+        totalScore: Number(examForm.totalScore) || 100,
+        description: examForm.description,
+      });
 
-    // 해당 반의 재원 학생으로 빈 성적 레코드 자동 생성
-    const classStudents = students.filter(
-      (s) => s.status === StudentStatus.ACTIVE && s.classes.includes(selectedClassId),
-    );
-    if (classStudents.length > 0) {
-      saveGrades(
-        classStudents.map((s) => ({
-          examId,
-          studentId: s.id,
-          studentName: s.name,
-          score: null,
-          rank: null,
-          memo: '',
-        })),
+      // 해당 반의 재원 학생으로 빈 성적 레코드 자동 생성
+      const classStudents = students.filter(
+        (s) => s.status === StudentStatus.ACTIVE && s.classes.includes(selectedClassId),
       );
-    }
+      if (classStudents.length > 0) {
+        await saveGrades(
+          classStudents.map((s) => ({
+            examId,
+            studentId: s.id,
+            studentName: s.name,
+            score: null,
+            rank: null,
+            memo: '',
+          })),
+        );
+      }
 
-    toast(`'${examForm.name}' 시험이 등록되었습니다.`, 'success');
-    setSelectedExam(examId);
-    setExamFormOpen(false);
-    setExamForm(EMPTY_EXAM_FORM);
+      toast(`'${examForm.name}' 시험이 등록되었습니다.`, 'success');
+      await handleSelectExam(examId);
+      setExamFormOpen(false);
+      setExamForm(EMPTY_EXAM_FORM);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '시험 등록에 실패했습니다.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteExam = (examId: string, examName: string) => {
+  const handleDeleteExam = async (examId: string, examName: string) => {
     if (!window.confirm(`'${examName}' 시험을 삭제하시겠습니까?\n모든 성적 데이터도 함께 삭제됩니다.`)) return;
-    deleteExam(examId);
-    toast(`'${examName}' 시험이 삭제되었습니다.`, 'success');
+    try {
+      await deleteExam(examId);
+      toast(`'${examName}' 시험이 삭제되었습니다.`, 'success');
+    } catch {
+      toast('시험 삭제에 실패했습니다.', 'error');
+    }
   };
 
   const startEditScore = (gradeId: string, currentScore: number | null) => {
@@ -107,39 +139,44 @@ export default function GradesPage() {
     setEditingMemoId(null);
   };
 
-  const saveScore = (gradeId: string) => {
-    // 빈 입력 → null (미입력)
-    if (editScore.trim() === '') {
-      updateGrade(gradeId, { score: null, rank: null });
-      // 나머지 학생 순위 재계산
-      const others = examGrades.filter((g) => g.id !== gradeId && g.score !== null);
-      const sorted = [...others.map((g) => g.score as number)].sort((a, b) => b - a);
-      others.forEach((g) => updateGrade(g.id, { rank: sorted.indexOf(g.score as number) + 1 }));
-      setEditingGradeId(null);
-      return;
-    }
-    const newScore = Number(editScore);
-    if (isNaN(newScore) || newScore < 0) { setEditingGradeId(null); return; }
-    if (selectedExam && newScore > selectedExam.totalScore) {
+  const saveScore = async (gradeId: string) => {
+    const newScore = editScore.trim() === '' ? null : Number(editScore);
+    if (newScore !== null && (isNaN(newScore) || newScore < 0)) { setEditingGradeId(null); return; }
+    if (selectedExam && newScore !== null && newScore > selectedExam.totalScore) {
       toast(`점수는 만점(${selectedExam.totalScore}점) 이하여야 합니다.`, 'error'); return;
     }
-    // null이 아닌 점수들 + 현재 편집 점수로 순위 계산
-    const allNonNull = examGrades
+
+    // 순위 계산
+    const allScores = examGrades
       .map((g) => (g.id === gradeId ? newScore : g.score))
       .filter((s): s is number => s !== null);
-    const sorted = [...allNonNull].sort((a, b) => b - a);
-    const newRank = sorted.indexOf(newScore) + 1;
-    updateGrade(gradeId, { score: newScore, rank: newRank });
-    examGrades.forEach((g) => {
-      if (g.id === gradeId || g.score === null) return;
-      updateGrade(g.id, { rank: sorted.indexOf(g.score) + 1 });
-    });
+    const sorted = [...allScores].sort((a, b) => b - a);
+
     setEditingGradeId(null);
+
+    try {
+      // 현재 학생 점수+순위 저장
+      await updateGrade(gradeId, {
+        score: newScore,
+        rank: newScore !== null ? sorted.indexOf(newScore) + 1 : null,
+      });
+      // 나머지 학생 순위 재계산
+      const others = examGrades.filter((g) => g.id !== gradeId && g.score !== null);
+      await Promise.all(
+        others.map((g) => updateGrade(g.id, { rank: sorted.indexOf(g.score as number) + 1 })),
+      );
+    } catch {
+      toast('점수 저장에 실패했습니다.', 'error');
+    }
   };
 
-  const saveMemo = (gradeId: string) => {
-    updateGrade(gradeId, { memo: editMemo });
+  const saveMemo = async (gradeId: string) => {
     setEditingMemoId(null);
+    try {
+      await updateGrade(gradeId, { memo: editMemo });
+    } catch {
+      toast('코멘트 저장에 실패했습니다.', 'error');
+    }
   };
 
   const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
@@ -160,7 +197,10 @@ export default function GradesPage() {
           {classes.map((cls) => (
             <button
               key={cls.id}
-              onClick={() => { setSelectedClassId(cls.id); setSelectedExam(null); }}
+              onClick={() => {
+                setSelectedClassId(cls.id);
+                setSelectedExam(null);
+              }}
               className={clsx(
                 'px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium border transition-colors cursor-pointer',
                 selectedClassId === cls.id
@@ -181,7 +221,9 @@ export default function GradesPage() {
               <span className="text-[12.5px] font-semibold text-[#111827]">시험 목록</span>
             </div>
             <div className="divide-y divide-[#f1f5f9]">
-              {classExams.length === 0 ? (
+              {loading ? (
+                <div className="p-6 text-center text-[12px] text-[#9ca3af]">불러오는 중...</div>
+              ) : classExams.length === 0 ? (
                 <div className="p-6 text-center text-[12px] text-[#9ca3af]">시험 없음</div>
               ) : classExams.map((exam) => (
                 <div
@@ -192,7 +234,7 @@ export default function GradesPage() {
                   )}
                 >
                   <button
-                    onClick={() => setSelectedExam(exam.id)}
+                    onClick={() => handleSelectExam(exam.id)}
                     className="flex-1 px-4 py-3 text-left cursor-pointer"
                   >
                     <div className="text-[13px] font-medium text-[#111827]">{exam.name}</div>
@@ -368,7 +410,9 @@ export default function GradesPage() {
         footer={
           <>
             <Button variant="default" size="md" onClick={() => setExamFormOpen(false)}>취소</Button>
-            <Button variant="dark" size="md" onClick={handleAddExam}>등록</Button>
+            <Button variant="dark" size="md" onClick={handleAddExam} disabled={submitting}>
+              {submitting ? '등록 중...' : '등록'}
+            </Button>
           </>
         }
       >

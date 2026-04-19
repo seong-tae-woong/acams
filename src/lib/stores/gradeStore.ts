@@ -1,40 +1,88 @@
 'use client';
 import { create } from 'zustand';
 import type { Exam, GradeRecord } from '@/lib/types/grade';
-import { mockExams, mockGrades } from '@/lib/mock/grades';
 
 interface GradeStore {
   exams: Exam[];
   grades: GradeRecord[];
   selectedExamId: string | null;
+  loading: boolean;
+
+  // 조회
   getExamsByClass: (classId: string) => Exam[];
   getGradesByExam: (examId: string) => GradeRecord[];
   getGradesByStudent: (studentId: string) => GradeRecord[];
   setSelectedExam: (id: string | null) => void;
-  addExam: (exam: Omit<Exam, 'id'>) => string; // 생성된 examId 반환
-  deleteExam: (id: string) => void;
-  saveGrades: (grades: Omit<GradeRecord, 'id'>[]) => void;
-  updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>) => void;
+
+  // API 연동 (async)
+  fetchExams: (classId?: string) => Promise<void>;
+  fetchGrades: (examId: string) => Promise<void>;
+  addExam: (exam: Omit<Exam, 'id'>) => Promise<string>;
+  deleteExam: (id: string) => Promise<void>;
+  saveGrades: (grades: Omit<GradeRecord, 'id'>[]) => Promise<void>;
+  updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>) => Promise<void>;
 }
 
 export const useGradeStore = create<GradeStore>((set, get) => ({
-  exams: mockExams,
-  grades: mockGrades,
-  selectedExamId: mockExams[0]?.id ?? null,
+  exams: [],
+  grades: [],
+  selectedExamId: null,
+  loading: false,
 
   getExamsByClass: (classId) => get().exams.filter((e) => e.classId === classId),
   getGradesByExam: (examId) => get().grades.filter((g) => g.examId === examId),
   getGradesByStudent: (studentId) => get().grades.filter((g) => g.studentId === studentId),
   setSelectedExam: (id) => set({ selectedExamId: id }),
 
-  addExam: (input) => {
-    const id = `e${Date.now()}`;
-    const exam: Exam = { ...input, id };
-    set((state) => ({ exams: [...state.exams, exam] }));
-    return id;
+  fetchExams: async (classId) => {
+    set({ loading: true });
+    try {
+      const url = classId ? `/api/exams?classId=${classId}` : '/api/exams';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('시험 목록 조회 실패');
+      const data: Exam[] = await res.json();
+      set({ exams: data });
+    } finally {
+      set({ loading: false });
+    }
   },
 
-  deleteExam: (id) => {
+  fetchGrades: async (examId) => {
+    set({ loading: true });
+    try {
+      const res = await fetch(`/api/grades?examId=${examId}`);
+      if (!res.ok) throw new Error('성적 조회 실패');
+      const data: GradeRecord[] = await res.json();
+      // 해당 examId 성적만 교체, 다른 exam 성적은 유지
+      set((state) => ({
+        grades: [
+          ...state.grades.filter((g) => g.examId !== examId),
+          ...data,
+        ],
+      }));
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  addExam: async (input) => {
+    const res = await fetch('/api/exams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error ?? '시험 등록 실패');
+    }
+    const exam: Exam = await res.json();
+    set((state) => ({ exams: [...state.exams, exam] }));
+    return exam.id;
+  },
+
+  deleteExam: async (id) => {
+    const res = await fetch(`/api/exams/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('시험 삭제 실패');
     set((state) => ({
       exams: state.exams.filter((e) => e.id !== id),
       grades: state.grades.filter((g) => g.examId !== id),
@@ -42,19 +90,34 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
     }));
   },
 
-  saveGrades: (inputs) => {
-    set((state) => {
-      const newGrades = inputs.map((input, i) => ({
-        ...input,
-        id: `gr-new-${Date.now()}-${i}`,
-      }));
-      return { grades: [...state.grades, ...newGrades] };
+  saveGrades: async (inputs) => {
+    const res = await fetch('/api/grades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inputs),
     });
+    if (!res.ok) throw new Error('성적 저장 실패');
+    // 저장 후 해당 examId의 성적을 서버에서 다시 가져옴
+    if (inputs.length > 0) {
+      await get().fetchGrades(inputs[0].examId);
+    }
   },
 
-  updateGrade: (id, updates) => {
+  updateGrade: async (id, updates) => {
+    // 낙관적 업데이트 (UI 즉시 반응)
     set((state) => ({
       grades: state.grades.map((g) => (g.id === id ? { ...g, ...updates } : g)),
     }));
+    const res = await fetch(`/api/grades/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      // 실패 시 서버 데이터로 복원
+      const grade = get().grades.find((g) => g.id === id);
+      if (grade) await get().fetchGrades(grade.examId);
+      throw new Error('성적 수정 실패');
+    }
   },
 }));
