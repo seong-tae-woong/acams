@@ -73,11 +73,11 @@ export default function StudentAttendancePage() {
         </div>
 
         {/* 우측: 캘린더 */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 flex flex-col p-5 gap-3 min-h-0 overflow-hidden">
           {selected && (
             <>
               {/* 통계 카드 */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-3 shrink-0">
                 {[
                   { label: '출석', value: `${records.filter(r => r.status === AttendanceStatus.PRESENT).length}일`, color: '#065f46' },
                   { label: '결석', value: `${records.filter(r => r.status === AttendanceStatus.ABSENT).length}일`, color: '#991B1B' },
@@ -92,7 +92,7 @@ export default function StudentAttendancePage() {
               </div>
 
               {/* 월 선택 + 캘린더 */}
-              <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-3">
+              <div className="flex-1 bg-white rounded-[10px] border border-[#e2e8f0] p-3 flex flex-col min-h-0">
                 <div className="flex items-center justify-between mb-2">
                   <button onClick={prevMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronLeft size={16} /></button>
                   <span className="text-[14px] font-semibold text-[#111827]">{year}년 {month}월</span>

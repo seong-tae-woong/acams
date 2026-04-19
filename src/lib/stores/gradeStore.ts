@@ -11,7 +11,8 @@ interface GradeStore {
   getGradesByExam: (examId: string) => GradeRecord[];
   getGradesByStudent: (studentId: string) => GradeRecord[];
   setSelectedExam: (id: string | null) => void;
-  addExam: (exam: Omit<Exam, 'id'>) => void;
+  addExam: (exam: Omit<Exam, 'id'>) => string; // 생성된 examId 반환
+  deleteExam: (id: string) => void;
   saveGrades: (grades: Omit<GradeRecord, 'id'>[]) => void;
   updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>) => void;
 }
@@ -27,8 +28,18 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
   setSelectedExam: (id) => set({ selectedExamId: id }),
 
   addExam: (input) => {
-    const exam: Exam = { ...input, id: `e${Date.now()}` };
+    const id = `e${Date.now()}`;
+    const exam: Exam = { ...input, id };
     set((state) => ({ exams: [...state.exams, exam] }));
+    return id;
+  },
+
+  deleteExam: (id) => {
+    set((state) => ({
+      exams: state.exams.filter((e) => e.id !== id),
+      grades: state.grades.filter((g) => g.examId !== id),
+      selectedExamId: state.selectedExamId === id ? null : state.selectedExamId,
+    }));
   },
 
   saveGrades: (inputs) => {

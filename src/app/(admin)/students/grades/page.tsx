@@ -5,9 +5,11 @@ import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useGradeStore } from '@/lib/stores/gradeStore';
+import { useStudentStore } from '@/lib/stores/studentStore';
+import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ExamForm {
@@ -26,7 +28,8 @@ const EMPTY_EXAM_FORM: ExamForm = {
 
 export default function GradesPage() {
   const { classes } = useClassStore();
-  const { exams, selectedExamId, getExamsByClass, getGradesByExam, setSelectedExam, addExam, updateGrade } = useGradeStore();
+  const { exams, selectedExamId, getExamsByClass, getGradesByExam, setSelectedExam, addExam, deleteExam, saveGrades, updateGrade } = useGradeStore();
+  const { students } = useStudentStore();
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? '');
 
   // 시험 등록 모달
@@ -45,11 +48,13 @@ export default function GradesPage() {
   const selectedExam = exams.find((e) => e.id === selectedExamId);
   const examGrades = selectedExamId ? getGradesByExam(selectedExamId) : [];
 
-  const avg = examGrades.length > 0
-    ? Math.round(examGrades.reduce((s, g) => s + g.score, 0) / examGrades.length)
-    : 0;
-  const max = examGrades.length > 0 ? Math.max(...examGrades.map(g => g.score)) : 0;
-  const min = examGrades.length > 0 ? Math.min(...examGrades.map(g => g.score)) : 0;
+  // null 점수 제외하고 통계 계산
+  const scoredGrades = examGrades.filter((g) => g.score !== null);
+  const avg = scoredGrades.length > 0
+    ? Math.round(scoredGrades.reduce((s, g) => s + (g.score as number), 0) / scoredGrades.length)
+    : null;
+  const max = scoredGrades.length > 0 ? Math.max(...scoredGrades.map((g) => g.score as number)) : null;
+  const min = scoredGrades.length > 0 ? Math.min(...scoredGrades.map((g) => g.score as number)) : null;
 
   const selectedClass = classes.find((c) => c.id === selectedClassId);
 
@@ -57,7 +62,7 @@ export default function GradesPage() {
     if (!examForm.name || !examForm.date) {
       toast('시험명과 날짜를 입력해주세요.', 'error'); return;
     }
-    addExam({
+    const examId = addExam({
       name: examForm.name,
       subject: selectedClass?.subject ?? '',
       classId: selectedClassId,
@@ -66,29 +71,68 @@ export default function GradesPage() {
       totalScore: Number(examForm.totalScore) || 100,
       description: examForm.description,
     });
+
+    // 해당 반의 재원 학생으로 빈 성적 레코드 자동 생성
+    const classStudents = students.filter(
+      (s) => s.status === StudentStatus.ACTIVE && s.classes.includes(selectedClassId),
+    );
+    if (classStudents.length > 0) {
+      saveGrades(
+        classStudents.map((s) => ({
+          examId,
+          studentId: s.id,
+          studentName: s.name,
+          score: null,
+          rank: null,
+          memo: '',
+        })),
+      );
+    }
+
     toast(`'${examForm.name}' 시험이 등록되었습니다.`, 'success');
+    setSelectedExam(examId);
     setExamFormOpen(false);
     setExamForm(EMPTY_EXAM_FORM);
   };
 
-  const startEditScore = (gradeId: string, currentScore: number) => {
+  const handleDeleteExam = (examId: string, examName: string) => {
+    if (!window.confirm(`'${examName}' 시험을 삭제하시겠습니까?\n모든 성적 데이터도 함께 삭제됩니다.`)) return;
+    deleteExam(examId);
+    toast(`'${examName}' 시험이 삭제되었습니다.`, 'success');
+  };
+
+  const startEditScore = (gradeId: string, currentScore: number | null) => {
     setEditingGradeId(gradeId);
-    setEditScore(String(currentScore));
+    setEditScore(currentScore !== null ? String(currentScore) : '');
     setEditingMemoId(null);
   };
 
   const saveScore = (gradeId: string) => {
+    // 빈 입력 → null (미입력)
+    if (editScore.trim() === '') {
+      updateGrade(gradeId, { score: null, rank: null });
+      // 나머지 학생 순위 재계산
+      const others = examGrades.filter((g) => g.id !== gradeId && g.score !== null);
+      const sorted = [...others.map((g) => g.score as number)].sort((a, b) => b - a);
+      others.forEach((g) => updateGrade(g.id, { rank: sorted.indexOf(g.score as number) + 1 }));
+      setEditingGradeId(null);
+      return;
+    }
     const newScore = Number(editScore);
     if (isNaN(newScore) || newScore < 0) { setEditingGradeId(null); return; }
     if (selectedExam && newScore > selectedExam.totalScore) {
       toast(`점수는 만점(${selectedExam.totalScore}점) 이하여야 합니다.`, 'error'); return;
     }
-    const allScores = examGrades.map((g) => (g.id === gradeId ? newScore : g.score)).sort((a, b) => b - a);
-    const newRank = allScores.indexOf(newScore) + 1;
+    // null이 아닌 점수들 + 현재 편집 점수로 순위 계산
+    const allNonNull = examGrades
+      .map((g) => (g.id === gradeId ? newScore : g.score))
+      .filter((s): s is number => s !== null);
+    const sorted = [...allNonNull].sort((a, b) => b - a);
+    const newRank = sorted.indexOf(newScore) + 1;
     updateGrade(gradeId, { score: newScore, rank: newRank });
     examGrades.forEach((g) => {
-      if (g.id === gradeId) return;
-      updateGrade(g.id, { rank: allScores.indexOf(g.score) + 1 });
+      if (g.id === gradeId || g.score === null) return;
+      updateGrade(g.id, { rank: sorted.indexOf(g.score) + 1 });
     });
     setEditingGradeId(null);
   };
@@ -140,19 +184,30 @@ export default function GradesPage() {
               {classExams.length === 0 ? (
                 <div className="p-6 text-center text-[12px] text-[#9ca3af]">시험 없음</div>
               ) : classExams.map((exam) => (
-                <button
+                <div
                   key={exam.id}
-                  onClick={() => setSelectedExam(exam.id)}
                   className={clsx(
-                    'w-full px-4 py-3 text-left transition-colors cursor-pointer',
+                    'flex items-center group transition-colors',
                     selectedExamId === exam.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
                   )}
                 >
-                  <div className="text-[13px] font-medium text-[#111827]">{exam.name}</div>
-                  <div className="text-[11.5px] text-[#6b7280] mt-0.5">
-                    {formatKoreanDate(exam.date)} · 만점 {exam.totalScore}점
-                  </div>
-                </button>
+                  <button
+                    onClick={() => setSelectedExam(exam.id)}
+                    className="flex-1 px-4 py-3 text-left cursor-pointer"
+                  >
+                    <div className="text-[13px] font-medium text-[#111827]">{exam.name}</div>
+                    <div className="text-[11.5px] text-[#6b7280] mt-0.5">
+                      {formatKoreanDate(exam.date)} · 만점 {exam.totalScore}점
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteExam(exam.id, exam.name)}
+                    className="px-3 py-3 text-[#d1d5db] hover:text-[#ef4444] opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    title="시험 삭제"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -162,10 +217,10 @@ export default function GradesPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-3">
                 {[
-                  { label: '응시 인원', value: `${examGrades.length}명` },
-                  { label: '평균', value: `${avg}점` },
-                  { label: '최고', value: `${max}점` },
-                  { label: '최저', value: `${min}점` },
+                  { label: '전체 인원', value: `${examGrades.length}명` },
+                  { label: '평균', value: avg !== null ? `${avg}점` : '-' },
+                  { label: '최고', value: max !== null ? `${max}점` : '-' },
+                  { label: '최저', value: min !== null ? `${min}점` : '-' },
                 ].map((s) => (
                   <div key={s.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
                     <div className="text-[20px] font-bold text-[#111827]">{s.value}</div>
@@ -191,9 +246,14 @@ export default function GradesPage() {
                   </thead>
                   <tbody className="divide-y divide-[#f1f5f9]">
                     {[...examGrades]
-                      .sort((a, b) => b.score - a.score)
+                      .sort((a, b) => {
+                        if (a.score === null && b.score === null) return 0;
+                        if (a.score === null) return 1;
+                        if (b.score === null) return -1;
+                        return b.score - a.score;
+                      })
                       .map((g) => {
-                        const pct = Math.round((g.score / selectedExam.totalScore) * 100);
+                        const pct = g.score !== null ? Math.round((g.score / selectedExam.totalScore) * 100) : null;
                         const isEditingScore = editingGradeId === g.id;
                         const isEditingMemo = editingMemoId === g.id;
                         return (
@@ -213,34 +273,46 @@ export default function GradesPage() {
                                     if (e.key === 'Escape') setEditingGradeId(null);
                                   }}
                                   className="w-16 text-center border border-[#4fc3a1] rounded-[6px] px-1 py-0.5 text-[12.5px] font-semibold focus:outline-none"
+                                  placeholder="점수"
                                   autoFocus
                                 />
                               ) : (
                                 <button
                                   onClick={() => startEditScore(g.id, g.score)}
-                                  className="font-semibold text-[#111827] hover:text-[#4fc3a1] cursor-pointer"
-                                  title="클릭하여 수정"
+                                  className={clsx(
+                                    'font-semibold hover:text-[#4fc3a1] cursor-pointer',
+                                    g.score !== null ? 'text-[#111827]' : 'text-[#9ca3af]',
+                                  )}
+                                  title="클릭하여 점수 입력"
                                 >
-                                  {g.score}<span className="text-[#9ca3af] font-normal">/{selectedExam.totalScore}</span>
+                                  {g.score !== null
+                                    ? <>{g.score}<span className="text-[#9ca3af] font-normal">/{selectedExam.totalScore}</span></>
+                                    : '미입력'}
                                 </button>
                               )}
                             </td>
 
-                            <td className="px-4 py-2.5 text-center text-[#374151]">{g.rank}위</td>
+                            <td className="px-4 py-2.5 text-center text-[#374151]">
+                              {g.rank !== null ? `${g.rank}위` : '-'}
+                            </td>
 
                             <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full"
-                                    style={{
-                                      width: `${pct}%`,
-                                      backgroundColor: pct >= 90 ? '#4fc3a1' : pct >= 70 ? '#f59e0b' : '#ef4444',
-                                    }}
-                                  />
+                              {pct !== null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{
+                                        width: `${pct}%`,
+                                        backgroundColor: pct >= 90 ? '#4fc3a1' : pct >= 70 ? '#f59e0b' : '#ef4444',
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-[11.5px] text-[#6b7280] w-8 text-right">{pct}%</span>
                                 </div>
-                                <span className="text-[11.5px] text-[#6b7280] w-8 text-right">{pct}%</span>
-                              </div>
+                              ) : (
+                                <div className="flex-1 h-1.5 bg-[#f1f5f9] rounded-full" />
+                              )}
                             </td>
 
                             {/* 코멘트 — 클릭하면 textarea */}
@@ -303,9 +375,10 @@ export default function GradesPage() {
         <div className="space-y-3">
           <div className="text-[12px] text-[#6b7280] bg-[#f4f6f8] rounded-[8px] px-3 py-2">
             반: <span className="font-medium text-[#111827]">{selectedClass?.name ?? '-'}</span>
+            <span className="ml-2 text-[#9ca3af]">· 재원생이 자동으로 추가됩니다</span>
           </div>
           {[
-            { label: '시험명 *', key: 'name', type: 'text', placeholder: '3월 월례테스트' },
+            { label: '시험명 *', key: 'name', type: 'text', placeholder: '5월 월례테스트' },
             { label: '날짜 *', key: 'date', type: 'date', placeholder: '' },
             { label: '만점', key: 'totalScore', type: 'number', placeholder: '100' },
             { label: '설명', key: 'description', type: 'text', placeholder: '시험 범위 등 메모' },

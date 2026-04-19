@@ -264,9 +264,9 @@ export default function StudentReportPage() {
                 {/* 상대 비교 */}
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                   <div className="text-[12.5px] font-semibold text-[#111827] mb-3">반 내 상대 비교</div>
-                  {studentGrades.length > 0 ? (
+                  {studentGrades.filter((g) => g && g.score !== null).length > 0 ? (
                     <div className="space-y-3">
-                      {studentGrades.slice(0, 3).map((g) => g && (
+                      {studentGrades.filter((g) => g && g.score !== null).slice(0, 3).map((g) => g && (
                         <div key={g.name}>
                           <div className="flex justify-between text-[12px] mb-1">
                             <span className="text-[#374151]">{g.name}</span>
@@ -275,10 +275,10 @@ export default function StudentReportPage() {
                           <div className="h-2 bg-[#f1f5f9] rounded-full overflow-hidden">
                             <div
                               className="h-full rounded-full bg-[#4fc3a1]"
-                              style={{ width: `${Math.round((g.score / g.total) * 100)}%` }}
+                              style={{ width: `${Math.round(((g.score as number) / g.total) * 100)}%` }}
                             />
                           </div>
-                          <div className="text-[10.5px] text-[#9ca3af] mt-0.5">반 평균 대비 {g.score > 75 ? '우수' : '보통'}</div>
+                          <div className="text-[10.5px] text-[#9ca3af] mt-0.5">반 평균 대비 {(g.score as number) > 75 ? '우수' : '보통'}</div>
                         </div>
                       ))}
                     </div>

@@ -27,8 +27,9 @@ export default function MobileGradesPage() {
     total: g.exam!.totalScore,
   }));
 
-  const avg = myGrades.length > 0
-    ? Math.round(myGrades.reduce((s, g) => s + g.score, 0) / myGrades.length)
+  const scoredGrades = myGrades.filter((g) => g.score !== null);
+  const avg = scoredGrades.length > 0
+    ? Math.round(scoredGrades.reduce((s, g) => s + (g.score as number), 0) / scoredGrades.length)
     : 0;
 
   return (
@@ -76,8 +77,8 @@ export default function MobileGradesPage() {
             <span className="text-[13px] font-semibold text-[#111827]">시험 결과</span>
           </div>
           <div className="divide-y divide-[#f1f5f9]">
-            {myGrades.map((g) => {
-              const pct = Math.round((g.score / g.exam!.totalScore) * 100);
+            {myGrades.filter((g) => g.score !== null).map((g) => {
+              const pct = Math.round(((g.score as number) / g.exam!.totalScore) * 100);
               const color = pct >= 90 ? '#4fc3a1' : pct >= 70 ? '#f59e0b' : '#ef4444';
               return (
                 <div key={g.id} className="px-4 py-4">

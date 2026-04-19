@@ -18,7 +18,7 @@ export interface GradeRecord {
   examId: string;
   studentId: string;
   studentName: string;
-  score: number;
+  score: number | null; // null이면 미입력
   rank: number | null; // null이면 미산정
   memo: string;
 }
