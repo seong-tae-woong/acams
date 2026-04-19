@@ -9,8 +9,9 @@
 ## 현재 상태 요약
 - **인증**: JWT(httpOnly 쿠키) + bcrypt. `src/proxy.ts`에서 역할별 접근 제어.
 - **DB**: Neon PostgreSQL + Prisma 7. `src/lib/db/prisma.ts` 싱글턴.
-- **데이터**: 슈퍼어드민 영역만 실제 DB. 나머지는 `src/lib/mock/*.ts` 더미 데이터.
-- **다음 작업**: mock → 실제 API 교체 (학생 → 반 → 출결 → 재무 → 성적 → 소통 → 캘린더 순서).
+- **데이터 — DB 연동 완료**: 슈퍼어드민(학원/계정), 성적/시험(`/api/exams`, `/api/grades`).
+- **데이터 — mock 사용 중**: 학생, 반, 출결, 재무, 소통, 캘린더 (`src/lib/mock/*.ts`).
+- **다음 작업**: mock → 실제 API 교체 (학생 → 반 → 출결 → 재무 → 소통 → 캘린더 순서).
 
 ## 절대 지켜야 할 규칙
 
