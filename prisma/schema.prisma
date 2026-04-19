@@ -93,6 +93,7 @@ model Student {
   avatarColor      String        @default("#4A90D9")
   attendanceNumber String        @default("")
   qrCode           String        @default("")
+  birthDate        DateTime?
 
   userId           String?       @unique
   user             User?         @relation("StudentUser", fields: [userId], references: [id])

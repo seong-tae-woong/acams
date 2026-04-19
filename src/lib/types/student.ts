@@ -23,6 +23,7 @@ export interface Student {
   avatarColor: string; // hex color (e.g. '#4A90D9')
   attendanceNumber: string; // 출결번호
   qrCode: string; // QR코드 데이터
+  birthDate?: string; // 생년월일 YYYY-MM-DD
 }
 
 export type StudentCreateInput = Omit<Student, 'id' | 'qrCode'>;

@@ -19,6 +19,7 @@ interface StudentStore {
   addStudent: (student: Omit<Student, 'id' | 'qrCode'>) => void;
   updateStudent: (id: string, updates: Partial<Student>) => void;
   changeStatus: (id: string, status: StudentStatus) => void;
+  addSiblingLink: (studentAId: string, studentBId: string) => void;
 }
 
 export const useStudentStore = create<StudentStore>((set, get) => ({
@@ -61,6 +62,18 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
   changeStatus: (id, status) => {
     set((state) => ({
       students: state.students.map((s) => (s.id === id ? { ...s, status } : s)),
+    }));
+  },
+
+  addSiblingLink: (studentAId, studentBId) => {
+    set((state) => ({
+      students: state.students.map((s) => {
+        if (s.id === studentAId && !s.siblingIds.includes(studentBId))
+          return { ...s, siblingIds: [...s.siblingIds, studentBId] };
+        if (s.id === studentBId && !s.siblingIds.includes(studentAId))
+          return { ...s, siblingIds: [...s.siblingIds, studentAId] };
+        return s;
+      }),
     }));
   },
 }));

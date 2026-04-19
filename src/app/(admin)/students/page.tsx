@@ -13,7 +13,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate, formatPhone } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Phone, School, Calendar, StickyNote, Users } from 'lucide-react';
+import { Plus, Phone, School, Calendar, StickyNote, Users, KeyRound } from 'lucide-react';
 import clsx from 'clsx';
 
 const STATUS_OPTIONS = [
@@ -39,13 +39,22 @@ interface StudentForm {
   name: string; school: string; grade: string;
   phone: string; parentName: string; parentPhone: string;
   status: StudentStatus; enrollDate: string; memo: string;
+  birthDate: string;
 }
 
 const EMPTY_FORM: StudentForm = {
   name: '', school: '', grade: '3',
   phone: '', parentName: '', parentPhone: '',
   status: StudentStatus.ACTIVE, enrollDate: new Date().toISOString().slice(0, 10), memo: '',
+  birthDate: '',
 };
+
+interface PostRegisterInfo {
+  newStudentId: string;
+  credentialId: string;
+  credentialPw: string;
+  siblingCandidates: Array<{ id: string; name: string; school: string; grade: number; avatarColor: string }>;
+}
 
 function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: StudentForm) => void }) {
   const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
@@ -55,6 +64,7 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
         { label: '이름 *', key: 'name', type: 'text', placeholder: '홍길동' },
         { label: '학교 *', key: 'school', type: 'text', placeholder: '한국초등학교' },
         { label: '학년', key: 'grade', type: 'number', placeholder: '3' },
+        { label: '생년월일', key: 'birthDate', type: 'date', placeholder: '' },
         { label: '입원일', key: 'enrollDate', type: 'date', placeholder: '' },
         { label: '학생 연락처 *', key: 'phone', type: 'tel', placeholder: '010-0000-0000' },
         { label: '보호자 이름', key: 'parentName', type: 'text', placeholder: '홍부모' },
@@ -97,7 +107,8 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
 
 export default function StudentsPage() {
   const { students, selectedStudentId, filterStatus, search, getFilteredStudents, getStudent,
-    setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus } = useStudentStore();
+    setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus,
+    addSiblingLink } = useStudentStore();
   const { classes } = useClassStore();
   const [detailTab, setDetailTab] = useState('info');
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -106,6 +117,7 @@ export default function StudentsPage() {
   const [registerForm, setRegisterForm] = useState<StudentForm>(EMPTY_FORM);
   const [editForm, setEditForm] = useState<StudentForm>(EMPTY_FORM);
   const [newStatus, setNewStatus] = useState<StudentStatus>(StudentStatus.ACTIVE);
+  const [postRegister, setPostRegister] = useState<PostRegisterInfo | null>(null);
 
   const filtered = getFilteredStudents();
   const selected = selectedStudentId ? getStudent(selectedStudentId) : null;
@@ -119,21 +131,58 @@ export default function StudentsPage() {
     if (!registerForm.name || !registerForm.phone || !registerForm.parentPhone) {
       toast('필수 항목을 입력해주세요.', 'error'); return;
     }
+
+    // 출결번호: 연도 + 3자리 순번 (예: 2026021)
+    const year = new Date().getFullYear();
+    const yearCount = students.filter((s) => s.attendanceNumber.startsWith(String(year))).length;
+    const attendanceNumber = `${year}${String(yearCount + 1).padStart(3, '0')}`;
+
+    // 보호자 번호 기반 형제/자매 후보 탐색
+    const siblingCandidates = students
+      .filter((s) => s.parentPhone && s.parentPhone === registerForm.parentPhone)
+      .map(({ id, name, school, grade, avatarColor }) => ({ id, name, school, grade, avatarColor }));
+
     addStudent({
       ...registerForm,
       grade: Number(registerForm.grade),
-      classes: [], siblingIds: [],
+      classes: [],
+      siblingIds: [],
       avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-      attendanceNumber: `${1000 + students.length + 1}`,
+      attendanceNumber,
+      birthDate: registerForm.birthDate || undefined,
     });
-    toast(`${registerForm.name} 학생이 등록되었습니다.`);
+
+    // 방금 추가된 학생 ID 획득 (Zustand set은 동기)
+    const newStudents = useStudentStore.getState().students;
+    const newStudentId = newStudents[newStudents.length - 1].id;
+
+    // 학부모 앱 계정 정보
+    const credentialId = registerForm.parentPhone;
+    const credentialPw = registerForm.birthDate
+      ? registerForm.birthDate.replace(/-/g, '')
+      : '(생년월일 입력 후 확인 가능)';
+
     setRegisterOpen(false);
     setRegisterForm(EMPTY_FORM);
+    setPostRegister({ newStudentId, credentialId, credentialPw, siblingCandidates });
+  };
+
+  const handleSiblingLink = () => {
+    if (!postRegister) return;
+    postRegister.siblingCandidates.forEach((sibling) => {
+      addSiblingLink(postRegister.newStudentId, sibling.id);
+    });
+    setPostRegister(null);
+    toast('형제/자매 연결이 완료되었습니다.', 'success');
   };
 
   const handleEdit = () => {
     if (!selected) return;
-    updateStudent(selected.id, { ...editForm, grade: Number(editForm.grade) });
+    updateStudent(selected.id, {
+      ...editForm,
+      grade: Number(editForm.grade),
+      birthDate: editForm.birthDate || undefined,
+    });
     toast('학생 정보가 수정되었습니다.');
     setEditOpen(false);
   };
@@ -144,6 +193,7 @@ export default function StudentsPage() {
       name: selected.name, school: selected.school, grade: String(selected.grade),
       phone: selected.phone, parentName: selected.parentName, parentPhone: selected.parentPhone,
       status: selected.status, enrollDate: selected.enrollDate, memo: selected.memo,
+      birthDate: selected.birthDate ?? '',
     });
     setEditOpen(true);
   };
@@ -369,6 +419,61 @@ export default function StudentsPage() {
               <span className="text-[13px] font-medium text-[#111827]">{opt.label}</span>
             </label>
           ))}
+        </div>
+      </Modal>
+
+      {/* 등록 완료 모달: 계정 안내 + 형제/자매 감지 */}
+      <Modal
+        open={!!postRegister}
+        onClose={() => setPostRegister(null)}
+        title="등록 완료"
+        size="sm"
+        footer={
+          postRegister?.siblingCandidates.length ? (
+            <>
+              <Button variant="default" size="md" onClick={() => setPostRegister(null)}>건너뛰기</Button>
+              <Button variant="dark" size="md" onClick={handleSiblingLink}>형제/자매 연결</Button>
+            </>
+          ) : (
+            <Button variant="dark" size="md" onClick={() => setPostRegister(null)}>확인</Button>
+          )
+        }
+      >
+        <div className="space-y-4">
+          {/* 학부모 앱 계정 안내 */}
+          <div className="bg-[#f4f6f8] rounded-[8px] p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
+              <KeyRound size={13} /> 학부모 앱 계정
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-20 text-[#6b7280] shrink-0">로그인 ID</span>
+              <span className="font-mono font-medium text-[#111827]">{postRegister?.credentialId}</span>
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-20 text-[#6b7280] shrink-0">초기 비밀번호</span>
+              <span className="font-mono font-medium text-[#111827]">{postRegister?.credentialPw}</span>
+            </div>
+            <p className="text-[11px] text-[#9ca3af] pt-1">첫 로그인 후 비밀번호를 변경할 수 있습니다.</p>
+          </div>
+
+          {/* 형제/자매 감지 안내 */}
+          {postRegister?.siblingCandidates.length ? (
+            <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">
+              <div className="text-[12.5px] font-semibold text-[#92400e] mb-2">형제/자매 감지</div>
+              <p className="text-[12px] text-[#78350f] mb-3">
+                같은 보호자 번호를 사용하는 학생이 있습니다. 형제/자매로 연결할까요?
+              </p>
+              <div className="space-y-2">
+                {postRegister.siblingCandidates.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 text-[12px] text-[#111827]">
+                    <Avatar name={s.name} color={s.avatarColor} size="sm" />
+                    <span>{s.name}</span>
+                    <span className="text-[#6b7280]">({s.school} {s.grade}학년)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </Modal>
     </div>
