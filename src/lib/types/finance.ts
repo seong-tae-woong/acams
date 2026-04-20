@@ -22,6 +22,8 @@ export interface Bill {
   paidDate: string | null; // 납부일 (미납 시 null)
   method: PaymentMethod | null; // 납부 방법 (미납 시 null)
   memo: string;
+  adjustAmount?: number; // 조정 차감 금액 (수업 결석 등)
+  adjustMemo?: string;   // 조정 사유
 }
 
 export interface Expense {

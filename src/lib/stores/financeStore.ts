@@ -13,6 +13,7 @@ interface FinanceStore {
   getUnpaidBills: () => Bill[];
   setSelectedMonth: (month: string) => void;
   payBill: (billId: string, amount: number, method: Bill['method'], paidDate: string) => void;
+  adjustBill: (billId: string, adjustAmount: number, adjustMemo: string) => void;
   addExpense: (expense: Omit<Expense, 'id'>) => void;
 }
 
@@ -31,9 +32,24 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     set((state) => ({
       bills: state.bills.map((b) => {
         if (b.id !== billId) return b;
+        const effectiveAmount = b.amount - (b.adjustAmount ?? 0);
         const newPaid = b.paidAmount + amount;
-        const status = newPaid >= b.amount ? BillStatus.PAID : BillStatus.PARTIAL;
+        const status = newPaid >= effectiveAmount ? BillStatus.PAID : BillStatus.PARTIAL;
         return { ...b, paidAmount: newPaid, status, method, paidDate };
+      }),
+    }));
+  },
+
+  adjustBill: (billId, adjustAmount, adjustMemo) => {
+    set((state) => ({
+      bills: state.bills.map((b) => {
+        if (b.id !== billId) return b;
+        const effectiveAmount = b.amount - adjustAmount;
+        let status: BillStatus;
+        if (b.paidAmount >= effectiveAmount && effectiveAmount > 0) status = BillStatus.PAID;
+        else if (b.paidAmount > 0) status = BillStatus.PARTIAL;
+        else status = BillStatus.UNPAID;
+        return { ...b, adjustAmount, adjustMemo, status };
       }),
     }));
   },

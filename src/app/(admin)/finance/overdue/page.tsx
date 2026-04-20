@@ -1,12 +1,13 @@
 'use client';
+import { useState } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
+import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Send, Phone } from 'lucide-react';
-import clsx from 'clsx';
 
 // 위험 등급 분류
 function getRiskLevel(bill: { status: BillStatus; memo: string; studentName: string }) {
@@ -23,8 +24,23 @@ const RISK_STYLE: Record<string, { bg: string; text: string; border: string }> =
   '정상': { bg: '#D1FAE5', text: '#065f46', border: '#A7F3D0' },
 };
 
+const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string }> = {
+  [BillStatus.PAID]:    { label: '완납', bg: '#D1FAE5', text: '#065f46' },
+  [BillStatus.UNPAID]:  { label: '미납', bg: '#FEE2E2', text: '#991B1B' },
+  [BillStatus.PARTIAL]: { label: '부분납', bg: '#FEF3C7', text: '#92400E' },
+};
+
+function formatMonth(m: string) {
+  const [y, mo] = m.split('-');
+  return `${y}년 ${parseInt(mo)}월`;
+}
+
 export default function OverduePage() {
-  const { bills, payBill } = useFinanceStore();
+  const { bills, payBill, getBillsByStudent } = useFinanceStore();
+  const today = new Date().toISOString().split('T')[0];
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
 
   const overdueBills = bills
     .filter((b) => b.status !== BillStatus.PAID)
@@ -37,6 +53,16 @@ export default function OverduePage() {
   const totalOverdue = overdueBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
   const danger = overdueBills.filter((b) => b.risk === '위험').length;
   const warning = overdueBills.filter((b) => b.risk === '주의').length;
+
+  const detailBills = detailStudentId
+    ? getBillsByStudent(detailStudentId).sort((a, b) => b.month.localeCompare(a.month))
+    : [];
+  const detailStudentName = detailBills[0]?.studentName ?? '';
+
+  const openDetail = (studentId: string) => {
+    setDetailStudentId(studentId);
+    setDetailOpen(true);
+  };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -102,7 +128,17 @@ export default function OverduePage() {
                       </td>
                       <td className="px-4 py-3 font-medium text-[#111827]">{b.studentName}</td>
                       <td className="px-4 py-3 text-[#374151]">{b.className}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-[#991B1B]">{overAmount.toLocaleString()}원</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="font-semibold text-[#991B1B]">{overAmount.toLocaleString()}원</span>
+                          <button
+                            onClick={() => openDetail(b.studentId)}
+                            className="text-[11px] text-[#6b7280] border border-[#e2e8f0] rounded-[6px] px-2 py-0.5 hover:bg-[#f9fafb] whitespace-nowrap cursor-pointer"
+                          >
+                            상세 이력
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-center text-[#374151]">{formatKoreanDate(b.dueDate)}</td>
                       <td className="px-4 py-3 text-[#6b7280]">{b.memo || '-'}</td>
                       <td className="px-4 py-3 text-center">
@@ -113,7 +149,7 @@ export default function OverduePage() {
                           <Button
                             variant="primary"
                             size="sm"
-                            onClick={() => payBill(b.id, overAmount, '카드', '2026-04-17')}
+                            onClick={() => payBill(b.id, overAmount, '카드', today)}
                           >
                             수납
                           </Button>
@@ -127,6 +163,78 @@ export default function OverduePage() {
           )}
         </div>
       </div>
+
+      {/* 수강료 납부 이력 모달 */}
+      <Modal
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title={`${detailStudentName} 수강료 납부 이력`}
+        size="md"
+        footer={
+          <Button variant="default" size="md" onClick={() => setDetailOpen(false)}>닫기</Button>
+        }
+      >
+        <div className="space-y-1">
+          {detailBills.length === 0 ? (
+            <div className="text-center text-[13px] text-[#9ca3af] py-6">이력이 없습니다.</div>
+          ) : (
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="bg-[#f4f6f8]">
+                  <th className="text-left px-3 py-2 text-[#6b7280] font-medium rounded-tl-[6px]">청구 월</th>
+                  <th className="text-left px-3 py-2 text-[#6b7280] font-medium">반</th>
+                  <th className="text-right px-3 py-2 text-[#6b7280] font-medium">청구액</th>
+                  <th className="text-right px-3 py-2 text-[#6b7280] font-medium">납부액</th>
+                  <th className="text-right px-3 py-2 text-[#6b7280] font-medium">미납액</th>
+                  <th className="text-center px-3 py-2 text-[#6b7280] font-medium rounded-tr-[6px]">상태</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9]">
+                {detailBills.map((b) => {
+                  const st = STATUS_STYLE[b.status];
+                  const unpaid = b.amount - b.paidAmount;
+                  return (
+                    <tr key={b.id} className="hover:bg-[#f9fafb]">
+                      <td className="px-3 py-2.5 text-[#374151]">{formatMonth(b.month)}</td>
+                      <td className="px-3 py-2.5 text-[#374151]">{b.className}</td>
+                      <td className="px-3 py-2.5 text-right text-[#111827]">
+                        {b.amount.toLocaleString()}원
+                        {(b.adjustAmount ?? 0) > 0 && (
+                          <div className="text-[11px] text-[#991B1B]">-{(b.adjustAmount ?? 0).toLocaleString()}원 차감</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-[#111827]">{b.paidAmount.toLocaleString()}원</td>
+                      <td className="px-3 py-2.5 text-right font-medium" style={{ color: unpaid > 0 ? '#991B1B' : '#065f46' }}>
+                        {unpaid > 0 ? `${unpaid.toLocaleString()}원` : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>
+                          {st.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-[#f4f6f8] font-semibold">
+                  <td className="px-3 py-2 text-[#374151]" colSpan={2}>합계</td>
+                  <td className="px-3 py-2 text-right text-[#111827]">
+                    {detailBills.reduce((s, b) => s + b.amount, 0).toLocaleString()}원
+                  </td>
+                  <td className="px-3 py-2 text-right text-[#0D9E7A]">
+                    {detailBills.reduce((s, b) => s + b.paidAmount, 0).toLocaleString()}원
+                  </td>
+                  <td className="px-3 py-2 text-right text-[#991B1B]">
+                    {detailBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0).toLocaleString()}원
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

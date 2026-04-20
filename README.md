@@ -252,9 +252,69 @@ export async function GET(req: NextRequest) {
 **원장 PW 관리** — 학생 상세 화면에 "앱 계정" 섹션 추가:
 - `PW 초기화` 버튼 → `PATCH /api/students/[id]/reset-password` → 생년월일로 재설정
 
+#### Phase E: 학부모 PWA + 인앱 결제 시스템
+
+학부모용은 **네이티브 앱 대신 PWA**로 구축. 앱스토어 심사·30% 수수료 회피, 즉시 배포, 개발 리소스 절감 목적.
+초기에는 카카오 알림톡 없이 **PWA 인앱 결제**만으로 시작하고, 서비스 확장 시 알림톡/네이티브 앱 추가.
+
+**아키텍처 방향**
+```
+acams.kr/(admin)   → 학원 관리자/강사 (데스크탑 웹, 현재)
+acams.kr/parent    → 학부모 PWA (모바일 우선, 신규)
+   ├─ 청구서 조회 + 결제 (포트원 JS SDK)
+   ├─ 학업 성취도 리포트 열람
+   ├─ 출결/공지 확인
+   └─ Web Push (iOS 16.4+ / Android, "홈 화면 추가" 시)
+```
+
+**결제 플로우 (PG 서브몰 구조)**
+```
+학부모 PWA 로그인 → 청구서 탭 → "결제하기"
+   ↓ 포트원 JS SDK 호출 (카드/카카오페이/네이버페이/계좌이체)
+   ↓ 결제 완료 → PG Webhook 수신
+   → Bill.status = PAID, Receipt 자동 생성, 푸시 알림 발송
+   ↓ 정산: PG → 학원 계좌 직접 입금 (AcaMS 계좌 미경유)
+```
+
+> **전자금융업 회피**: AcaMS 계좌에 자금이 거치지 않고 PG가 학원 계좌로 직접 정산 → 라이선스 불필요.
+
+**필요한 스키마 확장 (예정)**
+
+| 모델 | 추가 필드 |
+|------|---------|
+| Bill | `paymentToken` (단축 URL용 unique), `paymentUrl`, `pgTransactionId`, `sentAt`, `paidVia` |
+| (신규) PaymentWebhookLog | `pgTxId` unique, `payload` Json, `processed` Bool — Webhook 멱등성/감사 |
+
+**필요한 API 라우트 (예정)**
+
+| 경로 | 역할 |
+|------|------|
+| POST /api/bills/[id]/send | 결제 토큰 생성 + 학부모에게 청구서 알림 (푸시) |
+| GET  /api/parent/bills | 학부모 본인의 미납/완납 청구서 목록 |
+| POST /api/pay/[token]/checkout | 포트원 결제창 호출 준비 (서버에서 금액 검증) |
+| POST /api/webhooks/portone | PG Webhook 수신 → Bill PAID + Receipt 생성 (서명 검증 + 멱등성) |
+
+**보안 체크포인트**
+- Webhook signature 헤더 검증 필수
+- 멱등성: 같은 `pgTxId` 재처리 방지 (`PaymentWebhookLog.unique`)
+- 금액 변조 방지: 클라이언트가 보낸 금액 신뢰 X, 서버에서 `Bill.amount`로만 결제 요청
+- 학부모 결제 페이지는 `proxy.ts`에서 인증 예외 처리 (또는 학부모 JWT 별도 검증)
+
+**PWA 셋업 항목**
+- `public/manifest.json` (앱 이름, 아이콘, theme_color)
+- Service Worker (오프라인 캐싱, 푸시 수신)
+- 모바일 우선 layout (`/parent` route group)
+- 첫 진입 시 "홈 화면에 추가" 안내 배너 (특히 iOS — 푸시 활성화 조건)
+
+#### Phase F (장기): 서비스 성장 후 추가
+
+서비스가 안정화되고 학원 도입처가 늘어나면 다음을 검토:
+
+- [ ] **카카오 알림톡 발송**: 비즈채널 개설 + 비즈메시지 대행사(알리고/솔라피/NHN) 계약 → 청구서/미납 리마인더를 PWA 푸시 + 알림톡 + SMS 3단 폴백으로 강화
+- [ ] **네이티브 앱**: 학생용 동영상 시청(태블릿 전용) 등 PWA로 어려운 기능에 한해 RN/Flutter 검토. 학부모용은 PWA 유지 권장 (앱스토어 결제 정책 회피)
+
 #### 기타
 - [ ] 키오스크 QR 출석 체크인 로직
-- [ ] 알림 실제 발송 (카카오 알림톡 or SMS)
 - [ ] 정산서 PDF 출력
 - [ ] NestJS 백엔드 마이그레이션 (장기 계획)
 
