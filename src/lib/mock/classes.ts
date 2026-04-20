@@ -1,4 +1,4 @@
-import type { ClassInfo } from '@/lib/types/class';
+import type { ClassInfo, FeeType } from '@/lib/types/class';
 
 export const mockClasses: ClassInfo[] = [
   {
@@ -17,6 +17,7 @@ export const mockClasses: ClassInfo[] = [
     color: '#4fc3a1',
     room: '1교실',
     fee: 280000,
+    feeType: 'monthly' as FeeType,
     description: '초등 1~3학년 기초 수학',
   },
   {
@@ -34,6 +35,7 @@ export const mockClasses: ClassInfo[] = [
     color: '#3b82f6',
     room: '1교실',
     fee: 280000,
+    feeType: 'monthly' as FeeType,
     description: '초등 3~4학년 심화 수학',
   },
   {
@@ -52,6 +54,7 @@ export const mockClasses: ClassInfo[] = [
     color: '#f59e0b',
     room: '2교실',
     fee: 150000,
+    feeType: 'monthly' as FeeType,
     description: '초등 저학년 파닉스',
   },
   {
@@ -69,6 +72,7 @@ export const mockClasses: ClassInfo[] = [
     color: '#8b5cf6',
     room: '2교실',
     fee: 150000,
+    feeType: 'monthly' as FeeType,
     description: '초등 2~3학년 영어 중급',
   },
   {
@@ -87,6 +91,7 @@ export const mockClasses: ClassInfo[] = [
     color: '#ef4444',
     room: '3교실',
     fee: 280000,
+    feeType: 'monthly' as FeeType,
     description: '중등 1학년 기초 수학',
   },
 ];

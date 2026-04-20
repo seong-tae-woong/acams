@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
 import Topbar from '@/components/admin/Topbar';
-import Badge from '@/components/shared/Badge';
 import Avatar from '@/components/shared/Avatar';
+import SearchInput from '@/components/shared/SearchInput';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useAttendanceStore } from '@/lib/stores/attendanceStore';
 import { AttendanceStatus } from '@/lib/types/attendance';
@@ -26,50 +26,66 @@ const STATUS_SHORT: Record<string, string> = {
 export default function StudentAttendancePage() {
   const [year, setYear] = useState(2026);
   const [month, setMonth] = useState(4);
+  const [search, setSearch] = useState('');
   const { students, selectedStudentId, setSelectedStudent } = useStudentStore();
   const { getRecordsByStudent } = useAttendanceStore();
 
   const activeStudents = students.filter((s) => s.status === StudentStatus.ACTIVE);
+  const filteredStudents = activeStudents.filter(
+    (s) => !search || s.name.includes(search) || s.school.includes(search),
+  );
   const selected = students.find((s) => s.id === selectedStudentId) ?? activeStudents[0];
 
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
   const records = selected ? getRecordsByStudent(selected.id, monthStr) : [];
 
   const recordMap: Record<string, AttendanceStatus> = {};
-  records.forEach((r) => { recordMap[r.date] = r.status; });
+  records.forEach((r) => {
+    recordMap[r.date] = r.status;
+  });
 
   const daysInMonth = new Date(year, month, 0).getDate();
-  const firstDay = new Date(year, month - 1, 1).getDay(); // 0=일
+  const firstDay = new Date(year, month - 1, 1).getDay();
 
   const presentDays = records.filter((r) => r.status === AttendanceStatus.PRESENT).length;
   const totalDays = records.length;
   const rate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
-  const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };
-  const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); };
+  const prevMonth = () => {
+    if (month === 1) { setMonth(12); setYear((y) => y - 1); } else setMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (month === 12) { setMonth(1); setYear((y) => y + 1); } else setMonth((m) => m + 1);
+  };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar title="출결 현황" badge="조회 전용" />
       <div className="flex flex-1 overflow-hidden">
+
         {/* 좌측: 학생 목록 */}
-        <div className="w-48 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-          {activeStudents.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSelectedStudent(s.id)}
-              className={clsx(
-                'w-full flex items-center gap-2 px-3 py-2.5 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
-                selected?.id === s.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
-              )}
-            >
-              <Avatar name={s.name} color={s.avatarColor} size="sm" />
-              <div>
-                <div className="text-[12.5px] font-medium text-[#111827]">{s.name}</div>
-                <div className="text-[11px] text-[#9ca3af]">{s.school}</div>
-              </div>
-            </button>
-          ))}
+        <div className="w-48 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden">
+          <div className="p-2 border-b border-[#f1f5f9]">
+            <SearchInput value={search} onChange={setSearch} placeholder="학생 검색..." />
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {filteredStudents.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedStudent(s.id)}
+                className={clsx(
+                  'w-full flex items-center gap-2 px-3 py-2.5 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
+                  selected?.id === s.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
+                )}
+              >
+                <Avatar name={s.name} color={s.avatarColor} size="sm" />
+                <div>
+                  <div className="text-[12.5px] font-medium text-[#111827]">{s.name}</div>
+                  <div className="text-[11px] text-[#9ca3af]">{s.school}</div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 우측: 캘린더 */}
@@ -79,9 +95,9 @@ export default function StudentAttendancePage() {
               {/* 통계 카드 */}
               <div className="grid grid-cols-4 gap-3 shrink-0">
                 {[
-                  { label: '출석', value: `${records.filter(r => r.status === AttendanceStatus.PRESENT).length}일`, color: '#065f46' },
-                  { label: '결석', value: `${records.filter(r => r.status === AttendanceStatus.ABSENT).length}일`, color: '#991B1B' },
-                  { label: '지각', value: `${records.filter(r => r.status === AttendanceStatus.LATE).length}일`, color: '#92400E' },
+                  { label: '출석', value: `${records.filter((r) => r.status === AttendanceStatus.PRESENT).length}일`, color: '#065f46' },
+                  { label: '결석', value: `${records.filter((r) => r.status === AttendanceStatus.ABSENT).length}일`, color: '#991B1B' },
+                  { label: '지각', value: `${records.filter((r) => r.status === AttendanceStatus.LATE).length}일`, color: '#92400E' },
                   { label: '출석률', value: `${rate}%`, color: '#0D9E7A' },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-3 text-center">
@@ -94,9 +110,13 @@ export default function StudentAttendancePage() {
               {/* 월 선택 + 캘린더 */}
               <div className="flex-1 bg-white rounded-[10px] border border-[#e2e8f0] p-3 flex flex-col min-h-0">
                 <div className="flex items-center justify-between mb-2">
-                  <button onClick={prevMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronLeft size={16} /></button>
+                  <button onClick={prevMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer">
+                    <ChevronLeft size={16} />
+                  </button>
                   <span className="text-[14px] font-semibold text-[#111827]">{year}년 {month}월</span>
-                  <button onClick={nextMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronRight size={16} /></button>
+                  <button onClick={nextMonth} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer">
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
 
                 {/* 요일 헤더 */}
@@ -106,7 +126,7 @@ export default function StudentAttendancePage() {
                   ))}
                 </div>
 
-                {/* 날짜 셀 — 주(row)별 flex-1 균등 분배 */}
+                {/* 날짜 셀 */}
                 <div className="flex-1 flex flex-col gap-1 min-h-0">
                   {(() => {
                     const cells: (number | null)[] = [
@@ -145,7 +165,9 @@ export default function StudentAttendancePage() {
                 <div className="flex gap-4 mt-2 pt-2 border-t border-[#f1f5f9]">
                   {Object.entries(STATUS_SHORT).map(([s, short]) => (
                     <div key={s} className="flex items-center gap-1">
-                      <span className={clsx('w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center', STATUS_COLORS[s])}>{short}</span>
+                      <span className={clsx('w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center', STATUS_COLORS[s])}>
+                        {short}
+                      </span>
                       <span className="text-[11.5px] text-[#6b7280]">{s}</span>
                     </div>
                   ))}
@@ -154,6 +176,7 @@ export default function StudentAttendancePage() {
             </>
           )}
         </div>
+
       </div>
     </div>
   );

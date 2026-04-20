@@ -82,6 +82,7 @@ export default function Sidebar() {
 
   const isActive = (href: string) => {
     if (href === '/students') return pathname === '/students';
+    if (href === '/classes') return pathname === '/classes';
     return pathname.startsWith(href);
   };
 

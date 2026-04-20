@@ -9,6 +9,20 @@ export interface ClassSchedule {
   endTime: string;   // "HH:MM"
 }
 
+export type FeeType = 'monthly' | 'weekly' | 'per-lesson';
+
+export const FEE_TYPE_LABELS: Record<FeeType, string> = {
+  monthly: '원/월',
+  weekly: '원/주',
+  'per-lesson': '원/수업',
+};
+
+export const FEE_TYPE_NAMES: Record<FeeType, string> = {
+  monthly: '월 단위',
+  weekly: '주 단위',
+  'per-lesson': '수업 단위',
+};
+
 export interface ClassInfo {
   id: string;
   name: string;
@@ -22,7 +36,8 @@ export interface ClassInfo {
   schedule: ClassSchedule[];
   color: string;   // 시간표 표시 색상 (hex)
   room: string;
-  fee: number;     // 월 수강료 (원)
+  fee: number;     // 수강료 (원)
+  feeType: FeeType; // 수강료 단위
   description: string;
 }
 
@@ -41,3 +56,12 @@ export interface ScheduleSlot {
 
 export type ClassCreateInput = Omit<ClassInfo, 'id' | 'currentStudents'>;
 export type ClassUpdateInput = Partial<Omit<ClassInfo, 'id'>>;
+
+// 날짜 지정 일회성 수업 일정
+export interface ClassEvent {
+  id: string;
+  classId: string;
+  date: string;       // 'YYYY-MM-DD'
+  startTime: string;  // 'HH:MM'
+  endTime: string;    // 'HH:MM'
+}

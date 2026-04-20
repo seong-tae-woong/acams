@@ -2,123 +2,98 @@
 
 # AcaMS — Claude 작업 가이드
 
-## 프로젝트 성격
-학원 관리 SaaS (멀티테넌트). 슈퍼어드민(나) → 원장 → 강사/학부모/학생 역할 계층.
-현재 MVP 단계: 인증·DB 연동 완료, 도메인 API는 아직 mock 데이터 사용 중.
+> 프로젝트 소개·개발현황·API목록·DB스키마·시드계정·CLI명령 → **README.md**
+> 현재: **Phase C** — mock → 실제 DB API 교체 중 (학생→반→출결→재무→소통→캘린더 순)
 
-## 현재 상태 요약
-- **인증**: JWT(httpOnly 쿠키) + bcrypt. `src/proxy.ts`에서 역할별 접근 제어.
-- **DB**: Neon PostgreSQL + Prisma 7. `src/lib/db/prisma.ts` 싱글턴.
-- **데이터 — DB 연동 완료**: 슈퍼어드민(학원/계정), 성적/시험(`/api/exams`, `/api/grades`).
-- **데이터 — mock 사용 중**: 학생, 반, 출결, 재무, 소통, 캘린더 (`src/lib/mock/*.ts`).
-- **다음 작업**: mock → 실제 API 교체 (학생 → 반 → 출결 → 재무 → 소통 → 캘린더 순서).
+---
 
-## 절대 지켜야 할 규칙
+## 절대 규칙
 
 ### Prisma 7
 ```typescript
-// import 경로: @/generated/prisma/client (끝에 /client 필수)
+// ✅ adapter 필수, /client 명시
 import { PrismaClient } from '@/generated/prisma/client';
-// PrismaClient 생성 시 adapter 필수
 import { PrismaPg } from '@prisma/adapter-pg';
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 ```
-- seed.ts에서도 동일하게 adapter 방식 사용
-- `prisma.config.ts`에 datasource URL과 seed 커맨드 설정됨
+- datasource URL → `prisma.config.ts` (schema.prisma 아님)
+- 스키마 변경 후 `npx prisma generate` 필수
 
 ### Next.js 16
 ```typescript
-// 미들웨어: proxy.ts, 함수명 proxy()
-export async function proxy(req: NextRequest) { ... }
-
-// cookies/headers: 항상 await
-const cookieStore = await cookies();
-
-// Route params: 항상 async
-type RouteContext = { params: Promise<{ id: string }> };
-export async function GET(req: NextRequest, ctx: RouteContext) {
-  const { id } = await ctx.params;
-}
-
-// HTTP 헤더에 한글 넣을 때: encodeURIComponent 필수
-requestHeaders.set('x-user-name', encodeURIComponent(name));
+export async function proxy(req: NextRequest) { ... }   // 미들웨어: src/proxy.ts
+const cookieStore = await cookies();                    // cookies/headers: 반드시 await
+const { id } = await ctx.params;                        // Route params: 반드시 async
+requestHeaders.set('x-user-name', encodeURIComponent(name)); // 헤더 한글: URL인코딩
 ```
 
-### 멀티테넌트 데이터 격리
+### 멀티테넌트 & 보안
 ```typescript
-// API 라우트에서 academyId는 반드시 헤더에서 가져올 것
-const academyId = req.headers.get('x-academy-id'); // proxy가 JWT에서 주입
-// 절대 클라이언트 요청 body/query의 academyId를 신뢰하지 말 것
+const academyId = req.headers.get('x-academy-id'); // body/query 값 절대 신뢰 금지
+if (req.headers.get('x-user-role') !== 'super_admin') return 403;
 ```
 
-### 슈퍼어드민 API 보호
-```typescript
-function isSuperAdmin(req: NextRequest) {
-  return req.headers.get('x-user-role') === 'super_admin';
-}
-```
+### 하지 말 것
+- `src/lib/mock/` 에 신규 데이터 추가 금지 — 신규 기능은 바로 DB API로
+- 클라이언트 컴포넌트에서 `prisma` 직접 사용 금지
 
-## 핵심 파일 위치
+---
+
+## 장기 제약 (기획서 v1.5)
+
+| 항목 | 내용 |
+|------|------|
+| 동영상 시청 | 태블릿 전용 + 학생 인증 필수 |
+| 출결 오프라인 | 로컬 500건 저장 → 재연결 시 자동 동기화 |
+| 출결 동시 편집 | 잠금 메커니즘, 5분 자동 해제 |
+| 알림 | 카카오 알림톡 우선, 3회 재시도 후 SMS 폴백 |
+| 로그인 잠금 | 5회 실패 → 30분 잠금 |
+| 데이터 보존 | 탈퇴 학생 3년 후 익명화, 휴학생 1년 후 자동 탈퇴 전환 |
+
+---
+
+## 핵심 파일
 
 | 파일 | 역할 |
 |------|------|
 | `src/proxy.ts` | JWT 검증, 헤더 주입, 역할 접근 제어 |
-| `src/lib/db/prisma.ts` | Prisma 싱글턴 (PrismaPg 어댑터) |
+| `src/lib/db/prisma.ts` | Prisma 싱글턴 |
 | `src/lib/auth/jwt.ts` | signToken / verifyToken |
 | `src/lib/auth/cookies.ts` | setAuthCookie / clearAuthCookie / getAuthToken (모두 async) |
 | `src/lib/stores/authStore.ts` | 현재 유저 상태, hydrate(), logout() |
-| `prisma/schema.prisma` | 전체 DB 스키마 |
-| `prisma/seed.ts` | 테스트 데이터 (tsx로 실행) |
+| `prisma/schema.prisma` | 전체 DB 스키마 (26개 모델) |
 | `prisma.config.ts` | Prisma 7 설정 |
 
-## 공용 컴포넌트
+---
 
-`src/components/shared/`에 이미 구현된 것들:
-- `Button` — variant: default/dark/primary/danger/ghost, size: sm/md/lg
-- `Modal` — title, children, footer props
-- `Badge` — 상태 표시용
-- `Avatar` — 이니셜 + 색상
-- `SearchInput` — 검색창
-- `Tabs` — 탭 네비게이션
-- `ToastContainer` — 반드시 layout.tsx에 포함
+## 공용 컴포넌트 (`src/components/shared/`)
 
-Toast 사용:
+이미 구현된 것만 사용 — 중복 구현 금지:
+- `Button` — variant: default/dark/primary/danger/ghost · size: sm/md/lg
+- `Modal` · `Badge` · `Avatar` · `SearchInput` · `Tabs` · `ToastContainer`
+
 ```typescript
 import { toast } from '@/lib/stores/toastStore';
 toast('메시지', 'success'); // 'success' | 'error' | 'info'
 ```
 
+---
+
 ## 디자인 토큰
 
 ```
-primary bg:    #1a2535 (다크 네이비)
-accent:        #4fc3a1 (민트 그린)
-border:        #e2e8f0
-text-primary:  #111827
-text-muted:    #6b7280
-text-faint:    #9ca3af
-radius-card:   12px
-radius-input:  10px
-radius-btn:    8px
-font-size 기본: 13px
-header height: 50px
+primary bg: #1a2535  accent: #4fc3a1    border: #e2e8f0
+text: #111827        text-muted: #6b7280  faint: #9ca3af
+radius: card 12px / input 10px / btn 8px
+font-size: 13px   header: 50px
 ```
 
-## 개발 서버 / 빌드
+---
 
-```bash
-npm run dev    # localhost:3000 (Turbopack)
-npm run build  # 타입 에러 확인용으로 자주 실행
-```
+## 작업 지침 (토큰 절약)
 
-시드 재실행:
-```bash
-npx prisma db seed
-```
-
-스키마 변경 후:
-```bash
-npx prisma db push    # 개발 중
-npx prisma generate   # 클라이언트 재생성
-```
+- **파일 읽기 전 수정 금지** — 반드시 Read 후 Edit
+- **단일 도메인 집중** — 한 번에 한 API 라우트 + 해당 스토어만 수정
+- **타입 재사용** — `src/lib/types/`에 있는 타입 먼저 확인 후 신규 정의
+- **mock 파일 참고용** — 필드 구조 파악에만 사용, 수정 금지
+- **Zustand 패턴** — 기존 store(예: `gradeStore.ts`) 참고해서 동일 패턴 유지

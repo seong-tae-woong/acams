@@ -21,6 +21,8 @@ interface StudentStore {
   changeStatus: (id: string, status: StudentStatus) => void;
   addSiblingLink: (studentAId: string, studentBId: string) => void;
   syncSiblings: (studentId: string, newSiblingIds: string[]) => void;
+  addStudentToClass: (studentId: string, classId: string) => void;
+  removeStudentFromClass: (studentId: string, classId: string) => void;
 }
 
 export const useStudentStore = create<StudentStore>((set, get) => ({
@@ -75,6 +77,26 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
           return { ...s, siblingIds: [...s.siblingIds, studentAId] };
         return s;
       }),
+    }));
+  },
+
+  addStudentToClass: (studentId, classId) => {
+    set((state) => ({
+      students: state.students.map((s) =>
+        s.id === studentId && !s.classes.includes(classId)
+          ? { ...s, classes: [...s.classes, classId] }
+          : s,
+      ),
+    }));
+  },
+
+  removeStudentFromClass: (studentId, classId) => {
+    set((state) => ({
+      students: state.students.map((s) =>
+        s.id === studentId
+          ? { ...s, classes: s.classes.filter((id) => id !== classId) }
+          : s,
+      ),
     }));
   },
 

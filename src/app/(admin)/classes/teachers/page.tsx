@@ -1,13 +1,16 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
+import Modal from '@/components/shared/Modal';
 import Avatar from '@/components/shared/Avatar';
+import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { useClassStore } from '@/lib/stores/classStore';
-import { mockTeachers } from '@/lib/mock/teachers';
 import { DAY_NAMES } from '@/lib/types/class';
+import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
+import type { TeacherPermissions } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
@@ -24,24 +27,129 @@ const PERM_LABELS: Record<string, string> = {
   viewReports: '리포트 조회',
 };
 
+const AVATAR_COLORS = ['#ef4444', '#4fc3a1', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#f97316', '#ec4899'];
+
+const fieldCls = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
+
 export default function TeachersPage() {
-  const [selectedId, setSelectedId] = useState(mockTeachers[0]?.id ?? '');
+  const { teachers, addTeacher, updateTeacher } = useTeacherStore();
   const { classes } = useClassStore();
 
-  const selected = mockTeachers.find((t) => t.id === selectedId);
+  const [selectedId, setSelectedId] = useState(teachers[0]?.id ?? '');
+  const selected = teachers.find((t) => t.id === selectedId);
   const teacherClasses = selected ? classes.filter((c) => selected.classes.includes(c.id)) : [];
+
+  // ── 권한 로컬 상태 ─────────────────────────────────────
+  const [localPerms, setLocalPerms] = useState<TeacherPermissions>(
+    selected?.permissions ?? DEFAULT_PERMISSIONS,
+  );
+
+  useEffect(() => {
+    if (selected) setLocalPerms(selected.permissions);
+  }, [selectedId, selected]);
+
+  const togglePerm = (key: string) => {
+    setLocalPerms((prev) => ({ ...prev, [key]: !prev[key as keyof TeacherPermissions] }));
+  };
+
+  const handleSavePerms = () => {
+    if (!selected) return;
+    updateTeacher(selected.id, { permissions: localPerms });
+    toast(`${selected.name} 강사 권한이 저장되었습니다.`, 'success');
+  };
+
+  // ── 강사 등록 모달 ─────────────────────────────────────
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [regForm, setRegForm] = useState({
+    name: '', subject: '', phone: '', email: '', classes: [] as string[],
+  });
+
+  const openRegister = () => {
+    setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
+    setRegisterOpen(true);
+  };
+
+  const toggleRegClass = (classId: string) => {
+    setRegForm((f) => ({
+      ...f,
+      classes: f.classes.includes(classId)
+        ? f.classes.filter((id) => id !== classId)
+        : [...f.classes, classId],
+    }));
+  };
+
+  const handleRegister = () => {
+    if (!regForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
+    addTeacher({
+      name: regForm.name.trim(),
+      subject: regForm.subject.trim(),
+      phone: regForm.phone.trim(),
+      email: regForm.email.trim(),
+      classes: regForm.classes,
+      permissions: { ...DEFAULT_PERMISSIONS },
+      isActive: true,
+      avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
+    });
+    toast(`'${regForm.name}' 강사가 등록되었습니다.`, 'success');
+    setRegisterOpen(false);
+  };
+
+  // ── 강사 정보 수정 모달 ────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '', subject: '', phone: '', email: '', classes: [] as string[],
+  });
+
+  const openEdit = () => {
+    if (!selected) return;
+    setEditForm({
+      name: selected.name,
+      subject: selected.subject,
+      phone: selected.phone,
+      email: selected.email,
+      classes: [...selected.classes],
+    });
+    setEditOpen(true);
+  };
+
+  const toggleEditClass = (classId: string) => {
+    setEditForm((f) => ({
+      ...f,
+      classes: f.classes.includes(classId)
+        ? f.classes.filter((id) => id !== classId)
+        : [...f.classes, classId],
+    }));
+  };
+
+  const handleEdit = () => {
+    if (!selected) return;
+    if (!editForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
+    updateTeacher(selected.id, {
+      name: editForm.name.trim(),
+      subject: editForm.subject.trim(),
+      phone: editForm.phone.trim(),
+      email: editForm.email.trim(),
+      classes: editForm.classes,
+    });
+    toast('강사 정보가 수정되었습니다.', 'success');
+    setEditOpen(false);
+  };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="강사 배정"
-        badge={`총 ${mockTeachers.filter(t => t.isActive).length}명`}
-        actions={<Button variant="dark" size="sm" onClick={() => toast('강사 등록 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 강사 등록</Button>}
+        badge={`총 ${teachers.filter(t => t.isActive).length}명`}
+        actions={
+          <Button variant="dark" size="sm" onClick={openRegister}>
+            <Plus size={13} /> 강사 등록
+          </Button>
+        }
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 강사 목록 */}
         <div className="w-48 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-          {mockTeachers.map((t) => (
+          {teachers.map((t) => (
             <button
               key={t.id}
               onClick={() => setSelectedId(t.id)}
@@ -72,7 +180,7 @@ export default function TeachersPage() {
                     <div className="text-[12px] text-[#6b7280]">{selected.subject} · {formatPhone(selected.phone)}</div>
                   </div>
                 </div>
-                <Button variant="default" size="sm" onClick={() => toast('정보 수정 기능은 추후 지원 예정입니다.', 'info')}>정보 수정</Button>
+                <Button variant="default" size="sm" onClick={openEdit}>정보 수정</Button>
               </div>
 
               {/* 담당 반 */}
@@ -130,17 +238,21 @@ export default function TeachersPage() {
             <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[12.5px] font-semibold text-[#111827]">메뉴 접근 권한</span>
-                <Button variant="primary" size="sm" onClick={() => toast(`${selected.name} 강사 권한이 저장되었습니다.`, 'success')}>권한 저장</Button>
+                <Button variant="primary" size="sm" onClick={handleSavePerms}>권한 저장</Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(PERM_LABELS).map(([key, label]) => {
-                  const enabled = selected.permissions[key as keyof typeof selected.permissions];
+                  const enabled = localPerms[key as keyof TeacherPermissions];
                   return (
                     <label key={key} className="flex items-center justify-between p-2.5 bg-[#f4f6f8] rounded-[8px] cursor-pointer">
                       <span className="text-[12px] text-[#374151]">{label}</span>
-                      <div className={clsx('w-9 h-5 rounded-full transition-colors relative', enabled ? 'bg-[#4fc3a1]' : 'bg-[#e2e8f0]')}>
+                      <button
+                        type="button"
+                        onClick={() => togglePerm(key)}
+                        className={clsx('w-9 h-5 rounded-full transition-colors relative focus:outline-none cursor-pointer', enabled ? 'bg-[#4fc3a1]' : 'bg-[#e2e8f0]')}
+                      >
                         <div className={clsx('absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] transition-all', enabled ? 'left-[19px]' : 'left-[3px]')} />
-                      </div>
+                      </button>
                     </label>
                   );
                 })}
@@ -149,6 +261,133 @@ export default function TeachersPage() {
           </div>
         )}
       </div>
+
+      {/* ── 강사 등록 모달 ───────────────────────────────── */}
+      <Modal
+        open={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        title="강사 등록"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setRegisterOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleRegister}>등록</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">이름 *</label>
+              <input className={fieldCls} value={regForm.name} onChange={(e) => setRegForm((f) => ({ ...f, name: e.target.value }))} placeholder="예: 최선생" />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">과목</label>
+              <input className={fieldCls} value={regForm.subject} onChange={(e) => setRegForm((f) => ({ ...f, subject: e.target.value }))} placeholder="예: 수학" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">연락처</label>
+              <input className={fieldCls} value={regForm.phone} onChange={(e) => setRegForm((f) => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000" />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">이메일</label>
+              <input className={fieldCls} value={regForm.email} onChange={(e) => setRegForm((f) => ({ ...f, email: e.target.value }))} placeholder="예: teacher@acams.kr" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1.5">담당 반 (복수 선택 가능)</label>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+              {classes.map((cls) => {
+                const isSelected = regForm.classes.includes(cls.id);
+                return (
+                  <button
+                    key={cls.id}
+                    type="button"
+                    onClick={() => toggleRegClass(cls.id)}
+                    className={clsx(
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                      isSelected
+                        ? 'border-[#4fc3a1] bg-[#E1F5EE] text-[#065f46]'
+                        : 'border-[#e2e8f0] bg-[#f4f6f8] text-[#374151] hover:border-[#4fc3a1]',
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls.color }} />
+                    {cls.name}
+                    {isSelected && <X size={11} className="ml-0.5 text-[#4fc3a1]" />}
+                  </button>
+                );
+              })}
+              {classes.length === 0 && (
+                <span className="text-[12px] text-[#9ca3af]">등록된 반이 없습니다.</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── 강사 정보 수정 모달 ──────────────────────────── */}
+      <Modal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="강사 정보 수정"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setEditOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleEdit}>저장</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">이름 *</label>
+              <input className={fieldCls} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">과목</label>
+              <input className={fieldCls} value={editForm.subject} onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">연락처</label>
+              <input className={fieldCls} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">이메일</label>
+              <input className={fieldCls} value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1.5">담당 반 (복수 선택 가능)</label>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+              {classes.map((cls) => {
+                const isSelected = editForm.classes.includes(cls.id);
+                return (
+                  <button
+                    key={cls.id}
+                    type="button"
+                    onClick={() => toggleEditClass(cls.id)}
+                    className={clsx(
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                      isSelected
+                        ? 'border-[#4fc3a1] bg-[#E1F5EE] text-[#065f46]'
+                        : 'border-[#e2e8f0] bg-[#f4f6f8] text-[#374151] hover:border-[#4fc3a1]',
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls.color }} />
+                    {cls.name}
+                    {isSelected && <X size={11} className="ml-0.5 text-[#4fc3a1]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

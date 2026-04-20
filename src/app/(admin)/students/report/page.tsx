@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Avatar from '@/components/shared/Avatar';
+import SearchInput from '@/components/shared/SearchInput';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useAttendanceStore } from '@/lib/stores/attendanceStore';
 import { useGradeStore } from '@/lib/stores/gradeStore';
@@ -57,11 +58,15 @@ function getCurrentQuarterMonths(): { year: number; month: number; label: string
 
 export default function StudentReportPage() {
   const [period, setPeriod] = useState<'monthly' | 'quarterly'>('monthly');
+  const [search, setSearch] = useState('');
   const { students, selectedStudentId, setSelectedStudent } = useStudentStore();
   const { getRecordsByStudent } = useAttendanceStore();
   const { grades, exams } = useGradeStore();
 
   const activeStudents = students.filter((s) => s.status === StudentStatus.ACTIVE);
+  const filteredStudents = activeStudents.filter(
+    (s) => !search || s.name.includes(search) || s.school.includes(search),
+  );
   const selected = students.find((s) => s.id === selectedStudentId) ?? activeStudents[0];
 
   // 기간 구간 결정
@@ -151,20 +156,25 @@ export default function StudentReportPage() {
       />
       <div className="flex flex-1 overflow-hidden">
         {/* 좌측 학생 목록 */}
-        <div className="w-44 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto no-print">
-          {activeStudents.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSelectedStudent(s.id)}
-              className={clsx(
-                'w-full flex items-center gap-2 px-3 py-2.5 border-b border-[#f1f5f9] text-left cursor-pointer transition-colors',
-                selected?.id === s.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
-              )}
-            >
-              <Avatar name={s.name} color={s.avatarColor} size="sm" />
-              <span className="text-[12.5px] font-medium text-[#111827]">{s.name}</span>
-            </button>
-          ))}
+        <div className="w-44 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden no-print">
+          <div className="p-2 border-b border-[#f1f5f9]">
+            <SearchInput value={search} onChange={setSearch} placeholder="학생 검색..." />
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {filteredStudents.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedStudent(s.id)}
+                className={clsx(
+                  'w-full flex items-center gap-2 px-3 py-2.5 border-b border-[#f1f5f9] text-left cursor-pointer transition-colors',
+                  selected?.id === s.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
+                )}
+              >
+                <Avatar name={s.name} color={s.avatarColor} size="sm" />
+                <span className="text-[12.5px] font-medium text-[#111827]">{s.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 리포트 본문 */}
