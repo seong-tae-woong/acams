@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { formatPhone } from '@/lib/utils/format';
-import { ChevronLeft, QrCode, Phone, School } from 'lucide-react';
+import { ChevronLeft, QrCode, Phone, School, LogOut } from 'lucide-react';
 import Link from 'next/link';
 
 type StudentInfo = {
@@ -17,6 +17,11 @@ type ClassInfo = {
 };
 
 const DAY_NAMES: Record<number, string> = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일' };
+
+async function handleLogout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
 
 export default function MobileProfilePage() {
   const [student, setStudent] = useState<StudentInfo | null>(null);
@@ -167,6 +172,14 @@ export default function MobileProfilePage() {
             </div>
           ))}
         </div>
+        {/* 로그아웃 */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-[12px] border border-[#e2e8f0] bg-white text-[13px] font-semibold text-[#ef4444]"
+        >
+          <LogOut size={15} />
+          로그아웃
+        </button>
       </div>
       <BottomTabBar />
     </div>

@@ -48,7 +48,7 @@ async function main() {
   // ─── 세계로학원 ────────────────────────────────────
   const academy = await prisma.academy.upsert({
     where: { slug: 'segyero' },
-    update: {},
+    update: { loginKey: 'SGR' },
     create: {
       name: '세계로학원',
       slug: 'segyero',
