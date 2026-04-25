@@ -5,6 +5,7 @@ import { useFinanceStore } from '@/lib/stores/financeStore';
 import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { ChevronDown, Check } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import clsx from 'clsx';
 
 const METHOD_STYLE: Record<string, { bg: string; text: string }> = {
@@ -22,7 +23,9 @@ function formatMonth(m: string) {
 }
 
 export default function PaymentsPage() {
-  const { bills } = useFinanceStore();
+  const { bills, loading, fetchBills } = useFinanceStore();
+
+  useEffect(() => { fetchBills(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [viewMode, setViewMode] = useState<'all' | 'card' | 'transfer' | 'cash'>('all');
   const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
   const [monthDropOpen, setMonthDropOpen] = useState(false);
@@ -90,7 +93,7 @@ export default function PaymentsPage() {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar title="수납 관리" />
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 수납 방법별 KPI */}
         <div className="grid grid-cols-4 gap-3">
           {[
@@ -208,7 +211,7 @@ export default function PaymentsPage() {
             )}
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

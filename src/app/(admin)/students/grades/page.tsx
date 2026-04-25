@@ -10,6 +10,7 @@ import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Plus, Trash2 } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import clsx from 'clsx';
 
 interface ExamForm {
@@ -222,7 +223,7 @@ export default function GradesPage() {
             </div>
             <div className="divide-y divide-[#f1f5f9]">
               {loading ? (
-                <div className="p-6 text-center text-[12px] text-[#9ca3af]">불러오는 중...</div>
+                <LoadingSpinner size="inline" />
               ) : classExams.length === 0 ? (
                 <div className="p-6 text-center text-[12px] text-[#9ca3af]">시험 없음</div>
               ) : classExams.map((exam) => (

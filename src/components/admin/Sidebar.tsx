@@ -3,9 +3,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import {
-  Users, BookOpen, Wallet, MessageSquare, BarChart2,
-  Settings, ClipboardList, UserCheck, GraduationCap,
-  BookMarked, Calendar, Bell, FileText, TrendingUp, CalendarDays,
+  Users, BookOpen, Wallet, BarChart2,
+  Settings, UserCheck, Calendar, Bell, TrendingUp,
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,9 +23,6 @@ const NAV: NavSection[] = [
     label: '학생 관리',
     items: [
       { href: '/students', label: '학생 등록/정보 관리', icon: Users },
-      { href: '/students/attendance', label: '출결 현황', icon: ClipboardList },
-      { href: '/students/grades', label: '성적/시험 결과', icon: GraduationCap },
-      { href: '/students/report', label: '학생 리포트', icon: FileText },
     ],
   },
   {
@@ -34,27 +30,19 @@ const NAV: NavSection[] = [
     items: [
       { href: '/classes', label: '반 편성 및 시간표', icon: BookOpen },
       { href: '/classes/attendance', label: '출결 체크', icon: UserCheck },
-      { href: '/classes/teachers', label: '강사 배정', icon: Users },
-      { href: '/classes/curriculum', label: '교재 및 커리큘럼', icon: BookMarked },
-      { href: '/classes/makeup', label: '보강 수업 관리', icon: CalendarDays },
     ],
   },
   {
     label: '재무 관리',
     items: [
-      { href: '/finance/billing', label: '수강료 청구 및 수납', icon: Wallet },
-      { href: '/finance/payments', label: '수납 관리', icon: Wallet },
-      { href: '/finance/overdue', label: '미납 관리', icon: Wallet },
-      { href: '/finance/settlement', label: '매출/지출 정산', icon: TrendingUp },
-      { href: '/finance/receipts', label: '영수증 이력', icon: FileText },
+      { href: '/finance/billing', label: '청구/수납/미납', icon: Wallet },
+      { href: '/finance/settlement', label: '정산 및 영수증', icon: TrendingUp },
     ],
   },
   {
     label: '소통 기능',
     items: [
-      { href: '/communication/notifications', label: '학부모 알림', icon: Bell },
-      { href: '/communication/consultation', label: '상담 기록 관리', icon: MessageSquare },
-      { href: '/communication/announcements', label: '공지사항 발송', icon: FileText },
+      { href: '/communication/notifications', label: '알림 및 공지', icon: Bell },
     ],
   },
   {

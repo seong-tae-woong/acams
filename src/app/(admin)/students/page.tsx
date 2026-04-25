@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Avatar from '@/components/shared/Avatar';
@@ -8,13 +8,20 @@ import SearchInput from '@/components/shared/SearchInput';
 import FilterTags from '@/components/shared/FilterTags';
 import Tabs from '@/components/shared/Tabs';
 import Modal from '@/components/shared/Modal';
+import AttendanceCalendarModal from '@/components/admin/AttendanceCalendarModal';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useClassStore } from '@/lib/stores/classStore';
+import { useAttendanceStore } from '@/lib/stores/attendanceStore';
+import { useGradeStore } from '@/lib/stores/gradeStore';
+import { useCommunicationStore } from '@/lib/stores/communicationStore';
+import { AttendanceStatus } from '@/lib/types/attendance';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate, formatPhone } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Phone, School, Calendar, StickyNote, Users, KeyRound, X } from 'lucide-react';
+import { Plus, Phone, School, Calendar, StickyNote, Users, KeyRound, X, CalendarDays, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import StudentReportTab from '@/components/admin/StudentReportTab';
 import clsx from 'clsx';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: '전체' },
@@ -31,19 +38,48 @@ const DETAIL_TABS = [
   { value: 'grade', label: '성적정보' },
   { value: 'payment', label: '결제정보' },
   { value: 'consult', label: '상담정보' },
+  { value: 'report', label: '리포트' },
 ];
 
 const AVATAR_COLORS = ['#4A90D9','#7B68EE','#20B2AA','#FF6B6B','#FFD93D','#6BCB77','#F4A261','#A78BFA','#34D399','#FB7185'];
 
+const ATT_STATUS_COLORS: Record<string, string> = {
+  [AttendanceStatus.PRESENT]: 'bg-[#D1FAE5] text-[#065f46]',
+  [AttendanceStatus.ABSENT]: 'bg-[#FEE2E2] text-[#991B1B]',
+  [AttendanceStatus.LATE]: 'bg-[#FEF3C7] text-[#92400E]',
+  [AttendanceStatus.EARLY_LEAVE]: 'bg-[#DBEAFE] text-[#1d4ed8]',
+};
+const ATT_STATUS_SHORT: Record<string, string> = {
+  [AttendanceStatus.PRESENT]: '출',
+  [AttendanceStatus.ABSENT]: '결',
+  [AttendanceStatus.LATE]: '지',
+  [AttendanceStatus.EARLY_LEAVE]: '조',
+};
+
+const CONSULT_TYPE_STYLE: Record<string, { bg: string; text: string }> = {
+  '대면': { bg: '#D1FAE5', text: '#065f46' },
+  '전화': { bg: '#DBEAFE', text: '#1d4ed8' },
+  '온라인': { bg: '#EDE9FE', text: '#5B4FBE' },
+};
+
 interface StudentForm {
-  name: string; school: string; grade: string;
+  name: string; school: string; schoolLevel: string; grade: string;
   phone: string; parentName: string; parentPhone: string;
   status: StudentStatus; enrollDate: string; memo: string;
   birthDate: string;
 }
 
+const SCHOOL_LEVELS = ['초등학교', '중학교', '고등학교', '대학교'] as const;
+
+function parseSchool(full: string): { school: string; schoolLevel: string } {
+  for (const lv of SCHOOL_LEVELS) {
+    if (full.endsWith(lv)) return { school: full.slice(0, -lv.length), schoolLevel: lv };
+  }
+  return { school: full, schoolLevel: '초등학교' };
+}
+
 const EMPTY_FORM: StudentForm = {
-  name: '', school: '', grade: '3',
+  name: '', school: '', schoolLevel: '초등학교', grade: '3',
   phone: '', parentName: '', parentPhone: '',
   status: StudentStatus.ACTIVE, enrollDate: new Date().toISOString().slice(0, 10), memo: '',
   birthDate: '',
@@ -51,8 +87,10 @@ const EMPTY_FORM: StudentForm = {
 
 interface PostRegisterInfo {
   newStudentId: string;
-  credentialId: string;
-  credentialPw: string;
+  studentLoginId: string;
+  studentTempPw: string | null;
+  parentLoginId: string;
+  parentTempPw: string | null;
   siblingCandidates: Array<{ id: string; name: string; school: string; grade: number; avatarColor: string }>;
 }
 
@@ -60,27 +98,54 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
   const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
   return (
     <div className="grid grid-cols-2 gap-3">
-      {[
-        { label: '이름 *', key: 'name', type: 'text', placeholder: '홍길동' },
-        { label: '학교 *', key: 'school', type: 'text', placeholder: '한국초등학교' },
-        { label: '학년', key: 'grade', type: 'number', placeholder: '3' },
-        { label: '생년월일', key: 'birthDate', type: 'date', placeholder: '' },
-        { label: '입원일', key: 'enrollDate', type: 'date', placeholder: '' },
-        { label: '학생 연락처 *', key: 'phone', type: 'tel', placeholder: '010-0000-0000' },
-        { label: '보호자 이름', key: 'parentName', type: 'text', placeholder: '홍부모' },
-        { label: '보호자 연락처 *', key: 'parentPhone', type: 'tel', placeholder: '010-0000-0000' },
-      ].map(({ label, key, type, placeholder }) => (
-        <div key={key}>
-          <label className="text-[11.5px] text-[#6b7280] block mb-1">{label}</label>
-          <input
-            type={type}
-            value={(form as unknown as Record<string, string>)[key]}
-            onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-            placeholder={placeholder}
-            className={fieldClass}
-          />
+      {/* 이름 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">이름 *</label>
+        <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="홍길동" className={fieldClass} />
+      </div>
+      {/* 학년 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">학년</label>
+        <input type="number" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} placeholder="3" className={fieldClass} />
+      </div>
+      {/* 학교명 + 학교급 (한 행 full-width) */}
+      <div className="col-span-2 grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11.5px] text-[#6b7280] block mb-1">학교명</label>
+          <input type="text" value={form.school} onChange={(e) => setForm({ ...form, school: e.target.value })} placeholder="예: 한국" className={fieldClass} />
         </div>
-      ))}
+        <div>
+          <label className="text-[11.5px] text-[#6b7280] block mb-1">학교급</label>
+          <select value={form.schoolLevel} onChange={(e) => setForm({ ...form, schoolLevel: e.target.value })} className={fieldClass}>
+            {SCHOOL_LEVELS.map((lv) => <option key={lv} value={lv}>{lv}</option>)}
+          </select>
+        </div>
+      </div>
+      {/* 생년월일 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">생년월일</label>
+        <input type="date" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} className={fieldClass} />
+      </div>
+      {/* 입원일 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">입원일</label>
+        <input type="date" value={form.enrollDate} onChange={(e) => setForm({ ...form, enrollDate: e.target.value })} className={fieldClass} />
+      </div>
+      {/* 학생 연락처 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">학생 연락처 *</label>
+        <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000" className={fieldClass} />
+      </div>
+      {/* 보호자 이름 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">보호자 이름</label>
+        <input type="text" value={form.parentName} onChange={(e) => setForm({ ...form, parentName: e.target.value })} placeholder="홍부모" className={fieldClass} />
+      </div>
+      {/* 보호자 연락처 */}
+      <div>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">보호자 연락처 *</label>
+        <input type="tel" value={form.parentPhone} onChange={(e) => setForm({ ...form, parentPhone: e.target.value })} placeholder="010-0000-0000" className={fieldClass} />
+      </div>
       <div>
         <label className="text-[11.5px] text-[#6b7280] block mb-1">상태</label>
         <select
@@ -106,10 +171,19 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
 }
 
 export default function StudentsPage() {
-  const { students, selectedStudentId, filterStatus, search, getFilteredStudents, getStudent,
+  const { students, selectedStudentId, filterStatus, search, loading, getFilteredStudents, getStudent,
     setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus,
-    addSiblingLink, syncSiblings } = useStudentStore();
-  const { classes } = useClassStore();
+    addSiblingLink, syncSiblings, fetchStudents } = useStudentStore();
+  const { classes, fetchClasses } = useClassStore();
+  const { getRecordsByStudent, fetchByStudentMonth } = useAttendanceStore();
+  const { getExamsByClass, getGradesByExam, fetchExams, fetchGrades } = useGradeStore();
+  const { consultations, fetchConsultations } = useCommunicationStore();
+
+  useEffect(() => {
+    fetchStudents();
+    fetchClasses();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [detailTab, setDetailTab] = useState('info');
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -124,6 +198,19 @@ export default function StudentsPage() {
   const [siblingSearch, setSiblingSearch] = useState('');
   const [siblingChecked, setSiblingChecked] = useState<Set<string>>(new Set());
 
+  // 비밀번호 초기화
+  const [resetTarget, setResetTarget] = useState<'student' | 'parent' | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string | null; tempPassword: string; target: 'student' | 'parent' } | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  // 출결 캘린더 팝업 (학생 목록 행 버튼)
+  const [attModalStudentId, setAttModalStudentId] = useState<string | null>(null);
+  const [attModalStudentName, setAttModalStudentName] = useState('');
+
+  // 출결 탭 인라인 캘린더
+  const [attYear, setAttYear] = useState(() => new Date().getFullYear());
+  const [attMonth, setAttMonth] = useState(() => new Date().getMonth() + 1);
+
   const filtered = getFilteredStudents();
   const selected = selectedStudentId ? getStudent(selectedStudentId) : null;
   const studentClasses = selected ? classes.filter((c) => selected.classes.includes(c.id)) : [];
@@ -132,7 +219,69 @@ export default function StudentsPage() {
     count: opt.value === 'all' ? students.length : students.filter((s) => s.status === opt.value).length,
   }));
 
-  // 형제/자매 모달 오픈: 현재 형제 + 같은 보호자 번호 학생 pre-check
+  // 학생 변경 시 출결 탭 월 초기화
+  useEffect(() => {
+    setAttYear(new Date().getFullYear());
+    setAttMonth(new Date().getMonth() + 1);
+  }, [selected?.id]);
+
+  // 출결 탭 데이터 fetch
+  const attMonthStr = `${attYear}-${String(attMonth).padStart(2, '0')}`;
+  useEffect(() => {
+    if (detailTab === 'attendance' && selected?.id) {
+      fetchByStudentMonth(selected.id, attMonthStr);
+    }
+  }, [detailTab, selected?.id, attMonthStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 성적 탭 데이터 fetch
+  useEffect(() => {
+    if (detailTab === 'grade' && selected) {
+      studentClasses.forEach(async (cls) => {
+        await fetchExams(cls.id);
+        getExamsByClass(cls.id).forEach((exam) => fetchGrades(exam.id));
+      });
+    }
+  }, [detailTab, selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 상담 탭 데이터 fetch
+  useEffect(() => {
+    if (detailTab === 'consult') {
+      fetchConsultations();
+    }
+  }, [detailTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 출결 탭 계산
+  const attRecords = selected ? getRecordsByStudent(selected.id, attMonthStr) : [];
+  const attRecordMap: Record<string, AttendanceStatus> = {};
+  attRecords.forEach((r) => { attRecordMap[r.date] = r.status; });
+  const attDaysInMonth = new Date(attYear, attMonth, 0).getDate();
+  const attFirstDay = new Date(attYear, attMonth - 1, 1).getDay();
+  const attPresentDays = attRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+  const attTotalDays = attRecords.length;
+  const attRate = attTotalDays > 0 ? Math.round((attPresentDays / attTotalDays) * 100) : 0;
+
+  const attCells: (number | null)[] = [
+    ...Array.from({ length: attFirstDay }, () => null),
+    ...Array.from({ length: attDaysInMonth }, (_, i) => i + 1),
+  ];
+  while (attCells.length < 42) attCells.push(null);
+  const attWeeks: (number | null)[][] = Array.from({ length: 6 }, (_, i) => attCells.slice(i * 7, (i + 1) * 7));
+
+  // 성적 탭 계산
+  const gradeRows = studentClasses.flatMap((cls) =>
+    getExamsByClass(cls.id).map((exam) => {
+      const grades = getGradesByExam(exam.id);
+      const myGrade = selected ? grades.find((g) => g.studentId === selected.id) : null;
+      return { cls, exam, myGrade: myGrade ?? null };
+    })
+  ).sort((a, b) => b.exam.date.localeCompare(a.exam.date));
+
+  // 상담 탭 계산
+  const studentConsults = selected
+    ? [...consultations.filter((c) => c.studentId === selected.id)].sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+
+  // 형제/자매 모달
   const openSiblingModal = () => {
     if (!selected) return;
     const samePhone = students
@@ -164,7 +313,6 @@ export default function StudentsPage() {
     syncSiblings(selected.id, selected.siblingIds.filter((id) => id !== siblingId));
   };
 
-  // 형제/자매 모달에 표시할 학생 목록 (자기 자신 제외, 검색 필터 적용)
   const siblingCandidateList = selected
     ? students.filter((s) => {
         if (s.id === selected.id) return false;
@@ -173,12 +321,11 @@ export default function StudentsPage() {
       })
     : [];
 
-  // 같은 보호자 번호 학생 ID 집합 (모달 내 뱃지 표시용)
   const samePhoneIds = selected
     ? new Set(students.filter((s) => s.id !== selected.id && s.parentPhone && s.parentPhone === selected.parentPhone).map((s) => s.id))
     : new Set<string>();
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!registerForm.name || !registerForm.phone || !registerForm.parentPhone) {
       toast('필수 항목을 입력해주세요.', 'error'); return;
     }
@@ -191,27 +338,34 @@ export default function StudentsPage() {
       .filter((s) => s.parentPhone && s.parentPhone === registerForm.parentPhone)
       .map(({ id, name, school, grade, avatarColor }) => ({ id, name, school, grade, avatarColor }));
 
-    addStudent({
-      ...registerForm,
-      grade: Number(registerForm.grade),
-      classes: [],
-      siblingIds: [],
-      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-      attendanceNumber,
-      birthDate: registerForm.birthDate || undefined,
-    });
+    try {
+      const { tempPasswords, studentLoginId } = await addStudent({
+        ...registerForm,
+        school: `${registerForm.school.trim()}${registerForm.schoolLevel}`,
+        grade: Number(registerForm.grade),
+        classes: [],
+        siblingIds: [],
+        avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+        attendanceNumber,
+        birthDate: registerForm.birthDate || undefined,
+      });
 
-    const newStudents = useStudentStore.getState().students;
-    const newStudentId = newStudents[newStudents.length - 1].id;
+      const newStudents = useStudentStore.getState().students;
+      const newStudentId = newStudents[newStudents.length - 1].id;
 
-    const credentialId = registerForm.parentPhone;
-    const credentialPw = registerForm.birthDate
-      ? registerForm.birthDate.replace(/-/g, '')
-      : '(생년월일 입력 후 확인 가능)';
-
-    setRegisterOpen(false);
-    setRegisterForm(EMPTY_FORM);
-    setPostRegister({ newStudentId, credentialId, credentialPw, siblingCandidates });
+      setRegisterOpen(false);
+      setRegisterForm(EMPTY_FORM);
+      setPostRegister({
+        newStudentId,
+        studentLoginId: studentLoginId ?? attendanceNumber,
+        studentTempPw: tempPasswords.student,
+        parentLoginId: registerForm.parentPhone,
+        parentTempPw: tempPasswords.parent,
+        siblingCandidates,
+      });
+    } catch {
+      // 에러는 store에서 toast 처리
+    }
   };
 
   const handleSiblingLink = () => {
@@ -227,6 +381,7 @@ export default function StudentsPage() {
     if (!selected) return;
     updateStudent(selected.id, {
       ...editForm,
+      school: `${editForm.school.trim()}${editForm.schoolLevel}`,
       grade: Number(editForm.grade),
       birthDate: editForm.birthDate || undefined,
     });
@@ -236,8 +391,9 @@ export default function StudentsPage() {
 
   const openEdit = () => {
     if (!selected) return;
+    const { school, schoolLevel } = parseSchool(selected.school);
     setEditForm({
-      name: selected.name, school: selected.school, grade: String(selected.grade),
+      name: selected.name, school, schoolLevel, grade: String(selected.grade),
       phone: selected.phone, parentName: selected.parentName, parentPhone: selected.parentPhone,
       status: selected.status, enrollDate: selected.enrollDate, memo: selected.memo,
       birthDate: selected.birthDate ?? '',
@@ -252,6 +408,29 @@ export default function StudentsPage() {
     setStatusOpen(false);
   };
 
+  const handlePasswordReset = async (target: 'student' | 'parent') => {
+    if (!selected) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/students/${selected.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error ?? '비밀번호 초기화에 실패했습니다.', 'error');
+        return;
+      }
+      setResetTarget(null);
+      setResetResult({ loginId: data.loginId, tempPassword: data.tempPassword, target });
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
@@ -264,7 +443,7 @@ export default function StudentsPage() {
         }
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 좌측 학생 목록 */}
         <div className="w-64 shrink-0 flex flex-col border-r border-[#e2e8f0] bg-white overflow-hidden">
           <div className="p-3 border-b border-[#e2e8f0] space-y-2">
@@ -275,23 +454,36 @@ export default function StudentsPage() {
             {filtered.length === 0 ? (
               <div className="p-6 text-center text-[12px] text-[#9ca3af]">검색 결과가 없습니다</div>
             ) : filtered.map((student) => (
-              <button
+              <div
                 key={student.id}
-                onClick={() => { setSelectedStudent(student.id); setDetailTab('info'); }}
                 className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2.5 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
+                  'flex items-center gap-1 pr-2 border-b border-[#f1f5f9] transition-colors',
                   selectedStudentId === student.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
                 )}
               >
-                <Avatar name={student.name} color={student.avatarColor} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[13px] font-medium text-[#111827] truncate">{student.name}</span>
-                    <Badge label={student.status} />
+                {/* 학생 선택 영역 */}
+                <button
+                  onClick={() => { setSelectedStudent(student.id); setDetailTab('info'); }}
+                  className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 text-left cursor-pointer"
+                >
+                  <Avatar name={student.name} color={student.avatarColor} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[13px] font-medium text-[#111827] truncate">{student.name}</span>
+                      <Badge label={student.status} />
+                    </div>
+                    <div className="text-[11px] text-[#6b7280] mt-0.5">{student.school} · {student.grade}학년</div>
                   </div>
-                  <div className="text-[11px] text-[#6b7280] mt-0.5">{student.school} · {student.grade}학년</div>
-                </div>
-              </button>
+                </button>
+                {/* 출결 현황 버튼 */}
+                <button
+                  onClick={() => { setAttModalStudentId(student.id); setAttModalStudentName(student.name); }}
+                  className="shrink-0 p-1.5 text-[#9ca3af] hover:text-[#4fc3a1] hover:bg-[#E1F5EE] rounded-[6px] cursor-pointer"
+                  title="출결 현황"
+                >
+                  <CalendarDays size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -315,6 +507,9 @@ export default function StudentsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setResetTarget('student')}>
+                    <RefreshCw size={13} /> 비밀번호 초기화
+                  </Button>
                   <Button variant="default" size="sm" onClick={openEdit}>정보 수정</Button>
                   <Button variant="dark" size="sm" onClick={() => { setNewStatus(selected.status); setStatusOpen(true); }}>상태 변경</Button>
                 </div>
@@ -399,6 +594,7 @@ export default function StudentsPage() {
                   </div>
                 </div>
               )}
+
               {detailTab === 'class' && (
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                   <div className="text-[12.5px] font-semibold text-[#111827] mb-3">수강 중인 반</div>
@@ -424,9 +620,159 @@ export default function StudentsPage() {
                   )}
                 </div>
               )}
-              {(detailTab === 'attendance' || detailTab === 'grade' || detailTab === 'payment' || detailTab === 'consult') && (
+
+              {/* 출결 탭 — 인라인 캘린더 */}
+              {detailTab === 'attendance' && (
+                <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
+                  {/* 통계 카드 */}
+                  <div className="grid grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: '출석', value: `${attPresentDays}일`, color: '#065f46' },
+                      { label: '결석', value: `${attRecords.filter(r => r.status === AttendanceStatus.ABSENT).length}일`, color: '#991B1B' },
+                      { label: '지각', value: `${attRecords.filter(r => r.status === AttendanceStatus.LATE).length}일`, color: '#92400E' },
+                      { label: '출석률', value: `${attRate}%`, color: '#0D9E7A' },
+                    ].map((stat) => (
+                      <div key={stat.label} className="bg-[#f4f6f8] rounded-[8px] p-3 text-center">
+                        <div className="text-[16px] font-bold" style={{ color: stat.color }}>{stat.value}</div>
+                        <div className="text-[11.5px] text-[#6b7280] mt-0.5">{stat.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* 월 선택 */}
+                  <div className="flex items-center justify-between mb-3">
+                    <button onClick={() => { if (attMonth === 1) { setAttMonth(12); setAttYear(y => y - 1); } else setAttMonth(m => m - 1); }} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronLeft size={16} /></button>
+                    <span className="text-[14px] font-semibold text-[#111827]">{attYear}년 {attMonth}월</span>
+                    <button onClick={() => { if (attMonth === 12) { setAttMonth(1); setAttYear(y => y + 1); } else setAttMonth(m => m + 1); }} className="p-1 hover:bg-[#f1f5f9] rounded cursor-pointer"><ChevronRight size={16} /></button>
+                  </div>
+                  {/* 요일 헤더 */}
+                  <div className="grid grid-cols-7 mb-1">
+                    {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
+                      <div key={d} className="text-center text-[11.5px] text-[#9ca3af] py-0.5">{d}</div>
+                    ))}
+                  </div>
+                  {/* 날짜 셀 */}
+                  <div className="flex flex-col gap-1">
+                    {attWeeks.map((week, wi) => (
+                      <div key={wi} className="grid grid-cols-7 gap-1">
+                        {week.map((day, di) => {
+                          if (day === null) return <div key={di} className="h-10" />;
+                          const dateStr = `${attYear}-${String(attMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                          const status = attRecordMap[dateStr];
+                          return (
+                            <div key={di} className="h-10 flex flex-col items-center justify-center rounded-[6px] border border-[#f1f5f9] bg-white hover:bg-[#f9fafb]">
+                              <span className="text-[12px] text-[#374151] font-semibold leading-none">{day}</span>
+                              {status && (
+                                <span className={clsx('text-[9px] font-bold px-1 py-0.5 rounded-full mt-1', ATT_STATUS_COLORS[status])}>
+                                  {ATT_STATUS_SHORT[status]}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                  {/* 범례 */}
+                  <div className="flex gap-4 mt-3 pt-3 border-t border-[#f1f5f9]">
+                    {Object.entries(ATT_STATUS_SHORT).map(([s, short]) => (
+                      <div key={s} className="flex items-center gap-1">
+                        <span className={clsx('w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center', ATT_STATUS_COLORS[s])}>{short}</span>
+                        <span className="text-[11.5px] text-[#6b7280]">{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 성적 탭 */}
+              {detailTab === 'grade' && (
+                <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[#e2e8f0]">
+                    <span className="text-[12.5px] font-semibold text-[#111827]">시험 성적 내역</span>
+                  </div>
+                  {gradeRows.length === 0 ? (
+                    <div className="p-8 text-center text-[12px] text-[#9ca3af]">시험 기록이 없습니다.</div>
+                  ) : (
+                    <table className="w-full text-[12.5px]">
+                      <thead className="bg-[#f4f6f8]">
+                        <tr>
+                          {['반', '시험명', '날짜', '점수', '만점', '비고'].map((h) => (
+                            <th key={h} className="px-4 py-2.5 text-left text-[11.5px] text-[#6b7280] font-medium">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#f1f5f9]">
+                        {gradeRows.map(({ cls, exam, myGrade }) => (
+                          <tr key={exam.id} className="hover:bg-[#f9fafb]">
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls.color }} />
+                                <span className="text-[#111827]">{cls.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-[#111827] font-medium">{exam.name}</td>
+                            <td className="px-4 py-2.5 text-[#6b7280]">{formatKoreanDate(exam.date)}</td>
+                            <td className="px-4 py-2.5">
+                              {myGrade?.score != null ? (
+                                <span className="font-bold text-[#111827]">{myGrade.score}</span>
+                              ) : (
+                                <span className="text-[#9ca3af]">미기록</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-[#6b7280]">{exam.totalScore}</td>
+                            <td className="px-4 py-2.5 text-[#9ca3af]">{myGrade?.memo || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* 결제 탭 */}
+              {detailTab === 'payment' && (
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-8 text-center">
-                  <p className="text-[13px] text-[#9ca3af]">좌측 메뉴에서 전용 화면을 이용하세요.</p>
+                  <p className="text-[13px] text-[#9ca3af]">좌측 메뉴 &gt; 재무 관리 &gt; 청구/수납/미납에서 확인하세요.</p>
+                </div>
+              )}
+
+              {/* 리포트 탭 */}
+              {detailTab === 'report' && (
+                <StudentReportTab studentId={selected.id} />
+              )}
+
+              {/* 상담 탭 */}
+              {detailTab === 'consult' && (
+                <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
+                    <span className="text-[12.5px] font-semibold text-[#111827]">상담 기록</span>
+                    <span className="text-[11.5px] text-[#9ca3af]">총 {studentConsults.length}건</span>
+                  </div>
+                  {studentConsults.length === 0 ? (
+                    <div className="p-8 text-center text-[12px] text-[#9ca3af]">상담 기록이 없습니다.</div>
+                  ) : (
+                    <div className="divide-y divide-[#f1f5f9]">
+                      {studentConsults.map((c) => {
+                        const typeStyle = CONSULT_TYPE_STYLE[c.type] ?? { bg: '#f3f4f6', text: '#374151' };
+                        return (
+                          <div key={c.id} className="px-4 py-3 hover:bg-[#f9fafb]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span
+                                className="text-[10.5px] font-medium px-2 py-0.5 rounded-full"
+                                style={{ backgroundColor: typeStyle.bg, color: typeStyle.text }}
+                              >
+                                {c.type}
+                              </span>
+                              <span className="text-[11.5px] text-[#6b7280]">{formatKoreanDate(c.date)}</span>
+                              {c.teacherName && <span className="text-[11.5px] text-[#9ca3af]">· {c.teacherName}</span>}
+                            </div>
+                            <div className="text-[12.5px] font-medium text-[#111827] mb-0.5">{c.topic}</div>
+                            {c.content && <div className="text-[12px] text-[#6b7280] line-clamp-2">{c.content}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -436,7 +782,15 @@ export default function StudentsPage() {
             <p className="text-[13px] text-[#9ca3af]">좌측에서 학생을 선택하세요</p>
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* 출결 현황 팝업 */}
+      <AttendanceCalendarModal
+        open={!!attModalStudentId}
+        onClose={() => setAttModalStudentId(null)}
+        studentId={attModalStudentId ?? ''}
+        studentName={attModalStudentName}
+      />
 
       {/* 학생 등록 모달 */}
       <Modal
@@ -558,11 +912,70 @@ export default function StudentsPage() {
         </div>
       </Modal>
 
+      {/* 비밀번호 초기화 확인 모달 */}
+      <Modal
+        open={!!resetTarget}
+        onClose={() => setResetTarget(null)}
+        title="비밀번호 초기화"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setResetTarget(null)} disabled={resetting}>취소</Button>
+            <Button variant="danger" size="md" onClick={() => handlePasswordReset(resetTarget!)} disabled={resetting}>
+              {resetting ? '초기화 중...' : '초기화'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[13px] text-[#374151]">
+            <span className="font-semibold">{selected?.name}</span> 학생의 비밀번호를 초기화하시겠습니까?
+          </p>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-3 p-3 rounded-[8px] border cursor-pointer hover:bg-[#f4f6f8]" style={{ borderColor: resetTarget === 'student' ? '#4fc3a1' : '#e2e8f0', backgroundColor: resetTarget === 'student' ? '#E1F5EE' : '' }}>
+              <input type="radio" checked={resetTarget === 'student'} onChange={() => setResetTarget('student')} className="accent-[#4fc3a1]" />
+              <span className="text-[12.5px] text-[#111827]">학생 비밀번호</span>
+            </label>
+            <label className="flex items-center gap-3 p-3 rounded-[8px] border cursor-pointer hover:bg-[#f4f6f8]" style={{ borderColor: resetTarget === 'parent' ? '#4fc3a1' : '#e2e8f0', backgroundColor: resetTarget === 'parent' ? '#E1F5EE' : '' }}>
+              <input type="radio" checked={resetTarget === 'parent'} onChange={() => setResetTarget('parent')} className="accent-[#4fc3a1]" />
+              <span className="text-[12.5px] text-[#111827]">학부모 비밀번호</span>
+            </label>
+          </div>
+          <p className="text-[11px] text-[#9ca3af]">초기화 후 새 임시 비밀번호가 발급됩니다. 반드시 학생/학부모에게 전달해주세요.</p>
+        </div>
+      </Modal>
+
+      {/* 비밀번호 초기화 결과 모달 */}
+      <Modal
+        open={!!resetResult}
+        onClose={() => setResetResult(null)}
+        title="비밀번호 초기화 완료"
+        size="sm"
+        footer={<Button variant="dark" size="md" onClick={() => setResetResult(null)}>확인</Button>}
+      >
+        <div className="space-y-3">
+          <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
+              <KeyRound size={13} /> {resetResult?.target === 'parent' ? '학부모' : '학생'} 계정
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-28 text-[#6b7280] shrink-0">로그인 ID</span>
+              <span className="font-mono font-medium text-[#111827]">{resetResult?.loginId}</span>
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
+              <span className="font-mono font-bold text-[#4fc3a1] text-[15px] tracking-wider">{resetResult?.tempPassword}</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
+        </div>
+      </Modal>
+
       {/* 등록 완료 모달: 계정 안내 + 형제/자매 감지 */}
       <Modal
         open={!!postRegister}
         onClose={() => setPostRegister(null)}
-        title="등록 완료"
+        title="학생 등록 완료"
         size="sm"
         footer={
           postRegister?.siblingCandidates.length ? (
@@ -576,27 +989,37 @@ export default function StudentsPage() {
         }
       >
         <div className="space-y-4">
-          <div className="bg-[#f4f6f8] rounded-[8px] p-4 space-y-2">
+          <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
+              <KeyRound size={13} /> 학생 앱 계정
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-24 text-[#6b7280] shrink-0">로그인 ID</span>
+              <span className="font-mono font-medium text-[#111827]">{postRegister?.studentLoginId} (출석번호)</span>
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
+              <span className="font-mono font-medium text-[#4fc3a1] text-[14px] tracking-wider">{postRegister?.studentTempPw ?? '—'}</span>
+            </div>
+          </div>
+          <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
             <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
               <KeyRound size={13} /> 학부모 앱 계정
             </div>
             <div className="flex gap-2 text-[12.5px]">
-              <span className="w-20 text-[#6b7280] shrink-0">로그인 ID</span>
-              <span className="font-mono font-medium text-[#111827]">{postRegister?.credentialId}</span>
+              <span className="w-24 text-[#6b7280] shrink-0">로그인 ID</span>
+              <span className="font-mono font-medium text-[#111827]">{postRegister?.parentLoginId} (전화번호)</span>
             </div>
             <div className="flex gap-2 text-[12.5px]">
-              <span className="w-20 text-[#6b7280] shrink-0">초기 비밀번호</span>
-              <span className="font-mono font-medium text-[#111827]">{postRegister?.credentialPw}</span>
+              <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
+              <span className="font-mono font-medium text-[#4fc3a1] text-[14px] tracking-wider">{postRegister?.parentTempPw ?? '—'}</span>
             </div>
-            <p className="text-[11px] text-[#9ca3af] pt-1">첫 로그인 후 비밀번호를 변경할 수 있습니다.</p>
           </div>
-
+          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
           {postRegister?.siblingCandidates.length ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">
               <div className="text-[12.5px] font-semibold text-[#92400e] mb-2">형제/자매 감지</div>
-              <p className="text-[12px] text-[#78350f] mb-3">
-                같은 보호자 번호를 사용하는 학생이 있습니다. 형제/자매로 연결할까요?
-              </p>
+              <p className="text-[12px] text-[#78350f] mb-3">같은 보호자 번호를 사용하는 학생이 있습니다. 형제/자매로 연결할까요?</p>
               <div className="space-y-2">
                 {postRegister.siblingCandidates.map((s) => (
                   <div key={s.id} className="flex items-center gap-2 text-[12px] text-[#111827]">

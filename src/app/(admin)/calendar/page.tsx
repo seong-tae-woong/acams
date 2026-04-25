@@ -1,69 +1,97 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
-import { mockCalendarEvents } from '@/lib/mock/calendar';
-import type { CalendarEvent } from '@/lib/types/calendar';
+import AddScheduleModal from '@/components/calendar/AddScheduleModal';
+import { useCalendarStore } from '@/lib/stores/calendarStore';
+import type { CalendarEventType } from '@/lib/types/calendar';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
 const DAYS_OF_WEEK = ['월', '화', '수', '목', '금', '토', '일'];
+
+const TYPE_COLOR: Record<CalendarEventType, string> = {
+  '학원일정': '#4fc3a1',
+  '상담일정': '#6366f1',
+  '보강일정': '#8b5cf6',
+};
+
+const ALL_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정'];
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
 function firstDayOfMonth(year: number, month: number) {
-  // Convert Sun=0 to Mon=0 index
   const d = new Date(year, month, 1).getDay();
   return d === 0 ? 6 : d - 1;
 }
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function CalendarPage() {
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(3); // 0-indexed, 3 = April
-  const [selectedDate, setSelectedDate] = useState<string | null>('2026-04-17');
-  const [showPrivate, setShowPrivate] = useState(true);
+  const today = todayStr();
+  const [year, setYear] = useState(() => parseInt(today.slice(0, 4)));
+  const [month, setMonth] = useState(() => parseInt(today.slice(5, 7)) - 1); // 0-indexed
+  const [selectedDate, setSelectedDate] = useState<string | null>(today);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  // 종류별 체크박스 상태
+  const [visibleTypes, setVisibleTypes] = useState<Record<CalendarEventType, boolean>>({
+    '학원일정': true,
+    '상담일정': true,
+    '보강일정': true,
+  });
+
+  const { events, loading, fetchEvents } = useCalendarStore();
+
+  // 월이 바뀔 때마다 DB에서 새로 조회
+  useEffect(() => {
+    fetchEvents(year, month + 1); // API는 1-indexed month
+  }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const days = daysInMonth(year, month);
   const firstDay = firstDayOfMonth(year, month);
-
   const totalCells = Math.ceil((firstDay + days) / 7) * 7;
 
-  const getDateStr = (day: number) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const getDateStr = (day: number) =>
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   const eventsForDate = (dateStr: string) =>
-    mockCalendarEvents.filter((e) => e.date === dateStr && (showPrivate || e.isPublic));
+    events.filter((e) => e.date === dateStr && visibleTypes[e.type]);
 
   const selectedEvents = selectedDate ? eventsForDate(selectedDate) : [];
 
-  const TYPE_COLOR: Record<string, string> = {
-    '학원일정': '#4fc3a1',
-    '상담일정': '#6366f1',
-    '보강일정': '#8b5cf6',
-  };
+  const toggleType = (t: CalendarEventType) =>
+    setVisibleTypes((prev) => ({ ...prev, [t]: !prev[t] }));
 
   const prev = () => {
-    if (month === 0) { setYear(y => y - 1); setMonth(11); }
-    else setMonth(m => m - 1);
+    if (month === 0) { setYear((y) => y - 1); setMonth(11); }
+    else setMonth((m) => m - 1);
   };
   const next = () => {
-    if (month === 11) { setYear(y => y + 1); setMonth(0); }
-    else setMonth(m => m + 1);
+    if (month === 11) { setYear((y) => y + 1); setMonth(0); }
+    else setMonth((m) => m + 1);
   };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="캘린더"
-        actions={<Button variant="dark" size="sm" onClick={() => toast('일정 추가 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 일정 추가</Button>}
+        actions={
+          <Button variant="dark" size="sm" onClick={() => setIsAddOpen(true)}>
+            <Plus size={13} /> 일정 추가
+          </Button>
+        }
       />
+
       <div className="flex flex-1 overflow-hidden">
         {/* 캘린더 */}
         <div className="flex-1 overflow-y-auto p-5">
-          {/* 헤더 */}
           <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+            {/* 헤더 */}
             <div className="px-5 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button onClick={prev} className="p-1 hover:bg-[#f4f6f8] rounded cursor-pointer">
@@ -73,23 +101,31 @@ export default function CalendarPage() {
                 <button onClick={next} className="p-1 hover:bg-[#f4f6f8] rounded cursor-pointer">
                   <ChevronRight size={16} className="text-[#6b7280]" />
                 </button>
+                {loading && (
+                  <span className="text-[11px] text-[#9ca3af]">불러오는 중...</span>
+                )}
               </div>
+
+              {/* 종류별 체크박스 (필터 겸 범례) */}
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-1.5 text-[12px] text-[#6b7280] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showPrivate}
-                    onChange={(e) => setShowPrivate(e.target.checked)}
-                    className="accent-[#4fc3a1]"
-                  />
-                  상담 일정 표시
-                </label>
-                {/* 범례 */}
-                {Object.entries(TYPE_COLOR).map(([type, color]) => (
-                  <div key={type} className="flex items-center gap-1 text-[11.5px] text-[#6b7280]">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                    {type}
-                  </div>
+                {ALL_TYPES.map((t) => (
+                  <label
+                    key={t}
+                    className="flex items-center gap-1.5 text-[12px] text-[#6b7280] cursor-pointer select-none"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleTypes[t]}
+                      onChange={() => toggleType(t)}
+                      className="cursor-pointer"
+                      style={{ accentColor: TYPE_COLOR[t] }}
+                    />
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: TYPE_COLOR[t] }}
+                    />
+                    {t}
+                  </label>
                 ))}
               </div>
             </div>
@@ -107,8 +143,8 @@ export default function CalendarPage() {
                 const dayNum = i - firstDay + 1;
                 const isValid = dayNum >= 1 && dayNum <= days;
                 const dateStr = isValid ? getDateStr(dayNum) : '';
-                const events = isValid ? eventsForDate(dateStr) : [];
-                const isToday = dateStr === '2026-04-17';
+                const evs = isValid ? eventsForDate(dateStr) : [];
+                const isToday = dateStr === today;
                 const isSelected = dateStr === selectedDate;
                 const isWeekend = i % 7 >= 5;
 
@@ -131,7 +167,7 @@ export default function CalendarPage() {
                           {dayNum}
                         </div>
                         <div className="space-y-0.5">
-                          {events.slice(0, 3).map((ev) => (
+                          {evs.slice(0, 3).map((ev) => (
                             <div
                               key={ev.id}
                               className="text-[10px] px-1.5 py-0.5 rounded-[4px] text-white truncate"
@@ -140,8 +176,8 @@ export default function CalendarPage() {
                               {ev.title}
                             </div>
                           ))}
-                          {events.length > 3 && (
-                            <div className="text-[10px] text-[#9ca3af] pl-1">+{events.length - 3}개</div>
+                          {evs.length > 3 && (
+                            <div className="text-[10px] text-[#9ca3af] pl-1">+{evs.length - 3}개</div>
                           )}
                         </div>
                       </>
@@ -157,7 +193,9 @@ export default function CalendarPage() {
         <div className="w-64 shrink-0 border-l border-[#e2e8f0] bg-white overflow-y-auto">
           <div className="px-4 py-3 border-b border-[#e2e8f0]">
             <div className="text-[12.5px] font-semibold text-[#111827]">
-              {selectedDate ? `${selectedDate.slice(5, 7)}월 ${selectedDate.slice(8)}일` : '날짜 선택'}
+              {selectedDate
+                ? `${selectedDate.slice(5, 7)}월 ${selectedDate.slice(8)}일`
+                : '날짜 선택'}
             </div>
           </div>
           {selectedEvents.length === 0 ? (
@@ -165,16 +203,32 @@ export default function CalendarPage() {
           ) : (
             <div className="p-3 space-y-2">
               {selectedEvents.map((ev) => (
-                <div key={ev.id} className="p-3 rounded-[8px] border border-[#e2e8f0]" style={{ borderLeftColor: ev.color, borderLeftWidth: 3 }}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[10.5px] px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: ev.color }}>
+                <div
+                  key={ev.id}
+                  className="p-3 rounded-[8px] border border-[#e2e8f0]"
+                  style={{ borderLeftColor: ev.color, borderLeftWidth: 3 }}
+                >
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <span
+                      className="text-[10.5px] px-1.5 py-0.5 rounded text-white"
+                      style={{ backgroundColor: ev.color }}
+                    >
                       {ev.type}
                     </span>
-                    {!ev.isPublic && <span className="text-[10px] text-[#9ca3af]">비공개</span>}
+                    {ev.className && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#DBEAFE] text-[#1d4ed8]">
+                        {ev.className}
+                      </span>
+                    )}
+                    {!ev.isPublic && (
+                      <span className="text-[10px] text-[#9ca3af]">비공개</span>
+                    )}
                   </div>
                   <div className="text-[12.5px] font-medium text-[#111827]">{ev.title}</div>
                   {(ev.startTime || ev.endTime) && (
-                    <div className="text-[11.5px] text-[#6b7280] mt-0.5">{ev.startTime} ~ {ev.endTime}</div>
+                    <div className="text-[11.5px] text-[#6b7280] mt-0.5">
+                      {ev.startTime} ~ {ev.endTime}
+                    </div>
                   )}
                   {ev.description && (
                     <div className="text-[11px] text-[#9ca3af] mt-1">{ev.description}</div>
@@ -185,6 +239,13 @@ export default function CalendarPage() {
           )}
         </div>
       </div>
+
+      {/* 일정 추가 모달 */}
+      <AddScheduleModal
+        open={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        defaultDate={selectedDate ?? today}
+      />
     </div>
   );
 }

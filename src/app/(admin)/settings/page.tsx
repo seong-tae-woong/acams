@@ -1,13 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Avatar from '@/components/shared/Avatar';
-import { mockTeachers } from '@/lib/mock/teachers';
-import type { Teacher } from '@/lib/types/teacher';
+import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
-import { Plus, Trash2, Shield } from 'lucide-react';
+import { Shield } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
@@ -23,34 +23,51 @@ const PERM_LABELS: Record<keyof typeof DEFAULT_PERMISSIONS, string> = {
 };
 
 export default function SettingsPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>(mockTeachers);
-  const [selectedId, setSelectedId] = useState<string>(mockTeachers[0]?.id ?? '');
+  const { teachers, loading, fetchTeachers, updateTeacher } = useTeacherStore();
+  const [selectedId, setSelectedId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'teachers' | 'academy'>('teachers');
   const [academyName, setAcademyName] = useState('세계로학원');
   const [academyPhone, setAcademyPhone] = useState('02-1234-5678');
+  const [savingPerm, setSavingPerm] = useState(false);
+
+  useEffect(() => { fetchTeachers(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!selectedId && teachers.length > 0) setSelectedId(teachers[0].id);
+  }, [teachers, selectedId]);
 
   const selected = teachers.find((t) => t.id === selectedId);
 
   const togglePerm = (key: keyof typeof DEFAULT_PERMISSIONS) => {
-    setTeachers((prev) =>
-      prev.map((t) =>
-        t.id === selectedId
-          ? { ...t, permissions: { ...t.permissions, [key]: !t.permissions[key] } }
-          : t,
+    if (!selected) return;
+    const newPerms = { ...selected.permissions, [key]: !selected.permissions[key] };
+    // 로컬 상태 낙관적 업데이트 (store 직접 set 없이 선택적 반영)
+    useTeacherStore.setState((state) => ({
+      teachers: state.teachers.map((t) =>
+        t.id === selectedId ? { ...t, permissions: newPerms } : t
       ),
-    );
+    }));
   };
 
-  const toggleActive = () => {
-    setTeachers((prev) =>
-      prev.map((t) => t.id === selectedId ? { ...t, isActive: !t.isActive } : t),
-    );
+  const savePerm = async () => {
+    if (!selected) return;
+    setSavingPerm(true);
+    try {
+      await updateTeacher(selectedId, { permissions: selected.permissions });
+    } finally {
+      setSavingPerm(false);
+    }
+  };
+
+  const toggleActive = async () => {
+    if (!selected) return;
+    await updateTeacher(selectedId, { isActive: !selected.isActive });
   };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar title="계정 관리" />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 탭 + 강사 목록 */}
         <div className="w-52 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col">
           <div className="flex border-b border-[#e2e8f0]">
@@ -69,36 +86,29 @@ export default function SettingsPage() {
           </div>
 
           {activeTab === 'teachers' && (
-            <>
-              <div className="flex-1 overflow-y-auto">
-                {teachers.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedId(t.id)}
-                    className={clsx(
-                      'w-full flex items-center gap-3 px-3 py-3 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
-                      selectedId === t.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
-                    )}
-                  >
-                    <Avatar name={t.name} color={t.avatarColor} size="sm" />
-                    <div>
-                      <div className="text-[12.5px] font-medium text-[#111827]">{t.name}</div>
-                      <div className="text-[11px] text-[#6b7280]">
-                        {t.subject} · {t.isActive ? '활성' : '비활성'}
-                      </div>
+            <div className="flex-1 overflow-y-auto">
+              {teachers.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedId(t.id)}
+                  className={clsx(
+                    'w-full flex items-center gap-3 px-3 py-3 border-b border-[#f1f5f9] text-left transition-colors cursor-pointer',
+                    selectedId === t.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
+                  )}
+                >
+                  <Avatar name={t.name} color={t.avatarColor} size="sm" />
+                  <div>
+                    <div className="text-[12.5px] font-medium text-[#111827]">{t.name}</div>
+                    <div className="text-[11px] text-[#6b7280]">
+                      {t.subject} · {t.isActive ? '활성' : '비활성'}
                     </div>
-                    {!t.isActive && (
-                      <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-[#f1f5f9] text-[#9ca3af] rounded">비활성</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="p-2 border-t border-[#e2e8f0]">
-                <Button variant="dark" size="sm" onClick={() => toast('강사 추가 기능은 추후 지원 예정입니다.', 'info')}>
-                  <Plus size={13} /> 강사 추가
-                </Button>
-              </div>
-            </>
+                  </div>
+                  {!t.isActive && (
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-[#f1f5f9] text-[#9ca3af] rounded">비활성</span>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
@@ -163,7 +173,9 @@ export default function SettingsPage() {
                   })}
                 </div>
                 <div className="mt-3 flex justify-end">
-                  <Button variant="primary" size="sm" onClick={() => toast(`${selected.name} 강사 권한이 저장되었습니다.`, 'success')}>권한 저장</Button>
+                  <Button variant="primary" size="sm" onClick={savePerm} disabled={savingPerm}>
+                    {savingPerm ? '저장 중...' : '권한 저장'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -213,7 +225,7 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

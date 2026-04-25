@@ -1,36 +1,77 @@
 'use client';
+import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import { useGradeStore } from '@/lib/stores/gradeStore';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
-const STUDENT_ID = 's1';
+type ExamInfo = {
+  id: string;
+  name: string;
+  subject: string;
+  date: string;
+  totalScore: number;
+  className: string;
+  classSubject: string;
+};
+
+type GradeItem = {
+  id: string;
+  examId: string;
+  score: number | null;
+  rank: number | null;
+  memo: string;
+  exam: ExamInfo;
+};
 
 export default function MobileGradesPage() {
-  const { grades, exams } = useGradeStore();
+  const [studentName, setStudentName] = useState('');
+  const [grades, setGrades] = useState<GradeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const myGrades = grades
-    .filter((g) => g.studentId === STUDENT_ID)
-    .map((g) => {
-      const exam = exams.find((e) => e.id === g.examId);
-      return { ...g, exam };
-    })
-    .filter((g) => g.exam)
-    .sort((a, b) => (b.exam!.date).localeCompare(a.exam!.date));
+  useEffect(() => {
+    fetch('/api/mobile/grades')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) { setError(data.error); return; }
+        setStudentName(data.studentName);
+        setGrades(data.grades);
+      })
+      .catch(() => setError('데이터를 불러올 수 없습니다.'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const chartData = [...myGrades].reverse().map((g) => ({
-    name: g.exam!.name.slice(0, 5),
-    score: g.score,
-    total: g.exam!.totalScore,
-  }));
-
-  const scoredGrades = myGrades.filter((g) => g.score !== null);
+  const scoredGrades = grades.filter((g) => g.score !== null);
   const avg = scoredGrades.length > 0
     ? Math.round(scoredGrades.reduce((s, g) => s + (g.score as number), 0) / scoredGrades.length)
     : 0;
+
+  const chartData = [...grades].reverse().map((g) => ({
+    name: g.exam.name.slice(0, 5),
+    score: g.score,
+    total: g.exam.totalScore,
+  }));
+
+  if (loading) {
+    return (
+      <div className="flex flex-col pb-20 min-h-screen">
+        <div className="bg-[#1a2535] px-4 pt-12 pb-5">
+          <div className="flex items-center gap-3">
+            <Link href="/mobile"><ChevronLeft size={20} className="text-white" /></Link>
+            <span className="text-[17px] font-bold text-white">성적 리포트</span>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+        <BottomTabBar />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col pb-20">
@@ -38,20 +79,29 @@ export default function MobileGradesPage() {
       <div className="bg-[#1a2535] px-4 pt-12 pb-5">
         <div className="flex items-center gap-3 mb-4">
           <Link href="/mobile"><ChevronLeft size={20} className="text-white" /></Link>
-          <span className="text-[17px] font-bold text-white">성적 조회</span>
+          <span className="text-[17px] font-bold text-white">성적 리포트</span>
         </div>
-        <div className="flex items-center gap-4">
-          <div>
-            <div className="text-[28px] font-bold text-[#4fc3a1]">{avg}점</div>
-            <div className="text-[12px] text-white/60">평균 점수</div>
+        {studentName && (
+          <div className="text-[12px] text-white/50 mb-3 uppercase tracking-wide font-semibold">
+            {studentName} 학생
           </div>
-          <div className="flex-1">
-            <div className="text-[12px] text-white/60 mb-1">{myGrades.length}회 시험 응시</div>
-            <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full bg-[#4fc3a1] rounded-full" style={{ width: `${avg}%` }} />
+        )}
+        {error ? (
+          <div className="text-[13px] text-red-400">{error}</div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="text-[28px] font-bold text-[#4fc3a1]">{avg}점</div>
+              <div className="text-[12px] text-white/60">평균 점수</div>
+            </div>
+            <div className="flex-1">
+              <div className="text-[12px] text-white/60 mb-1">{grades.length}회 시험 응시</div>
+              <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-[#4fc3a1] rounded-full" style={{ width: `${avg}%` }} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="px-4 py-4 space-y-3">
@@ -77,19 +127,22 @@ export default function MobileGradesPage() {
             <span className="text-[13px] font-semibold text-[#111827]">시험 결과</span>
           </div>
           <div className="divide-y divide-[#f1f5f9]">
-            {myGrades.filter((g) => g.score !== null).map((g) => {
-              const pct = Math.round(((g.score as number) / g.exam!.totalScore) * 100);
+            {scoredGrades.map((g) => {
+              const pct = Math.round(((g.score as number) / g.exam.totalScore) * 100);
               const color = pct >= 90 ? '#4fc3a1' : pct >= 70 ? '#f59e0b' : '#ef4444';
               return (
                 <div key={g.id} className="px-4 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <div className="text-[13px] font-semibold text-[#111827]">{g.exam!.name}</div>
-                      <div className="text-[11.5px] text-[#6b7280]">{g.exam!.date} · {g.rank}등</div>
+                      <div className="text-[13px] font-semibold text-[#111827]">{g.exam.name}</div>
+                      <div className="text-[11.5px] text-[#6b7280]">
+                        {g.exam.date} · {g.exam.className}
+                        {g.rank != null && ` · ${g.rank}등`}
+                      </div>
                     </div>
                     <div className="text-right">
                       <div className="text-[18px] font-bold" style={{ color }}>
-                        {g.score}<span className="text-[13px] text-[#9ca3af] font-normal">/{g.exam!.totalScore}</span>
+                        {g.score}<span className="text-[13px] text-[#9ca3af] font-normal">/{g.exam.totalScore}</span>
                       </div>
                       <div className="text-[11px]" style={{ color }}>{pct}%</div>
                     </div>
@@ -100,7 +153,7 @@ export default function MobileGradesPage() {
                 </div>
               );
             })}
-            {myGrades.length === 0 && (
+            {grades.length === 0 && !error && (
               <div className="p-6 text-center text-[13px] text-[#9ca3af]">시험 기록 없음</div>
             )}
           </div>

@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { FileDown, Printer, ChevronDown, Check } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
@@ -23,7 +24,9 @@ function formatMonth(m: string) {
 }
 
 export default function ReceiptsPage() {
-  const { receipts } = useFinanceStore();
+  const { receipts, loading, fetchReceipts } = useFinanceStore();
+
+  useEffect(() => { fetchReceipts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('');
   const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
   const [monthDropOpen, setMonthDropOpen] = useState(false);
@@ -74,7 +77,7 @@ export default function ReceiptsPage() {
           </Button>
         }
       />
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-3 flex-wrap">
             <input
@@ -166,7 +169,7 @@ export default function ReceiptsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

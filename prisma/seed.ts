@@ -9,6 +9,27 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('🌱 Seeding database...');
 
+  // ─── 기존 데이터 초기화 (중복 방지) ───────────────────
+  await prisma.attendanceRecord.deleteMany({});
+  await prisma.gradeRecord.deleteMany({});
+  await prisma.makeupClassTarget.deleteMany({});
+  await prisma.consultationRecord.deleteMany({});
+  await prisma.bill.deleteMany({});
+  await prisma.studentParent.deleteMany({});
+  await prisma.studentSibling.deleteMany({});
+  await prisma.classEnrollment.deleteMany({});
+  await prisma.student.deleteMany({});
+  await prisma.parent.deleteMany({});
+  await prisma.calendarEvent.deleteMany({});
+  await prisma.announcement.deleteMany({});
+  await prisma.expense.deleteMany({});
+  await prisma.exam.deleteMany({});
+  await prisma.makeupClass.deleteMany({});
+  await prisma.classTeacher.deleteMany({});
+  await prisma.classSchedule.deleteMany({});
+  await prisma.class.deleteMany({});
+  console.log('🗑️  기존 데이터 초기화 완료');
+
   // ─── 슈퍼어드민 ────────────────────────────────────
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@acams.kr' },
@@ -160,6 +181,19 @@ async function main() {
 
   const students = await Promise.all(
     studentData.map(async (sd, i) => {
+      const attendanceNumber = String(1001 + i);
+
+      // 학생 User 생성
+      const studentUser = await prisma.user.create({
+        data: {
+          loginId: attendanceNumber,
+          passwordHash: await bcrypt.hash('student2026!', 12),
+          name: sd.name,
+          role: 'student',
+          academyId: academy.id,
+        },
+      });
+
       const student = await prisma.student.create({
         data: {
           academyId: academy.id,
@@ -168,9 +202,10 @@ async function main() {
           grade: sd.grade,
           phone: sd.phone,
           avatarColor: sd.color,
-          attendanceNumber: String(1001 + i),
+          attendanceNumber,
           qrCode: `QR-S${String(i + 1).padStart(3, '0')}`,
           enrollDate: new Date('2026-03-01'),
+          userId: studentUser.id,
           classEnrollments: {
             create: sd.classIdxs.map((idx) => ({
               classId: classes[idx].id,
@@ -180,11 +215,22 @@ async function main() {
         },
       });
 
-      // 학부모 생성 및 연결
+      // 학부모 User 생성 및 연결
+      const parentUser = await prisma.user.create({
+        data: {
+          loginId: sd.parentPhone,
+          passwordHash: await bcrypt.hash('parent2026!', 12),
+          name: sd.parent,
+          role: 'parent',
+          academyId: academy.id,
+        },
+      });
+
       const parent = await prisma.parent.create({
         data: {
           name: sd.parent,
           phone: sd.parentPhone,
+          userId: parentUser.id,
         },
       });
       await prisma.studentParent.create({
@@ -302,11 +348,73 @@ async function main() {
   });
   console.log('✅ Announcements created');
 
+  // ─── 출결 기록 (AttendanceRecords) ────────────────────
+  // 각 반의 수업 요일 (1=월,2=화,3=수,4=목,5=금 == getDay() 값과 동일)
+  const classScheduleDaysArr = [
+    [1, 3, 5], // classes[0] 초등수학 기초반: 월/수/금
+    [2, 4],    // classes[1] 초등수학 심화반: 화/목
+    [1, 3],    // classes[2] 영어 파닉스반: 월/수
+    [2, 4],    // classes[3] 영어 중급반: 화/목
+    [2, 4],    // classes[4] 중등수학반: 화/목
+  ];
+  // 각 반에 수강하는 학생 인덱스 (studentData 배열 기준)
+  const classStudentIdxsArr = [
+    [0, 1, 3, 5, 9, 14, 19],   // classes[0]
+    [2, 6, 8, 13, 18],          // classes[1]
+    [0, 1, 4, 7, 14, 15, 17],  // classes[2]
+    [2, 5, 8, 11, 13, 16, 19], // classes[3]
+    [10, 11, 12, 16],           // classes[4]
+  ];
+  // 각 반의 담당 강사 인덱스 (teachers 배열 기준)
+  const classTeacherIdxArr = [0, 0, 1, 1, 2];
+  // 상태 분포: PRESENT 80%, LATE 10%, ABSENT 7%, EARLY_LEAVE 3% (20칸)
+  const ATT_STATUSES = [
+    'PRESENT','PRESENT','PRESENT','PRESENT','PRESENT',
+    'PRESENT','PRESENT','PRESENT','PRESENT','PRESENT',
+    'PRESENT','PRESENT','PRESENT','PRESENT','PRESENT',
+    'PRESENT','LATE','LATE','ABSENT','EARLY_LEAVE',
+  ] as const;
+
+  let attCount = 0;
+  for (let ci = 0; ci < 5; ci++) {
+    const scheduleDays = classScheduleDaysArr[ci];
+    const studentIdxs = classStudentIdxsArr[ci];
+    const teacherUserId = teachers[classTeacherIdxArr[ci]].id;
+
+    // 2026년 4월 1일~17일 중 해당 반 수업 날짜만 순회
+    for (let day = 1; day <= 17; day++) {
+      const dateStr = `2026-04-${String(day).padStart(2, '0')}`;
+      const dow = new Date(dateStr).getDay(); // 0=일,1=월,...,6=토
+      if (!scheduleDays.includes(dow)) continue;
+      const date = new Date(dateStr);
+
+      for (let si = 0; si < studentIdxs.length; si++) {
+        // 결정적(deterministic) 시드로 분포 유지
+        const status = ATT_STATUSES[(ci * 23 + si * 7 + day) % ATT_STATUSES.length];
+        await prisma.attendanceRecord.create({
+          data: {
+            academyId: academy.id,
+            classId: classes[ci].id,
+            studentId: students[studentIdxs[si]].id,
+            date,
+            status,
+            checkedById: teacherUserId,
+            checkedAt: date,
+          },
+        });
+        attCount++;
+      }
+    }
+  }
+  console.log(`✅ AttendanceRecords: ${attCount}`);
+
   console.log('\n✨ Seeding complete!');
   console.log('\n📧 계정 정보:');
   console.log('  슈퍼어드민: superadmin@acams.kr / acams2026!');
   console.log('  원장:       director@segyero.kr / segyero2026!');
   console.log('  강사:       kim@segyero.kr / teacher2026!');
+  console.log('  학생:       출석번호(1001~1020) + student2026!  (학원 선택 후 사용)');
+  console.log('  학부모:     전화번호 + parent2026!  (학원 선택 후 사용)');
 }
 
 main()

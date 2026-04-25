@@ -13,6 +13,8 @@ export interface CalendarEvent {
   description: string;
   color: string; // hex color
   relatedStudentId: string | null; // 관련 학생 (상담 등, 없으면 null)
+  classId?: string | null;   // 반 지정 (null = 전체)
+  className?: string | null; // 반 이름 (읽기용)
 }
 
 export interface MakeupClass {

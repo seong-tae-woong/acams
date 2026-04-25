@@ -54,6 +54,8 @@ export interface Announcement {
   readCount: number;
   totalCount: number;
   attachments: AnnouncementAttachment[];
+  classId?: string | null;   // 반 지정 (null = 전체)
+  className?: string | null; // 반 이름 (읽기용)
 }
 
 export type NotificationCreateInput = Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>;

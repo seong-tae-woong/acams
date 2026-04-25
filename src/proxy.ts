@@ -10,6 +10,9 @@ const PUBLIC_PATHS = [
   '/kiosk',
   '/_next',
   '/favicon.ico',
+  '/sw.js',
+  '/manifest.json',
+  '/icon-',
 ];
 
 function isPublic(pathname: string) {

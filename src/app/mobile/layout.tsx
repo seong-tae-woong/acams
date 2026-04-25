@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import ToastContainer from '@/components/shared/ToastContainer';
+import SwRegister from '@/components/mobile/SwRegister';
 
 export const metadata: Metadata = {
-  title: '세계로학원 — 학부모 앱',
-  description: '학부모 및 학생을 위한 모바일 앱',
+  title: 'AcaMS — 학부모·학생 앱',
+  description: '학원 성적 리포트, 공지사항, 일정을 한눈에',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: '세계로학원' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'AcaMS' },
 };
 
 export const viewport: Viewport = {
@@ -13,12 +14,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#4fc3a1',
+  themeColor: '#1a2535',
 };
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f4f6f8] flex flex-col max-w-[430px] mx-auto relative">
+      <SwRegister />
       {children}
       <ToastContainer />
     </div>

@@ -1,12 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import { useCommunicationStore } from '@/lib/stores/communicationStore';
 import type { AnnouncementStatus } from '@/lib/types/notification';
 import { Pin, Plus, Edit2 } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
+import AddAnnouncementModal from '@/components/communication/AddAnnouncementModal';
 
 const STATUS_STYLE: Record<AnnouncementStatus, { bg: string; text: string }> = {
   '게시됨':   { bg: '#D1FAE5', text: '#065f46' },
@@ -14,8 +16,15 @@ const STATUS_STYLE: Record<AnnouncementStatus, { bg: string; text: string }> = {
 };
 
 export default function AnnouncementsPage() {
-  const { announcements } = useCommunicationStore();
-  const [selectedId, setSelectedId] = useState<string | null>(announcements[0]?.id ?? null);
+  const { announcements, loading, fetchAnnouncements } = useCommunicationStore();
+
+  useEffect(() => { fetchAnnouncements(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  useEffect(() => {
+    if (!selectedId && announcements.length > 0) setSelectedId(announcements[0].id);
+  }, [announcements, selectedId]);
   const [statusFilter, setStatusFilter] = useState<AnnouncementStatus | 'all'>('all');
 
   const filtered = announcements.filter((a) => statusFilter === 'all' || a.status === statusFilter);
@@ -31,9 +40,9 @@ export default function AnnouncementsPage() {
       <Topbar
         title="공지사항 발송"
         badge={`${announcements.filter((a) => a.status === '게시됨').length}건 게시 중`}
-        actions={<Button variant="dark" size="sm" onClick={() => toast('공지 작성 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 공지 작성</Button>}
+        actions={<Button variant="dark" size="sm" onClick={() => setIsAddOpen(true)}><Plus size={13} /> 공지 작성</Button>}
       />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 공지 목록 */}
         <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           <div className="p-2 border-b border-[#e2e8f0] flex gap-1.5">
@@ -62,11 +71,16 @@ export default function AnnouncementsPage() {
                     selectedId === a.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
                   )}
                 >
-                  <div className="flex items-center gap-1.5 mb-1">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                     {a.pinned && <Pin size={11} className="text-[#4fc3a1] shrink-0" />}
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: ss.bg, color: ss.text }}>
                       {a.status}
                     </span>
+                    {a.className && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#DBEAFE] text-[#1d4ed8]">
+                        {a.className}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[12.5px] font-medium text-[#111827] line-clamp-2">{a.title}</div>
                   <div className="text-[11px] text-[#9ca3af] mt-0.5">{formatDate(a.publishedAt ?? a.createdAt)}</div>
@@ -102,7 +116,7 @@ export default function AnnouncementsPage() {
                     {selected.publishedAt && ` · 게시일: ${formatDate(selected.publishedAt)}`}
                   </div>
                   <div className="text-[12px] text-[#6b7280] mt-0.5">
-                    대상: {selected.targetAudience.includes('all') ? '전체' : selected.targetAudience.join(', ')}
+                    대상: {selected.className ?? (selected.targetAudience.includes('all') ? '전체' : selected.targetAudience.join(', '))}
                     {selected.status === '게시됨' && ` · 읽음 ${selected.readCount}/${selected.totalCount}명`}
                   </div>
                 </div>
@@ -143,7 +157,9 @@ export default function AnnouncementsPage() {
             <p className="text-[13px] text-[#9ca3af]">공지사항을 선택하세요</p>
           </div>
         )}
-      </div>
+      </div>}
+
+      <AddAnnouncementModal open={isAddOpen} onClose={() => setIsAddOpen(false)} />
     </div>
   );
 }

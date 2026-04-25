@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Avatar from '@/components/shared/Avatar';
@@ -8,6 +8,7 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { Plus, MessageSquare } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
@@ -18,8 +19,13 @@ const TYPE_STYLE: Record<string, { bg: string; text: string }> = {
 };
 
 export default function ConsultationPage() {
-  const { consultations } = useCommunicationStore();
-  const { students } = useStudentStore();
+  const { consultations, loading, fetchConsultations } = useCommunicationStore();
+  const { students, fetchStudents } = useStudentStore();
+
+  useEffect(() => {
+    fetchConsultations();
+    fetchStudents();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedConsultId, setSelectedConsultId] = useState<string | null>(null);
 
@@ -36,7 +42,7 @@ export default function ConsultationPage() {
         badge={`총 ${consultations.length}건`}
         actions={<Button variant="dark" size="sm" onClick={() => toast('상담 등록 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 상담 등록</Button>}
       />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 패널 1: 학생 목록 */}
         <div className="w-44 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           <div className="p-2 pt-3 px-3 text-[10.5px] text-[#9ca3af] uppercase font-medium">학생</div>
@@ -161,7 +167,7 @@ export default function ConsultationPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

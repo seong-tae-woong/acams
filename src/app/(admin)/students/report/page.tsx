@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Avatar from '@/components/shared/Avatar';
@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { FileDown, Send } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const ATTITUDE_COLORS: Record<string, string> = {
   'Excellent': 'bg-[#D1FAE5] text-[#065f46]',
@@ -59,15 +60,36 @@ function getCurrentQuarterMonths(): { year: number; month: number; label: string
 export default function StudentReportPage() {
   const [period, setPeriod] = useState<'monthly' | 'quarterly'>('monthly');
   const [search, setSearch] = useState('');
-  const { students, selectedStudentId, setSelectedStudent } = useStudentStore();
-  const { getRecordsByStudent } = useAttendanceStore();
-  const { grades, exams } = useGradeStore();
+  const { students, selectedStudentId, loading, setSelectedStudent, fetchStudents } = useStudentStore();
+  const { getRecordsByStudent, fetchByStudentMonth } = useAttendanceStore();
+  const { grades, exams, fetchExams, fetchGrades } = useGradeStore();
+
+  useEffect(() => {
+    fetchStudents();
+    fetchExams();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 시험 목록이 로드되면 각 시험의 성적을 fetch
+  useEffect(() => {
+    if (exams.length > 0) {
+      exams.forEach((exam) => fetchGrades(exam.id));
+    }
+  }, [exams.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeStudents = students.filter((s) => s.status === StudentStatus.ACTIVE);
   const filteredStudents = activeStudents.filter(
     (s) => !search || s.name.includes(search) || s.school.includes(search),
   );
   const selected = students.find((s) => s.id === selectedStudentId) ?? activeStudents[0];
+
+  // 선택된 학생/기간이 바뀔 때마다 출결 데이터 fetch
+  useEffect(() => {
+    if (!selected) return;
+    const months = period === 'monthly' ? getRecentMonths(3) : getCurrentQuarterMonths();
+    months.forEach(({ year, month }) => {
+      fetchByStudentMonth(selected.id, monthStr(year, month));
+    });
+  }, [selected?.id, period]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 기간 구간 결정
   const periodMonths = useMemo(
@@ -154,7 +176,7 @@ export default function StudentReportPage() {
           </>
         }
       />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 좌측 학생 목록 */}
         <div className="w-44 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden no-print">
           <div className="p-2 border-b border-[#f1f5f9]">
@@ -306,7 +328,7 @@ export default function StudentReportPage() {
             </>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

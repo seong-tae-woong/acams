@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { academyName, slug, phone, directorName, directorEmail, directorPassword } =
+    const { academyName, slug, loginKey, phone, directorName, directorEmail, directorPassword } =
       await req.json();
 
     if (!academyName || !slug || !directorName || !directorEmail || !directorPassword) {
@@ -39,6 +39,17 @@ export async function POST(req: NextRequest) {
 
     if (directorPassword.length < 8) {
       return NextResponse.json({ error: '비밀번호는 8자 이상이어야 합니다.' }, { status: 400 });
+    }
+
+    // loginKey 유효성 검사: 3글자 영문 대문자
+    if (loginKey) {
+      if (!/^[A-Z]{3}$/.test(loginKey)) {
+        return NextResponse.json({ error: '학원 키는 영문 대문자 3글자여야 합니다. (예: SGR)' }, { status: 400 });
+      }
+      const existingKey = await prisma.academy.findUnique({ where: { loginKey } });
+      if (existingKey) {
+        return NextResponse.json({ error: '이미 사용 중인 학원 키입니다.' }, { status: 409 });
+      }
     }
 
     // 슬러그 중복 확인
@@ -58,7 +69,7 @@ export async function POST(req: NextRequest) {
     // 트랜잭션: Academy + director User 동시 생성
     const result = await prisma.$transaction(async (tx) => {
       const academy = await tx.academy.create({
-        data: { name: academyName, slug, phone: phone || null },
+        data: { name: academyName, slug, loginKey: loginKey || null, phone: phone || null },
       });
 
       const director = await tx.user.create({

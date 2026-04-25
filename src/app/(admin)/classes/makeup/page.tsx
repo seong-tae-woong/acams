@@ -1,16 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useMakeupStore } from '@/lib/stores/makeupStore';
 import { useClassStore } from '@/lib/stores/classStore';
-import { mockStudents } from '@/lib/mock/students';
-import { mockTeachers } from '@/lib/mock/teachers';
+import { useStudentStore } from '@/lib/stores/studentStore';
+import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { Plus, CheckCheck, UserPlus, X as XIcon } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 /* ─── 보강 등록/수정 폼 기본값 ─── */
 const EMPTY_FORM = {
@@ -31,9 +32,18 @@ const inputCls =
 const labelCls = 'block text-[11.5px] text-[#6b7280] mb-1';
 
 export default function MakeupPage() {
-  const { makeupClasses, addMakeupClass, updateMakeupClass, addStudents, removeStudent, setAttendanceChecked } =
+  const { makeupClasses, loading, addMakeupClass, updateMakeupClass, addStudents, removeStudent, setAttendanceChecked, fetchMakeupClasses } =
     useMakeupStore();
-  const { classes } = useClassStore();
+  const { classes, fetchClasses } = useClassStore();
+  const { students, fetchStudents } = useStudentStore();
+  const { teachers, fetchTeachers } = useTeacherStore();
+
+  useEffect(() => {
+    fetchMakeupClasses();
+    fetchClasses();
+    fetchStudents();
+    fetchTeachers();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -51,7 +61,7 @@ export default function MakeupPage() {
   /* ── 선택된 보강 수업 ── */
   const selected = makeupClasses.find((m) => m.id === selectedId);
   const targetStudents = selected
-    ? mockStudents.filter((s) => selected.targetStudents.includes(s.id))
+    ? students.filter((s) => selected.targetStudents.includes(s.id))
     : [];
 
   /* ── 반 선택 시 담당 강사 자동 세팅 ── */
@@ -89,7 +99,7 @@ export default function MakeupPage() {
   }
 
   /* ── 보강 저장 (등록 or 수정) ── */
-  function handleSaveForm() {
+  async function handleSaveForm() {
     if (!form.originalClassId || !form.originalDate || !form.makeupDate || !form.makeupTime) {
       toast('필수 항목을 모두 입력해주세요.', 'error');
       return;
@@ -98,10 +108,10 @@ export default function MakeupPage() {
     const originalClassName = cls?.name ?? '';
 
     if (editingId) {
-      updateMakeupClass(editingId, { ...form, originalClassName });
+      await updateMakeupClass(editingId, { ...form, originalClassName });
       toast('보강 수업이 수정되었습니다.', 'success');
     } else {
-      const newId = addMakeupClass({ ...form, originalClassName });
+      const newId = await addMakeupClass({ ...form, originalClassName, targetStudents: [] });
       setSelectedId(newId);
       toast('보강 수업이 등록되었습니다.', 'success');
     }
@@ -134,7 +144,7 @@ export default function MakeupPage() {
 
   /* ── 학생 추가 모달: 해당 반 학생 목록 ── */
   const classStudentsForModal = selected
-    ? mockStudents.filter(
+    ? students.filter(
         (s) =>
           s.classes?.includes(selected.originalClassId) &&
           !selected.targetStudents.includes(s.id),
@@ -142,7 +152,7 @@ export default function MakeupPage() {
     : [];
   /* 반 소속 외 다른 학생도 검색용 */
   const otherStudentsForModal = selected
-    ? mockStudents.filter(
+    ? students.filter(
         (s) =>
           !s.classes?.includes(selected.originalClassId) &&
           !selected.targetStudents.includes(s.id),
@@ -161,7 +171,7 @@ export default function MakeupPage() {
         }
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* ── 좌측: 보강 목록 ── */}
         <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           <div className="p-2 space-y-1">
@@ -410,7 +420,7 @@ export default function MakeupPage() {
             <p className="text-[13px] text-[#9ca3af]">좌측에서 보강 수업을 선택하세요</p>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ════ 보강 등록 / 수정 모달 ════ */}
       <Modal
@@ -503,13 +513,13 @@ export default function MakeupPage() {
             <select
               value={form.teacherId}
               onChange={(e) => {
-                const t = mockTeachers.find((t) => t.id === e.target.value);
+                const t = teachers.find((t) => t.id === e.target.value);
                 setForm((f) => ({ ...f, teacherId: e.target.value, teacherName: t?.name ?? '' }));
               }}
               className={inputCls}
             >
               <option value="">강사를 선택하세요</option>
-              {mockTeachers.map((t) => (
+              {teachers.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({t.subject})
                 </option>

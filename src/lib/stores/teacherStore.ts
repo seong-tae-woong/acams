@@ -1,26 +1,76 @@
 'use client';
 import { create } from 'zustand';
 import type { Teacher } from '@/lib/types/teacher';
-import { mockTeachers } from '@/lib/mock/teachers';
+import { toast } from '@/lib/stores/toastStore';
 
 interface TeacherStore {
   teachers: Teacher[];
-  addTeacher: (teacher: Omit<Teacher, 'id'>) => void;
-  updateTeacher: (id: string, updates: Partial<Omit<Teacher, 'id'>>) => void;
+  loading: boolean;
+  fetchTeachers: () => Promise<void>;
+  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<{ tempPassword: string }>;
+  updateTeacher: (id: string, updates: Partial<Omit<Teacher, 'id'>>) => Promise<void>;
 }
 
-export const useTeacherStore = create<TeacherStore>((set) => ({
-  teachers: mockTeachers,
+export const useTeacherStore = create<TeacherStore>((set, get) => ({
+  teachers: [],
+  loading: false,
 
-  addTeacher: (input) => {
-    const id = `t${Date.now()}`;
-    const teacher: Teacher = { ...input, id };
-    set((state) => ({ teachers: [...state.teachers, teacher] }));
+  fetchTeachers: async () => {
+    set({ loading: true });
+    try {
+      const res = await fetch('/api/teachers');
+      if (!res.ok) throw new Error('강사 목록 조회 실패');
+      const data: Teacher[] = await res.json();
+      set({ teachers: data });
+    } catch (err) {
+      console.error('[teacherStore.fetchTeachers]', err);
+      toast('강사 목록을 불러오는 데 실패했습니다.', 'error');
+    } finally {
+      set({ loading: false });
+    }
   },
 
-  updateTeacher: (id, updates) => {
-    set((state) => ({
-      teachers: state.teachers.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    }));
+  addTeacher: async (input) => {
+    try {
+      const res = await fetch('/api/teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '강사 등록 실패');
+      }
+      const { tempPassword, ...teacher }: Teacher & { tempPassword: string } = await res.json();
+      set((state) => ({ teachers: [...state.teachers, teacher] }));
+      return { tempPassword };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '강사 등록에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  updateTeacher: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/teachers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '강사 수정 실패');
+      }
+      const updated: Teacher = await res.json();
+      set((state) => ({
+        teachers: state.teachers.map((t) => (t.id === id ? updated : t)),
+      }));
+      toast('강사 정보가 수정되었습니다.', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '강사 수정에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
   },
 }));

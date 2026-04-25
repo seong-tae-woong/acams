@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
@@ -8,6 +8,7 @@ import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Send, Phone } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 // 위험 등급 분류
 function getRiskLevel(bill: { status: BillStatus; memo: string; studentName: string }) {
@@ -36,7 +37,9 @@ function formatMonth(m: string) {
 }
 
 export default function OverduePage() {
-  const { bills, payBill, getBillsByStudent } = useFinanceStore();
+  const { bills, loading, payBill, getBillsByStudent, fetchBills } = useFinanceStore();
+
+  useEffect(() => { fetchBills(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const today = new Date().toISOString().split('T')[0];
 
   const [detailOpen, setDetailOpen] = useState(false);
@@ -71,7 +74,7 @@ export default function OverduePage() {
         badge={`미납 ${overdueBills.length}명`}
         actions={<Button variant="default" size="sm" onClick={() => toast(`미납 학생 ${overdueBills.length}명에게 알림을 발송했습니다.`, 'success')}><Send size={13} /> 미납 알림 일괄 발송</Button>}
       />
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 미납 현황 KPI */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
@@ -162,7 +165,7 @@ export default function OverduePage() {
             </table>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* 수강료 납부 이력 모달 */}
       <Modal

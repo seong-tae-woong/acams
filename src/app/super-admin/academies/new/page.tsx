@@ -12,6 +12,7 @@ export default function NewAcademyPage() {
   const [form, setForm] = useState({
     academyName: '',
     slug: '',
+    loginKey: '',
     phone: '',
     directorName: '',
     directorEmail: '',
@@ -67,6 +68,17 @@ export default function NewAcademyPage() {
           <div>
             <label className="block text-[12px] text-[#6b7280] mb-1.5">슬러그 * (영문 소문자·숫자·하이픈)</label>
             <input className={fieldCls} value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} placeholder="예: segyero" />
+          </div>
+          <div>
+            <label className="block text-[12px] text-[#6b7280] mb-1.5">학원 키 (영문 대문자 3글자)</label>
+            <input
+              className={fieldCls}
+              value={form.loginKey}
+              onChange={(e) => setForm((f) => ({ ...f, loginKey: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) }))}
+              placeholder="예: SGR"
+              maxLength={3}
+            />
+            <p className="text-[11px] text-[#9ca3af] mt-1">학생 로그인 ID 앞에 붙는 고유 접두어입니다. (예: SGR → 학생 ID: SGR2026001)</p>
           </div>
           <div>
             <label className="block text-[12px] text-[#6b7280] mb-1.5">대표 전화</label>

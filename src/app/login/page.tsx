@@ -1,47 +1,12 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useActionState } from 'react';
+import { loginAction, type LoginActionState } from './actions';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? '로그인에 실패했습니다.');
-        return;
-      }
-
-      const role: string = data.user.role;
-      if (role === 'super_admin') {
-        router.push('/super-admin');
-      } else if (role === 'parent' || role === 'student') {
-        router.push('/mobile');
-      } else {
-        router.push('/students');
-      }
-    } catch {
-      setError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [state, action, pending] = useActionState<LoginActionState, FormData>(
+    loginAction,
+    null,
+  );
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] flex items-center justify-center p-4">
@@ -59,20 +24,22 @@ export default function LoginPage() {
         <div className="bg-white rounded-[14px] border border-[#e2e8f0] shadow-sm p-8">
           <h2 className="text-[16px] font-semibold text-[#111827] mb-6">로그인</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form className="space-y-4" action={action}>
             <div>
               <label className="block text-[12.5px] text-[#374151] font-medium mb-1.5">
-                이메일
+                아이디
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일을 입력하세요"
+                type="text"
+                name="email"
+                placeholder="이메일 또는 출석번호/전화번호"
                 required
-                autoComplete="email"
+                autoComplete="username"
                 className="w-full text-[13px] border border-[#e2e8f0] rounded-[10px] px-4 py-2.5 focus:outline-none focus:border-[#4fc3a1] focus:ring-2 focus:ring-[#4fc3a1]/20 transition-colors"
               />
+              <p className="text-[11px] text-[#9ca3af] mt-1">
+                원장·강사: 이메일 · 학생: 출석번호 · 학부모: 전화번호(010XXXXXXXX)
+              </p>
             </div>
 
             <div>
@@ -81,8 +48,7 @@ export default function LoginPage() {
               </label>
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="password"
                 placeholder="비밀번호를 입력하세요"
                 required
                 autoComplete="current-password"
@@ -90,18 +56,18 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
+            {state?.error && (
               <div className="text-[12.5px] text-[#991B1B] bg-[#FEE2E2] border border-[#FECACA] rounded-[8px] px-3 py-2">
-                {error}
+                {state.error}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={pending}
               className="w-full bg-[#1a2535] text-white text-[13px] font-semibold py-3 rounded-[10px] mt-2 hover:bg-[#243047] active:bg-[#111827] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              {loading ? '로그인 중...' : '로그인'}
+              {pending ? '로그인 중...' : '로그인'}
             </button>
           </form>
         </div>

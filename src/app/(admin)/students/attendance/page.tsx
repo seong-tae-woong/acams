@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Avatar from '@/components/shared/Avatar';
 import SearchInput from '@/components/shared/SearchInput';
@@ -9,6 +9,7 @@ import { AttendanceStatus } from '@/lib/types/attendance';
 import { StudentStatus } from '@/lib/types/student';
 import clsx from 'clsx';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const STATUS_COLORS: Record<string, string> = {
   [AttendanceStatus.PRESENT]: 'bg-[#D1FAE5] text-[#065f46]',
@@ -24,11 +25,15 @@ const STATUS_SHORT: Record<string, string> = {
 };
 
 export default function StudentAttendancePage() {
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(4);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
   const [search, setSearch] = useState('');
-  const { students, selectedStudentId, setSelectedStudent } = useStudentStore();
-  const { getRecordsByStudent } = useAttendanceStore();
+  const { students, selectedStudentId, loading, setSelectedStudent, fetchStudents } = useStudentStore();
+  const { getRecordsByStudent, fetchByStudentMonth } = useAttendanceStore();
+
+  useEffect(() => {
+    fetchStudents();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeStudents = students.filter((s) => s.status === StudentStatus.ACTIVE);
   const filteredStudents = activeStudents.filter(
@@ -37,6 +42,13 @@ export default function StudentAttendancePage() {
   const selected = students.find((s) => s.id === selectedStudentId) ?? activeStudents[0];
 
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+  useEffect(() => {
+    if (selected?.id) {
+      fetchByStudentMonth(selected.id, monthStr);
+    }
+  }, [selected?.id, monthStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const records = selected ? getRecordsByStudent(selected.id, monthStr) : [];
 
   const recordMap: Record<string, AttendanceStatus> = {};
@@ -61,7 +73,7 @@ export default function StudentAttendancePage() {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar title="출결 현황" badge="조회 전용" />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
 
         {/* 좌측: 학생 목록 */}
         <div className="w-48 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden">
@@ -177,7 +189,7 @@ export default function StudentAttendancePage() {
           )}
         </div>
 
-      </div>
+      </div>}
     </div>
   );
 }

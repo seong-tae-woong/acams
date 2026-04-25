@@ -54,12 +54,24 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   }
 
   const body = await req.json();
-  const { name, phone, address, isActive } = body;
+  const { name, loginKey, phone, address, isActive } = body;
+
+  // loginKey 유효성 검사
+  if (loginKey !== undefined && loginKey !== '' && loginKey !== null) {
+    if (!/^[A-Z]{3}$/.test(loginKey)) {
+      return NextResponse.json({ error: '학원 키는 영문 대문자 3글자여야 합니다. (예: SGR)' }, { status: 400 });
+    }
+    const conflict = await prisma.academy.findFirst({ where: { loginKey, NOT: { id } } });
+    if (conflict) {
+      return NextResponse.json({ error: '이미 사용 중인 학원 키입니다.' }, { status: 409 });
+    }
+  }
 
   const updated = await prisma.academy.update({
     where: { id },
     data: {
       ...(name !== undefined && { name }),
+      ...(loginKey !== undefined && { loginKey: loginKey || null }),
       ...(phone !== undefined && { phone: phone || null }),
       ...(address !== undefined && { address: address || null }),
       ...(isActive !== undefined && { isActive }),

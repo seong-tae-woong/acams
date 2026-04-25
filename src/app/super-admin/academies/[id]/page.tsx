@@ -19,6 +19,7 @@ interface AcademyDetail {
   id: string;
   name: string;
   slug: string;
+  loginKey: string | null;
   phone: string | null;
   address: string | null;
   isActive: boolean;
@@ -49,7 +50,7 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
 
   // 학원 정보 편집 폼
-  const [editForm, setEditForm] = useState({ name: '', phone: '', address: '' });
+  const [editForm, setEditForm] = useState({ name: '', loginKey: '', phone: '', address: '' });
   const [saving, setSaving] = useState(false);
 
   // 비밀번호 초기화
@@ -60,7 +61,7 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
       .then((r) => r.json())
       .then((data: AcademyDetail) => {
         setAcademy(data);
-        setEditForm({ name: data.name, phone: data.phone ?? '', address: data.address ?? '' });
+        setEditForm({ name: data.name, loginKey: data.loginKey ?? '', phone: data.phone ?? '', address: data.address ?? '' });
         setLoading(false);
       })
       .catch(() => {
@@ -84,7 +85,7 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
       });
       const data = await res.json();
       if (!res.ok) { toast(data.error ?? '저장에 실패했습니다.', 'error'); return; }
-      setAcademy((prev) => prev ? { ...prev, name: data.name, phone: data.phone, address: data.address } : prev);
+      setAcademy((prev) => prev ? { ...prev, name: data.name, loginKey: data.loginKey, phone: data.phone, address: data.address } : prev);
       toast('학원 정보가 저장되었습니다.', 'success');
     } catch {
       toast('네트워크 오류가 발생했습니다.', 'error');
@@ -230,6 +231,22 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
               onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="학원명"
             />
+          </div>
+          <div>
+            <label className="block text-[12px] text-[#6b7280] mb-1.5">
+              학원 키 (영문 대문자 3글자)
+              {academy.loginKey && (
+                <span className="ml-2 text-[11px] font-mono bg-[#D1FAE5] text-[#065f46] px-1.5 py-0.5 rounded">현재: {academy.loginKey}</span>
+              )}
+            </label>
+            <input
+              className={fieldCls}
+              value={editForm.loginKey}
+              onChange={(e) => setEditForm((f) => ({ ...f, loginKey: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) }))}
+              placeholder="예: SGR"
+              maxLength={3}
+            />
+            <p className="text-[11px] text-[#9ca3af] mt-1">학생 로그인 ID 앞에 붙는 접두어입니다. 한 번 설정 후 변경하면 기존 학생 로그인 ID가 바뀝니다.</p>
           </div>
           <div>
             <label className="block text-[12px] text-[#6b7280] mb-1.5">대표 전화</label>

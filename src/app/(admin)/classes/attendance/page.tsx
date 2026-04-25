@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import { useClassStore } from '@/lib/stores/classStore';
@@ -7,8 +7,10 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { AttendanceStatus } from '@/lib/types/attendance';
 import { DAY_NAMES } from '@/lib/types/class';
 import clsx from 'clsx';
-import { CheckCheck, XCircle, Save, Bell } from 'lucide-react';
+import { CheckCheck, XCircle, Save, Bell, CalendarDays } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import AttendanceCalendarModal from '@/components/admin/AttendanceCalendarModal';
 
 const STATUS_OPTIONS = [
   { value: AttendanceStatus.PRESENT, label: '출석', color: '#065f46', bg: '#D1FAE5' },
@@ -18,11 +20,20 @@ const STATUS_OPTIONS = [
 ];
 
 export default function ClassAttendancePage() {
-  const { classes, selectedClassId, setSelectedClass } = useClassStore();
-  const { students } = useStudentStore();
-  const [selectedDate, setSelectedDate] = useState('2026-04-17');
+  const { classes, selectedClassId, loading, setSelectedClass, fetchClasses } = useClassStore();
+  const { students, fetchStudents } = useStudentStore();
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  useEffect(() => {
+    fetchClasses();
+    fetchStudents();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [attMap, setAttMap] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);
+
+  // 출결 현황 팝업
+  const [attModalStudentId, setAttModalStudentId] = useState<string | null>(null);
+  const [attModalStudentName, setAttModalStudentName] = useState('');
 
   const selected = classes.find((c) => c.id === selectedClassId);
   const classStudents = selected ? students.filter((s) => s.classes.includes(selected.id)) : [];
@@ -53,7 +64,7 @@ export default function ClassAttendancePage() {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar title="출결 체크" badge="입력 전용" />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 날짜 + 반 선택 */}
         <div className="w-52 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           {/* 날짜 선택 */}
@@ -147,6 +158,13 @@ export default function ClassAttendancePage() {
                         <div className="flex items-center gap-2">
                           <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white" style={{ backgroundColor: s.avatarColor }}>{s.name[0]}</span>
                           <span className="text-[#111827] font-medium">{s.name}</span>
+                          <button
+                            onClick={() => { setAttModalStudentId(s.id); setAttModalStudentName(s.name); }}
+                            className="ml-0.5 p-1 text-[#9ca3af] hover:text-[#4fc3a1] hover:bg-[#E1F5EE] rounded-[5px] cursor-pointer"
+                            title="출결 현황 보기"
+                          >
+                            <CalendarDays size={13} />
+                          </button>
                         </div>
                       </td>
                       {STATUS_OPTIONS.map((opt) => (
@@ -216,7 +234,15 @@ export default function ClassAttendancePage() {
             </p>
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* 출결 현황 팝업 */}
+      <AttendanceCalendarModal
+        open={!!attModalStudentId}
+        onClose={() => setAttModalStudentId(null)}
+        studentId={attModalStudentId ?? ''}
+        studentName={attModalStudentName}
+      />
     </div>
   );
 }

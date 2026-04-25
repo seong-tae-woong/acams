@@ -10,9 +10,10 @@ import { DAY_NAMES } from '@/lib/types/class';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import type { TeacherPermissions } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, KeyRound } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const HOURS = ['14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
 const DAYS = [1, 2, 3, 4, 5] as const;
@@ -32,8 +33,13 @@ const AVATAR_COLORS = ['#ef4444', '#4fc3a1', '#f59e0b', '#3b82f6', '#8b5cf6', '#
 const fieldCls = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
 
 export default function TeachersPage() {
-  const { teachers, addTeacher, updateTeacher } = useTeacherStore();
-  const { classes } = useClassStore();
+  const { teachers, loading, addTeacher, updateTeacher, fetchTeachers } = useTeacherStore();
+  const { classes, fetchClasses } = useClassStore();
+
+  useEffect(() => {
+    fetchTeachers();
+    fetchClasses();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [selectedId, setSelectedId] = useState(teachers[0]?.id ?? '');
   const selected = teachers.find((t) => t.id === selectedId);
@@ -63,6 +69,7 @@ export default function TeachersPage() {
   const [regForm, setRegForm] = useState({
     name: '', subject: '', phone: '', email: '', classes: [] as string[],
   });
+  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
 
   const openRegister = () => {
     setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
@@ -78,20 +85,26 @@ export default function TeachersPage() {
     }));
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!regForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
-    addTeacher({
-      name: regForm.name.trim(),
-      subject: regForm.subject.trim(),
-      phone: regForm.phone.trim(),
-      email: regForm.email.trim(),
-      classes: regForm.classes,
-      permissions: { ...DEFAULT_PERMISSIONS },
-      isActive: true,
-      avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
-    });
-    toast(`'${regForm.name}' 강사가 등록되었습니다.`, 'success');
-    setRegisterOpen(false);
+    if (!regForm.email.trim()) { toast('이메일을 입력해주세요.', 'error'); return; }
+    try {
+      const { tempPassword } = await addTeacher({
+        name: regForm.name.trim(),
+        subject: regForm.subject.trim(),
+        phone: regForm.phone.trim(),
+        email: regForm.email.trim(),
+        classes: regForm.classes,
+        permissions: { ...DEFAULT_PERMISSIONS },
+        isActive: true,
+        avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
+      });
+      setRegisterOpen(false);
+      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim(), tempPassword });
+      setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
+    } catch {
+      // 에러는 store에서 toast 처리
+    }
   };
 
   // ── 강사 정보 수정 모달 ────────────────────────────────
@@ -146,7 +159,7 @@ export default function TeachersPage() {
           </Button>
         }
       />
-      <div className="flex flex-1 overflow-hidden">
+      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 좌측: 강사 목록 */}
         <div className="w-48 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           {teachers.map((t) => (
@@ -260,7 +273,7 @@ export default function TeachersPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── 강사 등록 모달 ───────────────────────────────── */}
       <Modal
@@ -324,6 +337,38 @@ export default function TeachersPage() {
               )}
             </div>
           </div>
+        </div>
+      </Modal>
+
+      {/* ── 계정 발급 안내 모달 ──────────────────────────── */}
+      <Modal
+        open={!!credentialModal}
+        onClose={() => setCredentialModal(null)}
+        title="강사 계정 발급 완료"
+        size="sm"
+        footer={
+          <Button variant="dark" size="md" onClick={() => setCredentialModal(null)}>확인</Button>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[12.5px] text-[#6b7280]">
+            <span className="font-semibold text-[#111827]">{credentialModal?.name}</span> 강사의 로그인 계정이 발급되었습니다.
+            아래 정보를 강사에게 전달해주세요.
+          </p>
+          <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
+              <KeyRound size={13} /> 로그인 정보
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-24 text-[#6b7280] shrink-0">이메일(ID)</span>
+              <span className="font-mono font-medium text-[#111827]">{credentialModal?.email}</span>
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
+              <span className="font-mono font-medium text-[#4fc3a1] text-[14px] tracking-wider">{credentialModal?.tempPassword}</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
         </div>
       </Modal>
 

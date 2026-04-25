@@ -8,5 +8,5 @@ export default async function Home() {
   if (!role) redirect('/login');
   if (role === 'super_admin') redirect('/super-admin');
   if (role === 'parent' || role === 'student') redirect('/mobile');
-  redirect('/students');
+  redirect('/calendar');
 }

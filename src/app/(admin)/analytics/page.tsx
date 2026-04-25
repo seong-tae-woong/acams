@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useFinanceStore } from '@/lib/stores/financeStore';
@@ -7,6 +7,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { StudentStatus } from '@/lib/types/student';
 import { BillStatus } from '@/lib/types/finance';
 import clsx from 'clsx';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -17,17 +18,9 @@ type Tab = typeof TABS[number];
 
 const COLORS = ['#4fc3a1', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-// 더미 월별 추이 데이터
-const MONTHLY_TREND = [
-  { month: '11월', students: 15, revenue: 3800000 },
-  { month: '12월', students: 16, revenue: 4000000 },
-  { month: '1월', students: 16, revenue: 4200000 },
-  { month: '2월', students: 17, revenue: 4350000 },
-  { month: '3월', students: 18, revenue: 4560000 },
-  { month: '4월', students: 18, revenue: 4720000 },
-];
+interface MonthlyPoint { month: string; students: number; revenue: number; }
 
-// 재등록률 더미 데이터
+// 재등록률/이탈율 추이 — 이력 데이터 미비로 예시 데이터 유지
 const RE_REGISTRATION = [
   { month: '1월', reRate: 92, leaveRate: 8 },
   { month: '2월', reRate: 94, leaveRate: 6 },
@@ -35,7 +28,7 @@ const RE_REGISTRATION = [
   { month: '4월', reRate: 95, leaveRate: 5 },
 ];
 
-// 이탈 사유 더미 데이터
+// 이탈 사유 — 별도 이탈사유 필드 미비로 예시 데이터 유지
 const LEAVE_REASONS = [
   { name: '학업 과부하', value: 3 },
   { name: '이사/전학', value: 2 },
@@ -45,9 +38,20 @@ const LEAVE_REASONS = [
 
 export default function AnalyticsPage() {
   const [tab, setTab] = useState<Tab>('학생/매출 현황');
-  const { students } = useStudentStore();
-  const { bills } = useFinanceStore();
-  const { classes } = useClassStore();
+  const { students, loading, fetchStudents } = useStudentStore();
+  const { bills, fetchBills } = useFinanceStore();
+  const { classes, fetchClasses } = useClassStore();
+  const [monthlyTrend, setMonthlyTrend] = useState<MonthlyPoint[]>([]);
+
+  useEffect(() => {
+    fetchStudents();
+    fetchBills();
+    fetchClasses();
+    fetch('/api/analytics/monthly')
+      .then((r) => r.json())
+      .then((data: MonthlyPoint[]) => setMonthlyTrend(data))
+      .catch(() => {/* silent */});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeCount = students.filter((s) => s.status === StudentStatus.ACTIVE).length;
   const onLeaveCount = students.filter((s) => s.status === StudentStatus.ON_LEAVE).length;
@@ -57,6 +61,11 @@ export default function AnalyticsPage() {
   const collectionRate = bills.length > 0
     ? Math.round((bills.filter((b) => b.status === BillStatus.PAID).length / bills.length) * 100)
     : 0;
+
+  // 재등록률: 재원/(재원+퇴원) 기준 (이탈 미추적 데이터는 정적 유지)
+  const totalEnrolled = activeCount + withdrawnCount;
+  const reRegistrationRate = totalEnrolled > 0 ? Math.round((activeCount / totalEnrolled) * 100) : 0;
+  const leaveRate = 100 - reRegistrationRate;
 
   const byClassData = classes.map((c) => ({
     name: c.name.slice(0, 6),
@@ -73,7 +82,7 @@ export default function AnalyticsPage() {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar title="통계 및 분석" badge="2026년 4월" />
-      <div className="flex-1 overflow-y-auto">
+      {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto">
         {/* 탭 */}
         <div className="bg-white border-b border-[#e2e8f0] px-5 flex gap-4">
           {TABS.map((t) => (
@@ -113,7 +122,7 @@ export default function AnalyticsPage() {
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                   <div className="text-[12.5px] font-semibold text-[#111827] mb-3">월별 학생 수 추이</div>
                   <ResponsiveContainer width="100%" height={180}>
-                    <LineChart data={MONTHLY_TREND} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <LineChart data={monthlyTrend} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
@@ -168,7 +177,7 @@ export default function AnalyticsPage() {
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                   <div className="text-[12.5px] font-semibold text-[#111827] mb-3">월별 수납액 추이</div>
                   <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={MONTHLY_TREND} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <BarChart data={monthlyTrend} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${((v as number) / 10000).toFixed(0)}만`} />
@@ -185,12 +194,12 @@ export default function AnalyticsPage() {
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
-                  <div className="text-[24px] font-bold text-[#0D9E7A]">95%</div>
-                  <div className="text-[11.5px] text-[#6b7280] mt-1">4월 재등록률</div>
+                  <div className="text-[24px] font-bold text-[#0D9E7A]">{reRegistrationRate}%</div>
+                  <div className="text-[11.5px] text-[#6b7280] mt-1">현재 재원율</div>
                 </div>
                 <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
-                  <div className="text-[24px] font-bold text-[#991B1B]">5%</div>
-                  <div className="text-[11.5px] text-[#6b7280] mt-1">4월 이탈율</div>
+                  <div className="text-[24px] font-bold text-[#991B1B]">{leaveRate}%</div>
+                  <div className="text-[11.5px] text-[#6b7280] mt-1">현재 이탈율</div>
                 </div>
               </div>
 
@@ -240,7 +249,7 @@ export default function AnalyticsPage() {
             </>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
