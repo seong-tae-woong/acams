@@ -42,21 +42,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    const where: Parameters<typeof prisma.attendanceRecord.findMany>[0]['where'] = {
-      academyId,
-      studentId,
-    };
-
-    if (month) {
-      const [y, m] = month.split('-').map(Number);
-      where.date = {
-        gte: new Date(y, m - 1, 1),
-        lt: new Date(y, m, 1),
-      };
-    }
+    const dateFilter = month
+      ? (() => {
+          const [y, m] = month.split('-').map(Number);
+          return { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
+        })()
+      : undefined;
 
     const records = await prisma.attendanceRecord.findMany({
-      where,
+      where: {
+        academyId,
+        studentId,
+        ...(dateFilter ? { date: dateFilter } : {}),
+      },
       include: { class: { select: { name: true } } },
       orderBy: { date: 'desc' },
     });
