@@ -1,22 +1,49 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import { useStudentStore } from '@/lib/stores/studentStore';
-import { useClassStore } from '@/lib/stores/classStore';
-import { DAY_NAMES } from '@/lib/types/class';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { formatPhone } from '@/lib/utils/format';
 import { ChevronLeft, QrCode, Phone, School } from 'lucide-react';
 import Link from 'next/link';
 
-const STUDENT_ID = 's1';
+type StudentInfo = {
+  id: string; name: string; school: string; grade: number;
+  avatarColor: string; attendanceNumber: string; qrCode: string;
+  phone: string | null; parentName: string | null; parentPhone: string | null;
+};
+type ClassInfo = {
+  id: string; name: string; color: string;
+  schedule: { dayOfWeek: number; startTime: string; endTime: string }[];
+};
+
+const DAY_NAMES: Record<number, string> = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일' };
 
 export default function MobileProfilePage() {
-  const { students } = useStudentStore();
-  const { classes } = useClassStore();
+  const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
 
-  const student = students.find((s) => s.id === STUDENT_ID);
-  const myClasses = student ? classes.filter((c) => student.classes.includes(c.id)) : [];
+  useEffect(() => {
+    fetch('/api/mobile/me')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.student) setStudent(data.student);
+        if (data.classes) setClasses(data.classes);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen pb-20">
+        <div className="bg-[#1a2535] px-4 pt-12 pb-6 min-h-[160px] flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+        <BottomTabBar />
+      </div>
+    );
+  }
 
   if (!student) return null;
 
@@ -29,10 +56,8 @@ export default function MobileProfilePage() {
           <span className="text-[17px] font-bold text-white">내 정보</span>
         </div>
         <div className="flex items-center gap-4">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-[24px] font-bold text-white"
-            style={{ backgroundColor: student.avatarColor }}
-          >
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-[24px] font-bold text-white"
+            style={{ backgroundColor: student.avatarColor }}>
             {student.name[0]}
           </div>
           <div>
@@ -48,16 +73,12 @@ export default function MobileProfilePage() {
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[13px] font-semibold text-[#111827]">출결 QR 코드</span>
-            <button
-              onClick={() => setShowQR(!showQR)}
-              className="text-[12px] text-[#4fc3a1] font-medium cursor-pointer"
-            >
+            <button onClick={() => setShowQR(!showQR)} className="text-[12px] text-[#4fc3a1] font-medium cursor-pointer">
               {showQR ? '숨기기' : '보기'}
             </button>
           </div>
-          {showQR && (
+          {showQR ? (
             <div className="flex flex-col items-center py-4">
-              {/* QR 코드 시뮬레이션 */}
               <div className="w-40 h-40 bg-[#f4f6f8] rounded-[10px] flex flex-col items-center justify-center gap-2 border-2 border-[#e2e8f0]">
                 <QrCode size={64} className="text-[#1a2535]" />
                 <span className="text-[11px] text-[#6b7280]">{student.qrCode}</span>
@@ -66,8 +87,7 @@ export default function MobileProfilePage() {
                 키오스크에 QR 코드를 스캔하거나<br />출석번호를 입력하세요
               </p>
             </div>
-          )}
-          {!showQR && (
+          ) : (
             <div className="flex items-center gap-3 bg-[#f4f6f8] rounded-[10px] p-3">
               <QrCode size={32} className="text-[#4fc3a1]" />
               <div>
@@ -78,24 +98,28 @@ export default function MobileProfilePage() {
           )}
         </div>
 
-        {/* 기본 정보 */}
+        {/* 연락처 */}
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
           <div className="text-[13px] font-semibold text-[#111827] mb-3">연락처</div>
           <div className="space-y-2.5">
-            <div className="flex items-center gap-3">
-              <Phone size={14} className="text-[#6b7280]" />
-              <div>
-                <div className="text-[11px] text-[#9ca3af]">학생 연락처</div>
-                <div className="text-[12.5px] text-[#111827]">{formatPhone(student.phone)}</div>
+            {student.phone && (
+              <div className="flex items-center gap-3">
+                <Phone size={14} className="text-[#6b7280]" />
+                <div>
+                  <div className="text-[11px] text-[#9ca3af]">학생 연락처</div>
+                  <div className="text-[12.5px] text-[#111827]">{formatPhone(student.phone)}</div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Phone size={14} className="text-[#6b7280]" />
-              <div>
-                <div className="text-[11px] text-[#9ca3af]">{student.parentName} (학부모)</div>
-                <div className="text-[12.5px] text-[#111827]">{formatPhone(student.parentPhone)}</div>
+            )}
+            {student.parentPhone && (
+              <div className="flex items-center gap-3">
+                <Phone size={14} className="text-[#6b7280]" />
+                <div>
+                  <div className="text-[11px] text-[#9ca3af]">{student.parentName ?? '학부모'}</div>
+                  <div className="text-[12.5px] text-[#111827]">{formatPhone(student.parentPhone)}</div>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex items-center gap-3">
               <School size={14} className="text-[#6b7280]" />
               <div>
@@ -110,7 +134,9 @@ export default function MobileProfilePage() {
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
           <div className="text-[13px] font-semibold text-[#111827] mb-3">수강 중인 반</div>
           <div className="space-y-2">
-            {myClasses.map((c) => (
+            {classes.length === 0 ? (
+              <div className="text-[12px] text-[#9ca3af]">수강 중인 반 없음</div>
+            ) : classes.map((c) => (
               <div key={c.id} className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
                 <span className="text-[12.5px] font-medium text-[#111827]">{c.name}</span>
