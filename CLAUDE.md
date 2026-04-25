@@ -31,6 +31,8 @@
 
 ## §2. 역할별 진입점 (proxy 접근 제어)
 
+> 배포 URL: **https://acams-jmi3.vercel.app** | 로컬: http://localhost:3000
+
 ```
 super_admin       → /super-admin/*
 director, teacher → /(admin)/*
@@ -79,9 +81,7 @@ if (req.headers.get('x-user-role') !== 'super_admin') return 403;
 
 ---
 
----
-
-## §6. Mobile PWA (학부모·학생)
+## §5. Mobile PWA (학부모·학생)
 
 ### 라우트 및 API
 - UI: `src/app/mobile/*` — 5탭 (홈·출결·성적·공지·내정보), 캘린더·일정·결제 탭 포함
@@ -125,7 +125,7 @@ prisma.calendarEvent.findMany({
 
 ---
 
-## §5. 작업 지침 (토큰 절약)
+## §6. 작업 지침 (토큰 절약)
 
 - **Read 후에만 Edit** — 미열람 파일 수정 금지
 - **단일 도메인 집중** — 한 번에 §1의 1행만
