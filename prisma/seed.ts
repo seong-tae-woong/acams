@@ -20,6 +20,8 @@ async function main() {
   await prisma.classEnrollment.deleteMany({});
   await prisma.student.deleteMany({});
   await prisma.parent.deleteMany({});
+  // 학생·학부모 User 계정 삭제 (슈퍼어드민·원장·강사는 upsert로 재생성)
+  await prisma.user.deleteMany({ where: { role: { in: ['student', 'parent'] } } });
   await prisma.calendarEvent.deleteMany({});
   await prisma.announcement.deleteMany({});
   await prisma.expense.deleteMany({});
@@ -50,6 +52,7 @@ async function main() {
     create: {
       name: '세계로학원',
       slug: 'segyero',
+      loginKey: 'SGR',
       phone: '02-1234-5678',
     },
   });
@@ -179,15 +182,23 @@ async function main() {
     { name: '표진우', school: '미래초', grade: 5, phone: '010-1001-0020', parent: '표부모', parentPhone: '010-2001-0020', color: '#93C5FD', classIdxs: [0, 3] },
   ];
 
+  // 시드용 고정 비밀번호 (실제 등록 시엔 generateTempPassword()로 랜덤 생성)
+  const SEED_STUDENT_PW = 'SeedSt24';
+  const SEED_PARENT_PW  = 'SeedPr24';
+  const studentPwHash = await bcrypt.hash(SEED_STUDENT_PW, 12);
+  const parentPwHash  = await bcrypt.hash(SEED_PARENT_PW, 12);
+
   const students = await Promise.all(
     studentData.map(async (sd, i) => {
       const attendanceNumber = String(1001 + i);
+      // loginId = 학원 loginKey + 출석번호 (실제 등록 API와 동일한 포맷)
+      const studentLoginId = `${academy.loginKey}${attendanceNumber}`;
 
       // 학생 User 생성
       const studentUser = await prisma.user.create({
         data: {
-          loginId: attendanceNumber,
-          passwordHash: await bcrypt.hash('student2026!', 12),
+          loginId: studentLoginId,
+          passwordHash: studentPwHash,
           name: sd.name,
           role: 'student',
           academyId: academy.id,
@@ -219,7 +230,7 @@ async function main() {
       const parentUser = await prisma.user.create({
         data: {
           loginId: sd.parentPhone,
-          passwordHash: await bcrypt.hash('parent2026!', 12),
+          passwordHash: parentPwHash,
           name: sd.parent,
           role: 'parent',
           academyId: academy.id,
@@ -413,8 +424,8 @@ async function main() {
   console.log('  슈퍼어드민: superadmin@acams.kr / acams2026!');
   console.log('  원장:       director@segyero.kr / segyero2026!');
   console.log('  강사:       kim@segyero.kr / teacher2026!');
-  console.log('  학생:       출석번호(1001~1020) + student2026!  (학원 선택 후 사용)');
-  console.log('  학부모:     전화번호 + parent2026!  (학원 선택 후 사용)');
+  console.log('  학생:       SGR1001~SGR1020 / SeedSt24  (학원 loginKey=SGR + 출석번호)');
+  console.log('  학부모:     010-2001-0001~0020 / SeedPr24  (전화번호)');
 }
 
 main()
