@@ -50,7 +50,28 @@ export default function MobileProfilePage() {
     );
   }
 
-  if (!student) return null;
+  if (!student) {
+    return (
+      <div className="flex flex-col min-h-screen pb-20">
+        <div className="bg-[#1a2535] px-4 pt-12 pb-6 min-h-[160px] flex items-center">
+          <span className="text-[17px] font-bold text-white">내 정보</span>
+        </div>
+        <div className="px-4 py-6 flex-1 flex flex-col gap-4">
+          <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-6 text-center text-[13px] text-[#9ca3af]">
+            학생 정보를 불러올 수 없습니다.
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-[12px] border border-[#e2e8f0] bg-white text-[13px] font-semibold text-[#ef4444]"
+          >
+            <LogOut size={15} />
+            로그아웃
+          </button>
+        </div>
+        <BottomTabBar />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col pb-20">
