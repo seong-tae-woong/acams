@@ -8,7 +8,7 @@ import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
-import { Shield, Plus, KeyRound, X } from 'lucide-react';
+import { Shield, Plus, KeyRound, X, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
@@ -28,7 +28,7 @@ const AVATAR_COLORS = ['#ef4444', '#4fc3a1', '#f59e0b', '#3b82f6', '#8b5cf6', '#
 const fieldCls = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
 
 export default function SettingsPage() {
-  const { teachers, loading, fetchTeachers, updateTeacher, addTeacher } = useTeacherStore();
+  const { teachers, loading, fetchTeachers, updateTeacher, addTeacher, resetPassword } = useTeacherStore();
   const { classes, fetchClasses } = useClassStore();
   const [selectedId, setSelectedId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'teachers' | 'academy'>('teachers');
@@ -40,6 +40,16 @@ export default function SettingsPage() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [regForm, setRegForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
   const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
+
+  // 강사 정보 수정 모달
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // 비밀번호 초기화
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string } | null>(null);
 
   useEffect(() => {
     fetchTeachers();
@@ -75,6 +85,55 @@ export default function SettingsPage() {
   const toggleActive = async () => {
     if (!selected) return;
     await updateTeacher(selectedId, { isActive: !selected.isActive });
+  };
+
+  const openEdit = () => {
+    if (!selected) return;
+    setEditForm({
+      name: selected.name,
+      subject: selected.subject,
+      phone: selected.phone,
+      email: selected.email,
+      classes: [...selected.classes],
+    });
+    setEditOpen(true);
+  };
+
+  const toggleEditClass = (classId: string) => {
+    setEditForm((f) => ({
+      ...f,
+      classes: f.classes.includes(classId)
+        ? f.classes.filter((id) => id !== classId)
+        : [...f.classes, classId],
+    }));
+  };
+
+  const handleEdit = async () => {
+    if (!editForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
+    setSavingEdit(true);
+    try {
+      await updateTeacher(selectedId, {
+        name: editForm.name.trim(),
+        subject: editForm.subject.trim(),
+        phone: editForm.phone.trim(),
+        email: editForm.email.trim(),
+      });
+      setEditOpen(false);
+    } catch { /* store handles error */ } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!selected) return;
+    setResetting(true);
+    try {
+      const result = await resetPassword(selectedId);
+      setResetConfirmOpen(false);
+      setResetResult(result);
+    } catch { /* store handles error */ } finally {
+      setResetting(false);
+    }
   };
 
   const openRegister = () => {
@@ -189,7 +248,10 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="default" size="sm" onClick={() => toast('정보 수정 기능은 추후 지원 예정입니다.', 'info')}>수정</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setResetConfirmOpen(true)}>
+                      <RefreshCw size={13} /> 비밀번호 초기화
+                    </Button>
+                    <Button variant="default" size="sm" onClick={openEdit}>수정</Button>
                     <Button
                       variant={selected.isActive ? 'danger' : 'primary'}
                       size="sm"
@@ -295,6 +357,122 @@ export default function SettingsPage() {
           )}
         </div>
       </div>}
+
+      {/* ── 강사 정보 수정 모달 ─────────────────────────── */}
+      <Modal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="강사 정보 수정"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setEditOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleEdit} disabled={savingEdit}>
+              {savingEdit ? '저장 중...' : '저장'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">이름 *</label>
+              <input className={fieldCls} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">과목</label>
+              <input className={fieldCls} value={editForm.subject} onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">연락처</label>
+              <input className={fieldCls} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000" />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">이메일</label>
+              <input className={fieldCls} value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1.5">담당 반 (복수 선택 가능)</label>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+              {classes.map((cls) => {
+                const isSelected = editForm.classes.includes(cls.id);
+                return (
+                  <button
+                    key={cls.id}
+                    type="button"
+                    onClick={() => toggleEditClass(cls.id)}
+                    className={clsx(
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                      isSelected
+                        ? 'border-[#4fc3a1] bg-[#E1F5EE] text-[#065f46]'
+                        : 'border-[#e2e8f0] bg-[#f4f6f8] text-[#374151] hover:border-[#4fc3a1]',
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls.color }} />
+                    {cls.name}
+                    {isSelected && <X size={11} className="ml-0.5 text-[#4fc3a1]" />}
+                  </button>
+                );
+              })}
+              {classes.length === 0 && (
+                <span className="text-[12px] text-[#9ca3af]">등록된 반이 없습니다.</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── 비밀번호 초기화 확인 모달 ────────────────────── */}
+      <Modal
+        open={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        title="비밀번호 초기화"
+        size="sm"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setResetConfirmOpen(false)} disabled={resetting}>취소</Button>
+            <Button variant="danger" size="md" onClick={handlePasswordReset} disabled={resetting}>
+              {resetting ? '초기화 중...' : '초기화'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[13px] text-[#374151]">
+            <span className="font-semibold">{selected?.name}</span> 강사의 비밀번호를 초기화하시겠습니까?
+          </p>
+          <p className="text-[11px] text-[#9ca3af]">초기화 후 새 임시 비밀번호가 발급됩니다. 반드시 강사에게 전달해주세요.</p>
+        </div>
+      </Modal>
+
+      {/* ── 비밀번호 초기화 결과 모달 ────────────────────── */}
+      <Modal
+        open={!!resetResult}
+        onClose={() => setResetResult(null)}
+        title="비밀번호 초기화 완료"
+        size="sm"
+        footer={<Button variant="dark" size="md" onClick={() => setResetResult(null)}>확인</Button>}
+      >
+        <div className="space-y-3">
+          <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
+            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#111827] mb-1">
+              <KeyRound size={13} /> 강사 계정
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-28 text-[#6b7280] shrink-0">로그인 ID</span>
+              <span className="font-mono font-medium text-[#111827]">{resetResult?.loginId}</span>
+            </div>
+            <div className="flex gap-2 text-[12.5px]">
+              <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
+              <span className="font-mono font-bold text-[#4fc3a1] text-[15px] tracking-wider">{resetResult?.tempPassword}</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
+        </div>
+      </Modal>
 
       {/* ── 강사 등록 모달 ───────────────────────────────── */}
       <Modal
