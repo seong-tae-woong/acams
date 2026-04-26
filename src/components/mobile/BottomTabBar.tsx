@@ -8,7 +8,7 @@ const TABS = [
   { href: '/mobile', label: '홈', icon: Home },
   { href: '/mobile/attendance', label: '출결', icon: CalendarCheck },
   { href: '/mobile/grades', label: '성적', icon: BookOpen },
-  { href: '/mobile/announcements', label: '공지', icon: Bell },
+  { href: '/mobile/notifications', label: '알림', icon: Bell },
   { href: '/mobile/profile', label: '내 정보', icon: User },
 ];
 

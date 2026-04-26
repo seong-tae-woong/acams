@@ -6,6 +6,7 @@ import Tabs from '@/components/shared/Tabs';
 import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { useClassStore } from '@/lib/stores/classStore';
+import { useCommunicationStore } from '@/lib/stores/communicationStore';
 import { BillStatus } from '@/lib/types/finance';
 import type { Bill, PaymentMethod } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
@@ -46,6 +47,27 @@ function formatMonth(m: string) {
   return `${y}년 ${parseInt(mo)}월`;
 }
 
+function generateOverdueContent(studentName: string, unpaidBills: Bill[]): string {
+  const lines = unpaidBills.map((b) => {
+    const due = b.amount - b.paidAmount;
+    return `• ${formatMonth(b.month)} | ${b.className} | ${due.toLocaleString()}원`;
+  });
+  const total = unpaidBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
+  return [
+    `안녕하세요, 세계로학원입니다.`,
+    ``,
+    `${studentName} 학부모님, 현재 아래와 같이 수강료가 미납되어 있습니다.`,
+    ``,
+    `📋 미납 내역`,
+    ...lines,
+    ``,
+    `미납 총액: ${total.toLocaleString()}원`,
+    ``,
+    `아래 [결제하기] 버튼을 눌러 납부를 진행해 주시기 바랍니다.`,
+    `빠른 납부에 감사드립니다.`,
+  ].join('\n');
+}
+
 const FINANCE_TABS = [
   { value: 'billing', label: '청구 및 수납' },
   { value: 'payments', label: '수납 내역' },
@@ -55,6 +77,7 @@ const FINANCE_TABS = [
 export default function BillingPage() {
   const { bills, loading, payBill, adjustBill, getBillsByStudent, fetchBills } = useFinanceStore();
   const { classes, fetchClasses } = useClassStore();
+  const { addNotification } = useCommunicationStore();
 
   useEffect(() => {
     fetchBills();
@@ -82,6 +105,13 @@ export default function BillingPage() {
   const [adjustTarget, setAdjustTarget] = useState<Bill | null>(null);
   const [adjustAmt, setAdjustAmt] = useState('');
   const [adjustMemoVal, setAdjustMemoVal] = useState('');
+
+  // ── 청구서 발송 모달 상태 ─────────────────────────────
+  const [billingNotifOpen, setBillingNotifOpen] = useState(false);
+  const [billingNotifSending, setBillingNotifSending] = useState(false);
+
+  // ── 미납 알림 발송 상태 ───────────────────────────────
+  const [overdueNotifSending, setOverdueNotifSending] = useState(false);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -133,7 +163,7 @@ export default function BillingPage() {
     if (search && !b.studentName.includes(search)) return false;
     return true;
   });
-  const unpaidBills = monthFilteredBills.filter((b) => b.status === BillStatus.UNPAID);
+  const unpaidBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID);
 
   // ── 수납 내역 탭 계산 ─────────────────────────────────
   const payAvailMonths = useMemo(() => {
@@ -210,17 +240,106 @@ export default function BillingPage() {
     setAdjustOpen(false);
   };
 
+  // ── 청구서 발송 핸들러 ────────────────────────────────
+  const handleSendBillingNotif = async () => {
+    setBillingNotifSending(true);
+    try {
+      const targetBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID);
+      const studentIds = [...new Set(targetBills.map((b) => b.studentId))];
+      if (studentIds.length === 0) { toast('발송 대상 학생이 없습니다.', 'error'); return; }
+
+      const monthStr = filterMonths.length === 1 ? formatMonth(filterMonths[0])
+        : filterMonths.length > 1 ? `${filterMonths.length}개월` : '선택 기간';
+
+      await addNotification({
+        type: '수납알림',
+        title: `${monthStr} 수강료 청구 안내`,
+        content: `안녕하세요, 세계로학원입니다.\n\n${monthStr} 수강료가 청구되었습니다.\n\n아래 [결제하기] 버튼을 눌러 결제를 진행해 주세요.\n납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.\n\n감사합니다.`,
+        recipients: studentIds,
+        sentBy: '',
+      });
+      setBillingNotifOpen(false);
+    } finally {
+      setBillingNotifSending(false);
+    }
+  };
+
+  // ── 미납 알림 발송 핸들러 (개별) ──────────────────────
+  const sendOverdueNotification = async (studentId: string, studentName: string) => {
+    const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
+    if (studentBills.length === 0) { toast('미납 청구 내역이 없습니다.', 'error'); return; }
+    await addNotification({
+      type: '수납알림',
+      title: `미납 수강료 안내`,
+      content: generateOverdueContent(studentName, studentBills),
+      recipients: [studentId],
+      sentBy: '',
+    });
+  };
+
+  // ── 미납 알림 일괄 발송 핸들러 ────────────────────────
+  const sendBatchOverdueNotifications = async () => {
+    if (overdueBills.length === 0) { toast('미납 학생이 없습니다.', 'info'); return; }
+    setOverdueNotifSending(true);
+    try {
+      // 학생별 중복 제거
+      const studentMap = new Map<string, { studentId: string; studentName: string }>();
+      overdueBills.forEach((b) => {
+        if (!studentMap.has(b.studentId)) {
+          studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName });
+        }
+      });
+
+      let successCount = 0;
+      for (const { studentId, studentName } of studentMap.values()) {
+        const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
+        if (studentBills.length === 0) continue;
+        try {
+          await fetch('/api/communication/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: '수납알림',
+              title: `미납 수강료 안내`,
+              content: generateOverdueContent(studentName, studentBills),
+              recipients: [studentId],
+            }),
+          });
+          successCount++;
+        } catch { /* 개별 실패 무시 */ }
+      }
+      toast(`미납 알림 ${successCount}명 발송 완료`, 'success');
+    } catch {
+      toast('알림 발송 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setOverdueNotifSending(false);
+    }
+  };
+
   const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
+
+  // 청구서 발송 모달 - 대상 학생 목록
+  const billingNotifTargets = useMemo(() => {
+    const targetBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID);
+    const studentMap = new Map<string, { studentId: string; studentName: string; total: number }>();
+    targetBills.forEach((b) => {
+      const due = b.amount - b.paidAmount;
+      if (!studentMap.has(b.studentId)) {
+        studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName, total: 0 });
+      }
+      studentMap.get(b.studentId)!.total += due;
+    });
+    return Array.from(studentMap.values());
+  }, [monthFilteredBills]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="청구/수납/미납"
         actions={
-          <>
-            <Button variant="default" size="sm" onClick={() => toast('청구서가 발송되었습니다.', 'info')}><Send size={13} /> 청구서 발송</Button>
-            <Button variant="dark" size="sm" onClick={() => toast('청구 등록은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 청구 등록</Button>
-          </>
+          <Button variant="dark" size="sm" onClick={() => toast('청구 등록은 추후 지원 예정입니다.', 'info')}>
+            <Plus size={13} /> 청구 등록
+          </Button>
         }
       />
 
@@ -277,6 +396,17 @@ export default function BillingPage() {
                   )}
                 </div>
                 <span className="text-[12px] text-[#6b7280] ml-auto">{filtered.length}건</span>
+                {/* 청구서 발송 버튼 - 미납/부분납 학생 있을 때만 활성 */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    if (billingNotifTargets.length === 0) { toast('발송 대상 학생이 없습니다. 이미 전원 완납되었습니다.', 'info'); return; }
+                    setBillingNotifOpen(true);
+                  }}
+                >
+                  <Send size={13} /> 청구서 발송
+                </Button>
               </div>
               <table className="w-full text-[12.5px]">
                 <thead>
@@ -314,9 +444,9 @@ export default function BillingPage() {
             </div>
             {unpaidBills.length > 0 && (
               <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-[10px] p-4">
-                <div className="text-[12.5px] font-semibold text-[#991B1B] mb-2">미납 학생 {unpaidBills.length}명</div>
+                <div className="text-[12.5px] font-semibold text-[#991B1B] mb-2">미납/부분납 학생 {unpaidBills.length}명</div>
                 <div className="flex flex-wrap gap-2">
-                  {unpaidBills.map((b) => <span key={b.id} className="px-2.5 py-1 bg-white border border-[#FECACA] rounded-[8px] text-[12px] text-[#991B1B]">{b.studentName} ({b.className}) {b.amount.toLocaleString()}원</span>)}
+                  {unpaidBills.map((b) => <span key={b.id} className="px-2.5 py-1 bg-white border border-[#FECACA] rounded-[8px] text-[12px] text-[#991B1B]">{b.studentName} ({b.className}) {(b.amount - b.paidAmount).toLocaleString()}원</span>)}
                 </div>
               </div>
             )}
@@ -417,8 +547,14 @@ export default function BillingPage() {
                 ))}
               </div>
               <div className="ml-3 shrink-0">
-                <Button variant="default" size="sm" onClick={() => toast(`미납 학생 ${overdueBills.length}명에게 알림을 발송했습니다.`, 'success')}>
-                  <Send size={13} /> 미납 알림 일괄 발송
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={sendBatchOverdueNotifications}
+                  disabled={overdueNotifSending || overdueBills.length === 0}
+                >
+                  <Send size={13} />
+                  {overdueNotifSending ? '발송 중...' : `미납 알림 일괄 발송 (${[...new Set(overdueBills.map(b => b.studentId))].length}명)`}
                 </Button>
               </div>
             </div>
@@ -462,7 +598,16 @@ export default function BillingPage() {
                           <td className="px-4 py-3 text-[#6b7280]">{b.memo || '-'}</td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-1.5">
-                              <Button variant="default" size="sm" onClick={() => toast(`${b.studentName} 학부모에게 연락을 시도합니다.`, 'info')}><Phone size={11} /> 연락</Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => sendOverdueNotification(b.studentId, b.studentName)}
+                              >
+                                <Send size={11} /> 알림
+                              </Button>
+                              <Button variant="default" size="sm" onClick={() => toast(`${b.studentName} 학부모에게 연락을 시도합니다.`, 'info')}>
+                                <Phone size={11} /> 연락
+                              </Button>
                               <Button variant="primary" size="sm" onClick={() => payBill(b.id, overAmount, '카드', today)}>수납</Button>
                             </div>
                           </td>
@@ -555,6 +700,63 @@ export default function BillingPage() {
               </tfoot>
             </table>
           )}
+        </div>
+      </Modal>
+
+      {/* ── 청구서 발송 확인 모달 ── */}
+      <Modal
+        open={billingNotifOpen}
+        onClose={() => setBillingNotifOpen(false)}
+        title="청구서 발송"
+        size="md"
+        footer={
+          <>
+            <Button variant="default" size="md" onClick={() => setBillingNotifOpen(false)}>취소</Button>
+            <Button variant="dark" size="md" onClick={handleSendBillingNotif} disabled={billingNotifSending}>
+              <Send size={13} /> {billingNotifSending ? '발송 중...' : `${billingNotifTargets.length}명에게 발송`}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 bg-[#FEF3C7] border border-[#FDE68A] rounded-[8px] text-[12.5px] text-[#92400E]">
+            선택된 월({monthLabel})에서 <strong>미납/부분납 학생 {billingNotifTargets.length}명</strong>에게 수납 알림을 발송합니다.
+            완납한 학생에게는 발송되지 않습니다.
+          </div>
+
+          <div>
+            <div className="text-[11.5px] font-semibold text-[#374151] mb-2">발송 대상 ({billingNotifTargets.length}명)</div>
+            <div className="border border-[#e2e8f0] rounded-[8px] overflow-hidden max-h-48 overflow-y-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="bg-[#f4f6f8]">
+                    <th className="text-left px-3 py-2 text-[#6b7280] font-medium">학생</th>
+                    <th className="text-right px-3 py-2 text-[#6b7280] font-medium">청구액 (미납)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f1f5f9]">
+                  {billingNotifTargets.map((t) => (
+                    <tr key={t.studentId}>
+                      <td className="px-3 py-2 text-[#111827] font-medium">{t.studentName}</td>
+                      <td className="px-3 py-2 text-right text-[#991B1B] font-semibold">{t.total.toLocaleString()}원</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11.5px] font-semibold text-[#374151] mb-2">알림 내용 미리보기</div>
+            <div className="p-3.5 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#374151] leading-relaxed whitespace-pre-line border border-[#e2e8f0]">
+              {`안녕하세요, 세계로학원입니다.\n\n${monthLabel} 수강료가 청구되었습니다.\n\n아래 [결제하기] 버튼을 눌러 결제를 진행해 주세요.\n납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.\n\n감사합니다.`}
+            </div>
+            <div className="mt-2 flex">
+              <div className="px-4 py-2 rounded-[8px] text-[12px] font-semibold text-white cursor-default" style={{ backgroundColor: '#4fc3a1' }}>
+                결제하기 (앱에서 활성화)
+              </div>
+            </div>
+          </div>
         </div>
       </Modal>
     </div>

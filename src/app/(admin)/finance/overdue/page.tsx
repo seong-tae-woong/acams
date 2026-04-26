@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { BillStatus } from '@/lib/types/finance';
+import type { Bill } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Send, Phone } from 'lucide-react';
@@ -36,6 +37,27 @@ function formatMonth(m: string) {
   return `${y}년 ${parseInt(mo)}월`;
 }
 
+function generateOverdueContent(studentName: string, unpaidBills: Bill[]): string {
+  const lines = unpaidBills.map((b) => {
+    const due = b.amount - b.paidAmount;
+    return `• ${formatMonth(b.month)} | ${b.className} | ${due.toLocaleString()}원`;
+  });
+  const total = unpaidBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
+  return [
+    `안녕하세요, 세계로학원입니다.`,
+    ``,
+    `${studentName} 학부모님, 현재 아래와 같이 수강료가 미납되어 있습니다.`,
+    ``,
+    `📋 미납 내역`,
+    ...lines,
+    ``,
+    `미납 총액: ${total.toLocaleString()}원`,
+    ``,
+    `아래 [결제하기] 버튼을 눌러 납부를 진행해 주시기 바랍니다.`,
+    `빠른 납부에 감사드립니다.`,
+  ].join('\n');
+}
+
 export default function OverduePage() {
   const { bills, loading, payBill, getBillsByStudent, fetchBills } = useFinanceStore();
 
@@ -44,6 +66,7 @@ export default function OverduePage() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
+  const [overdueNotifSending, setOverdueNotifSending] = useState(false);
 
   const overdueBills = bills
     .filter((b) => b.status !== BillStatus.PAID)
@@ -67,12 +90,85 @@ export default function OverduePage() {
     setDetailOpen(true);
   };
 
+  // 개별 미납 알림 발송
+  const sendOverdueNotification = async (studentId: string, studentName: string) => {
+    const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
+    if (studentBills.length === 0) { toast('미납 청구 내역이 없습니다.', 'error'); return; }
+    try {
+      const res = await fetch('/api/communication/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: '수납알림',
+          title: `미납 수강료 안내`,
+          content: generateOverdueContent(studentName, studentBills),
+          recipients: [studentId],
+        }),
+      });
+      if (res.ok) {
+        toast(`${studentName}에게 미납 알림을 발송했습니다.`, 'success');
+      } else {
+        toast('알림 발송에 실패했습니다.', 'error');
+      }
+    } catch {
+      toast('알림 발송 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  // 일괄 미납 알림 발송
+  const sendBatchOverdueNotifications = async () => {
+    if (overdueBills.length === 0) { toast('미납 학생이 없습니다.', 'info'); return; }
+    setOverdueNotifSending(true);
+    try {
+      const studentMap = new Map<string, { studentId: string; studentName: string }>();
+      overdueBills.forEach((b) => {
+        if (!studentMap.has(b.studentId)) {
+          studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName });
+        }
+      });
+
+      let successCount = 0;
+      for (const { studentId, studentName } of studentMap.values()) {
+        const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
+        if (studentBills.length === 0) continue;
+        try {
+          const res = await fetch('/api/communication/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: '수납알림',
+              title: `미납 수강료 안내`,
+              content: generateOverdueContent(studentName, studentBills),
+              recipients: [studentId],
+            }),
+          });
+          if (res.ok) successCount++;
+        } catch { /* 개별 실패 무시 */ }
+      }
+      toast(`미납 알림 ${successCount}명 발송 완료`, 'success');
+    } catch {
+      toast('알림 발송 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setOverdueNotifSending(false);
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="미납 관리"
         badge={`미납 ${overdueBills.length}명`}
-        actions={<Button variant="default" size="sm" onClick={() => toast(`미납 학생 ${overdueBills.length}명에게 알림을 발송했습니다.`, 'success')}><Send size={13} /> 미납 알림 일괄 발송</Button>}
+        actions={
+          <Button
+            variant="default"
+            size="sm"
+            onClick={sendBatchOverdueNotifications}
+            disabled={overdueNotifSending || overdueBills.length === 0}
+          >
+            <Send size={13} />
+            {overdueNotifSending ? '발송 중...' : `미납 알림 일괄 발송 (${[...new Set(overdueBills.map(b => b.studentId))].length}명)`}
+          </Button>
+        }
       />
       {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 미납 현황 KPI */}
@@ -146,6 +242,13 @@ export default function OverduePage() {
                       <td className="px-4 py-3 text-[#6b7280]">{b.memo || '-'}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => sendOverdueNotification(b.studentId, b.studentName)}
+                          >
+                            <Send size={11} /> 알림
+                          </Button>
                           <Button variant="default" size="sm" onClick={() => toast(`${b.studentName} 학부모에게 연락을 시도합니다.`, 'info')}>
                             <Phone size={11} /> 연락
                           </Button>
