@@ -13,8 +13,7 @@ import clsx from 'clsx';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar
 } from 'recharts';
-import { FileDown, Send } from 'lucide-react';
-import { toast } from '@/lib/stores/toastStore';
+import { FileDown } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const ATTITUDE_COLORS: Record<string, string> = {
@@ -170,10 +169,7 @@ export default function StudentReportPage() {
         title="학생 리포트"
         badge="성적·태도·결석 종합"
         actions={
-          <>
-            <Button variant="default" size="sm" onClick={handlePrint}><FileDown size={13} /> PDF 생성</Button>
-            <Button variant="dark" size="sm" onClick={() => toast('리포트가 학부모에게 발송되었습니다.', 'success')}><Send size={13} /> 학부모 발송</Button>
-          </>
+          <Button variant="default" size="sm" onClick={handlePrint}><FileDown size={13} /> PDF 생성</Button>
         }
       />
       {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">

@@ -36,9 +36,13 @@ function formatTime(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-// 미납 알림 본문에서 총액 파싱 (결제 버튼에 표시)
-function parseOverdueTotal(content: string): number | null {
-  const match = content.match(/미납 총액:\s*([\d,]+)원/);
+// 수납 알림 본문에서 청구/미납 총액 파싱 (결제 버튼에 표시)
+function parseTotalAmount(content: string): number | null {
+  // 미납 알림: "미납 총액: X원"
+  let match = content.match(/미납 총액:\s*([\d,]+)원/);
+  if (match) return parseInt(match[1].replace(/,/g, ''), 10);
+  // 청구서 알림: "청구 총액: X원"
+  match = content.match(/청구 총액:\s*([\d,]+)원/);
   if (match) return parseInt(match[1].replace(/,/g, ''), 10);
   return null;
 }
@@ -47,7 +51,7 @@ function NotificationCard({ notif }: { notif: NotificationItem }) {
   const [expanded, setExpanded] = useState(false);
   const ts = TYPE_STYLE[notif.type] ?? TYPE_STYLE['일반'];
   const isPayment = notif.type === '수납알림';
-  const overdueTotal = isPayment ? parseOverdueTotal(notif.content) : null;
+  const totalAmount = isPayment ? parseTotalAmount(notif.content) : null;
 
   // 본문 첫 줄 미리보기
   const preview = notif.content.split('\n').filter(Boolean)[0] ?? '';
@@ -99,26 +103,33 @@ function NotificationCard({ notif }: { notif: NotificationItem }) {
       {isPayment && (
         <div className="px-4 pb-4">
           <div className="border-t border-[#f1f5f9] pt-3">
-            {overdueTotal !== null ? (
-              // 미납 알림: 총액 표시 + 결제 버튼
+            {totalAmount !== null ? (
+              // 청구서 또는 미납 알림: 총액 표시 + 결제 버튼
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-[12.5px]">
-                  <span className="text-[#6b7280]">미납 총액</span>
-                  <span className="font-bold text-[#991B1B] text-[15px]">{overdueTotal.toLocaleString()}원</span>
+                  <span className="text-[#6b7280]">
+                    {notif.content.includes('미납 총액') ? '미납 총액' : '청구 총액'}
+                  </span>
+                  <span
+                    className="font-bold text-[15px]"
+                    style={{ color: notif.content.includes('미납 총액') ? '#991B1B' : '#0D9E7A' }}
+                  >
+                    {totalAmount.toLocaleString()}원
+                  </span>
                 </div>
                 <Link href="/mobile/payments">
                   <button
                     className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80"
-                    style={{ backgroundColor: '#991B1B' }}
+                    style={{ backgroundColor: notif.content.includes('미납 총액') ? '#991B1B' : '#4fc3a1' }}
                     onClick={() => toast('결제 페이지로 이동합니다. (결제 연동 예정)', 'info')}
                   >
                     <CreditCard size={16} />
-                    {overdueTotal.toLocaleString()}원 전액 결제하기
+                    {totalAmount.toLocaleString()}원 결제하기
                   </button>
                 </Link>
               </div>
             ) : (
-              // 일반 청구서 발송 알림
+              // 총액 정보 없는 수납 알림
               <Link href="/mobile/payments">
                 <button
                   className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80"

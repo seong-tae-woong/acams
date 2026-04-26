@@ -15,6 +15,29 @@ import { Plus, Send, ChevronDown, Check, Pencil, Phone } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import clsx from 'clsx';
 
+function generateBillingContent(studentName: string, bills: Bill[], monthStr: string): string {
+  const lines = bills.map((b) => {
+    const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
+    return `• ${b.className} | ${effectiveAmt.toLocaleString()}원${b.adjustMemo ? ` (${b.adjustMemo})` : ''}`;
+  });
+  const total = bills.reduce((s, b) => s + b.amount - (b.adjustAmount ?? 0), 0);
+  return [
+    `안녕하세요, 세계로학원입니다.`,
+    ``,
+    `${studentName} 학부모님, ${monthStr} 수강료가 청구되었습니다.`,
+    ``,
+    `📋 반별 청구 내역`,
+    ...lines,
+    ``,
+    `청구 총액: ${total.toLocaleString()}원`,
+    ``,
+    `아래 [결제하기] 버튼을 눌러 납부를 진행해 주시기 바랍니다.`,
+    `납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.`,
+    ``,
+    `감사합니다.`,
+  ].join('\n');
+}
+
 const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string }> = {
   [BillStatus.PAID]:    { label: '완납', bg: '#D1FAE5', text: '#065f46' },
   [BillStatus.UNPAID]:  { label: '미납', bg: '#FEE2E2', text: '#991B1B' },
@@ -109,6 +132,9 @@ export default function BillingPage() {
   // ── 청구서 발송 모달 상태 ─────────────────────────────
   const [billingNotifOpen, setBillingNotifOpen] = useState(false);
   const [billingNotifSending, setBillingNotifSending] = useState(false);
+
+  // ── 다중 선택 상태 ────────────────────────────────────
+  const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
 
   // ── 미납 알림 발송 상태 ───────────────────────────────
   const [overdueNotifSending, setOverdueNotifSending] = useState(false);
@@ -214,6 +240,22 @@ export default function BillingPage() {
     : [];
   const detailStudentName = detailBills[0]?.studentName ?? '';
 
+  // ── 다중 선택 핸들러 ──────────────────────────────────
+  const toggleBill = (id: string) => setSelectedBillIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const isAllSelected = filtered.length > 0 && filtered.every((b) => selectedBillIds.has(b.id));
+  const isSomeSelected = filtered.some((b) => selectedBillIds.has(b.id)) && !isAllSelected;
+  const toggleAll = () => {
+    if (isAllSelected) {
+      setSelectedBillIds((prev) => { const next = new Set(prev); filtered.forEach((b) => next.delete(b.id)); return next; });
+    } else {
+      setSelectedBillIds((prev) => { const next = new Set(prev); filtered.forEach((b) => next.add(b.id)); return next; });
+    }
+  };
+
   // ── 청구 탭 핸들러 ────────────────────────────────────
   const openPay = (b: Bill) => {
     const effectiveAmount = b.amount - (b.adjustAmount ?? 0);
@@ -244,20 +286,17 @@ export default function BillingPage() {
   const handleSendBillingNotif = async () => {
     setBillingNotifSending(true);
     try {
-      const targetBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID);
-      const studentIds = [...new Set(targetBills.map((b) => b.studentId))];
-      if (studentIds.length === 0) { toast('발송 대상 학생이 없습니다.', 'error'); return; }
-
-      const monthStr = filterMonths.length === 1 ? formatMonth(filterMonths[0])
-        : filterMonths.length > 1 ? `${filterMonths.length}개월` : '선택 기간';
-
-      await addNotification({
-        type: '수납알림',
-        title: `${monthStr} 수강료 청구 안내`,
-        content: `안녕하세요, 세계로학원입니다.\n\n${monthStr} 수강료가 청구되었습니다.\n\n아래 [결제하기] 버튼을 눌러 결제를 진행해 주세요.\n납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.\n\n감사합니다.`,
-        recipients: studentIds,
-        sentBy: '',
-      });
+      for (const { studentId, studentName, bills } of billingNotifTargets) {
+        await addNotification({
+          type: '수납알림',
+          title: `${monthLabel} 수강료 청구 안내`,
+          content: generateBillingContent(studentName, bills, monthLabel),
+          recipients: [studentId],
+          sentBy: '',
+        });
+      }
+      toast(`${billingNotifTargets.length}명에게 청구서를 발송했습니다.`, 'success');
+      setSelectedBillIds(new Set());
       setBillingNotifOpen(false);
     } finally {
       setBillingNotifSending(false);
@@ -318,19 +357,22 @@ export default function BillingPage() {
 
   const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
 
-  // 청구서 발송 모달 - 대상 학생 목록
+  // 청구서 발송 모달 - 선택된 학생별 청구 목록
   const billingNotifTargets = useMemo(() => {
-    const targetBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID);
-    const studentMap = new Map<string, { studentId: string; studentName: string; total: number }>();
-    targetBills.forEach((b) => {
-      const due = b.amount - b.paidAmount;
+    const selectedBills = filtered.filter((b) => selectedBillIds.has(b.id));
+    const studentMap = new Map<string, { studentId: string; studentName: string; bills: Bill[]; total: number }>();
+    selectedBills.forEach((b) => {
+      const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
+      const due = effectiveAmt - b.paidAmount;
       if (!studentMap.has(b.studentId)) {
-        studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName, total: 0 });
+        studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName, bills: [], total: 0 });
       }
-      studentMap.get(b.studentId)!.total += due;
+      const entry = studentMap.get(b.studentId)!;
+      entry.bills.push(b);
+      entry.total += due;
     });
     return Array.from(studentMap.values());
-  }, [monthFilteredBills]);
+  }, [filtered, selectedBillIds]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -396,12 +438,14 @@ export default function BillingPage() {
                   )}
                 </div>
                 <span className="text-[12px] text-[#6b7280] ml-auto">{filtered.length}건</span>
-                {/* 청구서 발송 버튼 - 미납/부분납 학생 있을 때만 활성 */}
+                {selectedBillIds.size > 0 && (
+                  <span className="text-[12px] text-[#4fc3a1] font-medium">{selectedBillIds.size}개 선택됨</span>
+                )}
                 <Button
                   variant="default"
                   size="sm"
                   onClick={() => {
-                    if (billingNotifTargets.length === 0) { toast('발송 대상 학생이 없습니다. 이미 전원 완납되었습니다.', 'info'); return; }
+                    if (selectedBillIds.size === 0) { toast('학생을 선택하세요.', 'error'); return; }
                     setBillingNotifOpen(true);
                   }}
                 >
@@ -411,7 +455,17 @@ export default function BillingPage() {
               <table className="w-full text-[12.5px]">
                 <thead>
                   <tr className="bg-[#f4f6f8]">
-                    {['학생', '반', '청구액', '납부액', '납부기한', '상태', '납부방법', ''].map((h) => (
+                    <th className="px-3 py-2.5 text-center w-9">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        ref={(el) => { if (el) el.indeterminate = isSomeSelected; }}
+                        onChange={toggleAll}
+                        className="w-3.5 h-3.5 cursor-pointer accent-[#4fc3a1]"
+                        title="전체 선택"
+                      />
+                    </th>
+                    {['학생', '반', '청구액', '메모', '납부액', '납부기한', '상태', '납부방법', ''].map((h) => (
                       <th key={h} className={clsx('px-4 py-2.5 text-[#6b7280] font-medium', h === '청구액' || h === '납부액' ? 'text-right' : h === '납부기한' || h === '상태' || h === '납부방법' ? 'text-center' : 'text-left')}>{h}</th>
                     ))}
                   </tr>
@@ -420,8 +474,17 @@ export default function BillingPage() {
                   {filtered.map((b) => {
                     const st = STATUS_STYLE[b.status];
                     const adj = b.adjustAmount ?? 0;
+                    const isSelected = selectedBillIds.has(b.id);
                     return (
-                      <tr key={b.id} className="hover:bg-[#f9fafb]">
+                      <tr key={b.id} className={clsx('hover:bg-[#f9fafb]', isSelected && 'bg-[#f0fdf8]')}>
+                        <td className="px-3 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleBill(b.id)}
+                            className="w-3.5 h-3.5 cursor-pointer accent-[#4fc3a1]"
+                          />
+                        </td>
                         <td className="px-4 py-3 font-medium text-[#111827]">{b.studentName}</td>
                         <td className="px-4 py-3 text-[#374151]">{b.className}</td>
                         <td className="px-4 py-3 text-right text-[#111827]">
@@ -429,7 +492,16 @@ export default function BillingPage() {
                             <span>{b.amount.toLocaleString()}원</span>
                             <button onClick={() => openAdjust(b)} className="text-[#9ca3af] hover:text-[#4fc3a1] transition-colors cursor-pointer" title="조정금액 설정"><Pencil size={11} /></button>
                           </div>
-                          {adj > 0 && <div className="text-[11px] text-[#991B1B] mt-0.5" title={b.adjustMemo}>차감 -{adj.toLocaleString()}원</div>}
+                          {adj > 0 && <div className="text-[11px] text-[#991B1B] mt-0.5">차감 -{adj.toLocaleString()}원</div>}
+                        </td>
+                        <td className="px-4 py-3 max-w-[180px]">
+                          <button onClick={() => openAdjust(b)} className="text-left w-full hover:text-[#4fc3a1] transition-colors cursor-pointer" title="메모 수정">
+                            {b.adjustMemo ? (
+                              <span className="text-[12px] text-[#374151]">{b.adjustMemo}</span>
+                            ) : (
+                              <span className="text-[11.5px] text-[#d1d5db] italic">메모 추가...</span>
+                            )}
+                          </button>
                         </td>
                         <td className="px-4 py-3 text-right text-[#111827]">{b.paidAmount.toLocaleString()}원</td>
                         <td className="px-4 py-3 text-center text-[#374151]">{formatKoreanDate(b.dueDate)}</td>
@@ -719,26 +791,28 @@ export default function BillingPage() {
         }
       >
         <div className="space-y-4">
-          <div className="p-3.5 bg-[#FEF3C7] border border-[#FDE68A] rounded-[8px] text-[12.5px] text-[#92400E]">
-            선택된 월({monthLabel})에서 <strong>미납/부분납 학생 {billingNotifTargets.length}명</strong>에게 수납 알림을 발송합니다.
-            완납한 학생에게는 발송되지 않습니다.
+          <div className="p-3.5 bg-[#E1F5EE] border border-[#a7f3d0] rounded-[8px] text-[12.5px] text-[#065f46]">
+            선택된 <strong>{billingNotifTargets.length}명</strong>에게 반별 청구액이 담긴 수납 알림을 각각 발송합니다.
+            여러 반을 수강 중인 학생은 1개의 알림에 반별 금액과 총 합계가 포함됩니다.
           </div>
 
           <div>
             <div className="text-[11.5px] font-semibold text-[#374151] mb-2">발송 대상 ({billingNotifTargets.length}명)</div>
-            <div className="border border-[#e2e8f0] rounded-[8px] overflow-hidden max-h-48 overflow-y-auto">
+            <div className="border border-[#e2e8f0] rounded-[8px] overflow-hidden max-h-52 overflow-y-auto">
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="bg-[#f4f6f8]">
                     <th className="text-left px-3 py-2 text-[#6b7280] font-medium">학생</th>
-                    <th className="text-right px-3 py-2 text-[#6b7280] font-medium">청구액 (미납)</th>
+                    <th className="text-left px-3 py-2 text-[#6b7280] font-medium">수강 반</th>
+                    <th className="text-right px-3 py-2 text-[#6b7280] font-medium">청구 총액</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9]">
                   {billingNotifTargets.map((t) => (
                     <tr key={t.studentId}>
                       <td className="px-3 py-2 text-[#111827] font-medium">{t.studentName}</td>
-                      <td className="px-3 py-2 text-right text-[#991B1B] font-semibold">{t.total.toLocaleString()}원</td>
+                      <td className="px-3 py-2 text-[#6b7280]">{t.bills.map(b => b.className).join(', ')}</td>
+                      <td className="px-3 py-2 text-right text-[#0D9E7A] font-semibold">{t.total.toLocaleString()}원</td>
                     </tr>
                   ))}
                 </tbody>
@@ -747,9 +821,11 @@ export default function BillingPage() {
           </div>
 
           <div>
-            <div className="text-[11.5px] font-semibold text-[#374151] mb-2">알림 내용 미리보기</div>
+            <div className="text-[11.5px] font-semibold text-[#374151] mb-2">알림 내용 미리보기 (첫 번째 학생 기준)</div>
             <div className="p-3.5 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#374151] leading-relaxed whitespace-pre-line border border-[#e2e8f0]">
-              {`안녕하세요, 세계로학원입니다.\n\n${monthLabel} 수강료가 청구되었습니다.\n\n아래 [결제하기] 버튼을 눌러 결제를 진행해 주세요.\n납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.\n\n감사합니다.`}
+              {billingNotifTargets.length > 0
+                ? generateBillingContent(billingNotifTargets[0].studentName, billingNotifTargets[0].bills, monthLabel)
+                : ''}
             </div>
             <div className="mt-2 flex">
               <div className="px-4 py-2 rounded-[8px] text-[12px] font-semibold text-white cursor-default" style={{ backgroundColor: '#4fc3a1' }}>
