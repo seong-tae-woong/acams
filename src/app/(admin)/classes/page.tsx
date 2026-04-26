@@ -58,6 +58,7 @@ export default function ClassesPage() {
   useEffect(() => {
     fetchClasses();
     fetchStudents();
+    fetchTeachers();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = classes.find((c) => c.id === selectedClassId);
@@ -113,40 +114,53 @@ export default function ClassesPage() {
 
   // ── 반 추가 ───────────────────────────────────────────
   const [addOpen, setAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', teacher: '', fee: '', feeType: 'monthly' as FeeType, room: '', maxStudents: '' });
+  const [addForm, setAddForm] = useState({ name: '', teacherId: '', fee: '', feeType: 'monthly' as FeeType, room: '', maxStudents: '' });
 
-  const handleAddClass = () => {
+  const handleAddClass = async () => {
     if (!addForm.name.trim()) { toast('반 이름을 입력해주세요.', 'error'); return; }
-    addClass({
-      name: addForm.name.trim(), subject: '', teacherId: '',
-      teacherName: addForm.teacher.trim(),
-      maxStudents: parseInt(addForm.maxStudents) || 0,
-      schedule: [],
-      color: PRESET_COLORS[classes.length % PRESET_COLORS.length],
-      room: addForm.room.trim(), fee: parseInt(addForm.fee) || 0,
-      feeType: addForm.feeType, description: '',
-    });
-    toast(`'${addForm.name}' 반이 등록되었습니다.`, 'success');
-    setAddForm({ name: '', teacher: '', fee: '', feeType: 'monthly', room: '', maxStudents: '' });
-    setAddOpen(false);
+    const selectedTeacher = teachers.find((t) => t.id === addForm.teacherId);
+    try {
+      await addClass({
+        name: addForm.name.trim(), subject: '',
+        teacherId: addForm.teacherId,
+        teacherName: selectedTeacher?.name ?? '',
+        maxStudents: parseInt(addForm.maxStudents) || 0,
+        schedule: [],
+        color: PRESET_COLORS[classes.length % PRESET_COLORS.length],
+        room: addForm.room.trim(), fee: parseInt(addForm.fee) || 0,
+        feeType: addForm.feeType, description: '',
+      });
+      setAddForm({ name: '', teacherId: '', fee: '', feeType: 'monthly', room: '', maxStudents: '' });
+      setAddOpen(false);
+    } catch { /* store handles error toast */ }
   };
 
   // ── 반 수정 ───────────────────────────────────────────
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', teacher: '', fee: '', feeType: 'monthly' as FeeType, room: '', maxStudents: '' });
+  const [editForm, setEditForm] = useState({ name: '', teacherId: '', fee: '', feeType: 'monthly' as FeeType, room: '', maxStudents: '' });
 
   const openEdit = () => {
     if (!selected) return;
-    setEditForm({ name: selected.name, teacher: selected.teacherName, fee: String(selected.fee), feeType: selected.feeType ?? 'monthly', room: selected.room, maxStudents: String(selected.maxStudents) });
+    setEditForm({ name: selected.name, teacherId: selected.teacherId, fee: String(selected.fee), feeType: selected.feeType ?? 'monthly', room: selected.room, maxStudents: String(selected.maxStudents) });
     setEditOpen(true);
   };
 
-  const handleEditClass = () => {
+  const handleEditClass = async () => {
     if (!selected) return;
     if (!editForm.name.trim()) { toast('반 이름을 입력해주세요.', 'error'); return; }
-    updateClass(selected.id, { name: editForm.name.trim(), teacherName: editForm.teacher.trim(), fee: parseInt(editForm.fee) || 0, feeType: editForm.feeType, room: editForm.room.trim(), maxStudents: parseInt(editForm.maxStudents) || 0 });
-    toast('반 정보가 수정되었습니다.', 'success');
-    setEditOpen(false);
+    const selectedTeacher = teachers.find((t) => t.id === editForm.teacherId);
+    try {
+      await updateClass(selected.id, {
+        name: editForm.name.trim(),
+        teacherId: editForm.teacherId,
+        teacherName: selectedTeacher?.name ?? '',
+        fee: parseInt(editForm.fee) || 0,
+        feeType: editForm.feeType,
+        room: editForm.room.trim(),
+        maxStudents: parseInt(editForm.maxStudents) || 0,
+      });
+      setEditOpen(false);
+    } catch { /* store handles error toast */ }
   };
 
   // ── 학생 추가 ─────────────────────────────────────────
@@ -279,8 +293,10 @@ export default function ClassesPage() {
             const activeCount = activeStudents.length;
             const onLeaveCount = onLeaveStudents.length;
 
-            // 강사 탭: 이 반에 배정된 강사 찾기
-            const assignedTeacher = teachers.find((t) => t.classes.includes(selected.id)) ?? teachers.find((t) => t.name === selected.teacherName);
+            // 강사 탭: teacherId 우선 조회 → teacher.classes 기반 → 이름 기반 순으로 폴백
+            const assignedTeacher = (selected.teacherId ? teachers.find((t) => t.id === selected.teacherId) : null)
+              ?? teachers.find((t) => t.classes.includes(selected.id))
+              ?? teachers.find((t) => t.name === selected.teacherName);
 
             // 커리큘럼 탭: 진행률
             const doneCurriculum = curriculum.filter((r) => r.done).length;
@@ -466,19 +482,19 @@ export default function ClassesPage() {
                           <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
                             <div className="text-[12.5px] font-semibold text-[#111827] mb-3">담당 반</div>
                             <div className="flex flex-wrap gap-2">
-                              {assignedTeacher.classes.map((cid) => {
-                                const c = classes.find((x) => x.id === cid);
-                                return c ? (
-                                  <span key={cid} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] text-white font-medium" style={{ backgroundColor: c.color }}>{c.name}</span>
-                                ) : null;
-                              })}
+                              {classes
+                                .filter((c) => c.teacherId === assignedTeacher.id || assignedTeacher.classes.includes(c.id))
+                                .map((c) => (
+                                  <span key={c.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] text-white font-medium" style={{ backgroundColor: c.color }}>{c.name}</span>
+                                ))
+                              }
                             </div>
                           </div>
                         </>
                       ) : (
                         <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-8 text-center">
-                          <p className="text-[13px] text-[#9ca3af]">&apos;{selected.teacherName}&apos; 강사의 상세 정보가 없습니다.</p>
-                          <p className="text-[12px] text-[#9ca3af] mt-1">강사 등록이 필요하면 기존 강사 배정 메뉴를 이용하세요.</p>
+                          <p className="text-[13px] text-[#9ca3af]">배정된 강사가 없습니다.</p>
+                          <p className="text-[12px] text-[#9ca3af] mt-1">반 수정에서 강사를 선택하거나, 계정 관리에서 강사를 먼저 등록하세요.</p>
                         </div>
                       )}
                     </div>
@@ -579,7 +595,15 @@ export default function ClassesPage() {
       >
         <div className="space-y-3">
           <div><label className="text-[11.5px] text-[#6b7280] block mb-1">반 이름 *</label><input className={fieldCls} value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} placeholder="예: 초등수학 기초반" /></div>
-          <div><label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label><input className={fieldCls} value={addForm.teacher} onChange={(e) => setAddForm((f) => ({ ...f, teacher: e.target.value }))} placeholder="예: 김선생" /></div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label>
+            <select className={fieldCls} value={addForm.teacherId} onChange={(e) => setAddForm((f) => ({ ...f, teacherId: e.target.value }))}>
+              <option value="">강사를 선택하세요</option>
+              {teachers.filter((t) => t.isActive).map((t) => (
+                <option key={t.id} value={t.id}>{t.name}{t.subject ? ` (${t.subject})` : ''}</option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">정원</label><input type="number" className={fieldCls} value={addForm.maxStudents} onChange={(e) => setAddForm((f) => ({ ...f, maxStudents: e.target.value }))} placeholder="예: 8" min={1} /></div>
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">강의실</label><input className={fieldCls} value={addForm.room} onChange={(e) => setAddForm((f) => ({ ...f, room: e.target.value }))} placeholder="예: A강의실" /></div>
@@ -604,7 +628,15 @@ export default function ClassesPage() {
       >
         <div className="space-y-3">
           <div><label className="text-[11.5px] text-[#6b7280] block mb-1">반 이름 *</label><input className={fieldCls} value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} /></div>
-          <div><label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label><input className={fieldCls} value={editForm.teacher} onChange={(e) => setEditForm((f) => ({ ...f, teacher: e.target.value }))} /></div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label>
+            <select className={fieldCls} value={editForm.teacherId} onChange={(e) => setEditForm((f) => ({ ...f, teacherId: e.target.value }))}>
+              <option value="">강사를 선택하세요</option>
+              {teachers.filter((t) => t.isActive).map((t) => (
+                <option key={t.id} value={t.id}>{t.name}{t.subject ? ` (${t.subject})` : ''}</option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">정원</label><input type="number" className={fieldCls} value={editForm.maxStudents} onChange={(e) => setEditForm((f) => ({ ...f, maxStudents: e.target.value }))} min={1} /></div>
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">강의실</label><input className={fieldCls} value={editForm.room} onChange={(e) => setEditForm((f) => ({ ...f, room: e.target.value }))} /></div>
