@@ -72,7 +72,7 @@ export async function GET(
         id: c.id,
         name: c.name,
         subject: c.subject,
-        grade: c.grade ?? '',
+        grade: c.level ?? '',
         fee: academy.showFees ? c.fee : null,
         color: c.color,
         schedule: formatSchedule(c.schedules),
