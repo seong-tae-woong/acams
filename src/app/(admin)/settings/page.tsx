@@ -232,8 +232,7 @@ export default function SettingsPage() {
       formData.append('index', String(index));
       const res = await fetch('/api/settings/gallery', { method: 'POST', body: formData });
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        toast(`업로드 실패 (${res.status}): ${errData.error ?? '알 수 없는 오류'}`, 'error');
+        toast('업로드에 실패했습니다.', 'error');
         return;
       }
       const { url } = await res.json();

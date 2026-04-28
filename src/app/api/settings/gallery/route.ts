@@ -4,6 +4,11 @@ import { prisma } from '@/lib/db/prisma';
 
 const MAX_SIZE = 1 * 1024 * 1024; // 1MB 서버 측 안전 제한
 
+function toProxyUrl(blobUrl: string): string {
+  if (!blobUrl || !blobUrl.includes('blob.vercel-storage.com')) return blobUrl;
+  return `/api/gallery-proxy?url=${encodeURIComponent(blobUrl)}`;
+}
+
 // POST /api/settings/gallery — 학원 사진 업로드
 export async function POST(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
@@ -48,7 +53,7 @@ export async function POST(req: NextRequest) {
     const blob = await put(
       `galleries/${academyId}/${index}-${Date.now()}.${ext}`,
       file,
-      { access: 'public', token },
+      { access: 'private', token },
     );
 
     images[index] = blob.url;
@@ -57,11 +62,10 @@ export async function POST(req: NextRequest) {
       data: { galleryImages: images },
     });
 
-    return NextResponse.json({ url: blob.url });
+    return NextResponse.json({ url: toProxyUrl(blob.url) });
   } catch (err) {
     console.error('[POST /api/settings/gallery]', err);
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: '업로드에 실패했습니다.' }, { status: 500 });
   }
 }
 
@@ -84,8 +88,9 @@ export async function DELETE(req: NextRequest) {
     });
     const images = [...((academy?.galleryImages as string[]) ?? [])];
 
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
     if (images[index]?.includes('blob.vercel-storage.com')) {
-      try { await del(images[index]); } catch { /* 삭제 실패 무시 */ }
+      try { await del(images[index], token ? { token } : {}); } catch { /* 삭제 실패 무시 */ }
     }
 
     images[index] = '';

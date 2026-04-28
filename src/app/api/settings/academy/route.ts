@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
+function toProxyUrl(blobUrl: string): string {
+  if (!blobUrl || !blobUrl.includes('blob.vercel-storage.com')) return blobUrl;
+  return `/api/gallery-proxy?url=${encodeURIComponent(blobUrl)}`;
+}
+
 // GET /api/settings/academy — 현재 로그인된 원장의 학원 프로필 조회
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
@@ -30,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ...academy,
-      galleryImages: (academy.galleryImages as string[] | null) ?? [],
+      galleryImages: ((academy.galleryImages as string[] | null) ?? []).map(toProxyUrl),
     });
   } catch (err) {
     console.error('[GET /api/settings/academy]', err);

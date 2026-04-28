@@ -13,8 +13,9 @@ const PUBLIC_PATHS = [
   '/sw.js',
   '/manifest.json',
   '/icon-',
-  '/academy',      // 학원 공개 소개 페이지
-  '/api/academy',  // 학원 공개 API
+  '/academy',           // 학원 공개 소개 페이지
+  '/api/academy',       // 학원 공개 API
+  '/api/gallery-proxy', // Private Blob 이미지 프록시
 ];
 
 function isPublic(pathname: string) {

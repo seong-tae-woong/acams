@@ -3,6 +3,11 @@ import { prisma } from '@/lib/db/prisma';
 
 const DAY_LABEL = ['일', '월', '화', '수', '목', '금', '토'];
 
+function toProxyUrl(blobUrl: string): string {
+  if (!blobUrl || !blobUrl.includes('blob.vercel-storage.com')) return blobUrl;
+  return `/api/gallery-proxy?url=${encodeURIComponent(blobUrl)}`;
+}
+
 function formatSchedule(schedules: { dayOfWeek: number; startTime: string; endTime: string }[]) {
   if (!schedules.length) return '';
   const days = schedules.map((s) => DAY_LABEL[s.dayOfWeek]).join('·');
@@ -67,7 +72,7 @@ export async function GET(
       refundPolicy: academy.refundPolicy ?? '',
       showFees: academy.showFees,
       kakaoMapUrl: academy.kakaoMapUrl ?? '',
-      galleryImages: (academy.galleryImages as string[] | null) ?? [],
+      galleryImages: ((academy.galleryImages as string[] | null) ?? []).map(toProxyUrl),
       classes: classes.map((c) => ({
         id: c.id,
         name: c.name,
