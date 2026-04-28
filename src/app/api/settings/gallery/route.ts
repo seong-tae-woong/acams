@@ -25,6 +25,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '이미지 파일만 업로드할 수 있습니다.' }, { status: 400 });
   }
 
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    return NextResponse.json({ error: 'BLOB_READ_WRITE_TOKEN이 설정되지 않았습니다.' }, { status: 500 });
+  }
+
   try {
     const academy = await prisma.academy.findUnique({
       where: { id: academyId },
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     // 기존 Blob 삭제
     if (images[index]?.includes('blob.vercel-storage.com')) {
-      try { await del(images[index]); } catch { /* 삭제 실패 무시 */ }
+      try { await del(images[index], { token }); } catch { /* 삭제 실패 무시 */ }
     }
 
     // 새 이미지 업로드
@@ -43,7 +48,7 @@ export async function POST(req: NextRequest) {
     const blob = await put(
       `galleries/${academyId}/${index}-${Date.now()}.${ext}`,
       file,
-      { access: 'public' },
+      { access: 'public', token },
     );
 
     images[index] = blob.url;
