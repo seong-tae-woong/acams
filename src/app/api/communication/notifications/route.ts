@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const userId = req.headers.get('x-user-id') ?? '';
 
   try {
-    const { type, title, content, recipients } = await req.json();
+    const { type, title, content, recipients, billIds } = await req.json();
 
     if (!title || !content) {
       return NextResponse.json({ error: '제목과 내용은 필수입니다.' }, { status: 400 });
@@ -66,12 +66,18 @@ export async function POST(req: NextRequest) {
     const prismaType = TYPE_TO_PRISMA[type ?? '일반'] ?? PrismaType.GENERAL;
     const recipientIds: string[] = Array.isArray(recipients) ? recipients : [];
 
+    // 수납알림에 billIds가 있으면 metadata에 저장
+    const metadata = Array.isArray(billIds) && billIds.length > 0
+      ? { billIds }
+      : undefined;
+
     const notification = await prisma.notification.create({
       data: {
         academyId,
         type: prismaType,
         title,
         content,
+        metadata,
         sentById: userId,
         recipients: {
           create: recipientIds.map((studentId) => ({ studentId })),
@@ -79,6 +85,8 @@ export async function POST(req: NextRequest) {
       },
       include: { recipients: true },
     });
+
+    const meta = notification.metadata as { billIds?: string[] } | null;
 
     return NextResponse.json({
       id: notification.id,
@@ -90,6 +98,7 @@ export async function POST(req: NextRequest) {
       recipients: notification.recipients.map((r) => r.studentId),
       readCount: 0,
       totalCount: notification.recipients.length,
+      billIds: meta?.billIds ?? [],
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/communication/notifications]', err);

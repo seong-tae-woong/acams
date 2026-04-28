@@ -12,6 +12,7 @@ export interface Notification {
   sentBy: string; // 발신자 ID (강사/관리자)
   readCount: number;
   totalCount: number;
+  billIds?: string[]; // 수납알림 시 연결된 청구서 ID 목록
 }
 
 export type ConsultationType = '대면' | '전화' | '온라인';

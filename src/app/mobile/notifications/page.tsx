@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { ChevronLeft, Bell, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, Bell, CreditCard, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 
 type NotificationType = '공지' | '출결알림' | '수납알림' | '상담알림' | '일반';
@@ -15,6 +15,7 @@ type NotificationItem = {
   content: string;
   sentAt: string;
   readAt: string | null;
+  billIds: string[];
 };
 
 const TYPE_STYLE: Record<NotificationType, { bg: string; text: string }> = {
@@ -36,26 +37,77 @@ function formatTime(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-// 수납 알림 본문에서 청구/미납 총액 파싱 (결제 버튼에 표시)
 function parseTotalAmount(content: string): number | null {
-  // 미납 알림: "미납 총액: X원"
   let match = content.match(/미납 총액:\s*([\d,]+)원/);
   if (match) return parseInt(match[1].replace(/,/g, ''), 10);
-  // 청구서 알림: "청구 총액: X원"
   match = content.match(/청구 총액:\s*([\d,]+)원/);
   if (match) return parseInt(match[1].replace(/,/g, ''), 10);
   return null;
 }
 
+// 토스페이먼츠 결제 트리거
+async function requestTossPayment(billIds: string[], amount: number, orderName: string) {
+  // 1. PaymentOrder 생성
+  const orderRes = await fetch('/api/mobile/payments/order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ billIds, amount }),
+  });
+
+  if (!orderRes.ok) {
+    const err = await orderRes.json();
+    throw new Error(err.error ?? '주문 생성에 실패했습니다.');
+  }
+
+  const { orderId } = await orderRes.json();
+
+  // 2. 토스페이먼츠 SDK 동적 로드
+  const { loadTossPayments, ANONYMOUS } = await import('@tosspayments/tosspayments-sdk');
+  const tossPayments = await loadTossPayments(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY!);
+  const payment = tossPayments.payment({ customerKey: ANONYMOUS });
+
+  // 3. 결제 요청 (완료 시 successUrl로 리다이렉트)
+  await payment.requestPayment({
+    method: 'CARD',
+    amount: { currency: 'KRW', value: amount },
+    orderId,
+    orderName,
+    successUrl: `${window.location.origin}/mobile/payments/success`,
+    failUrl: `${window.location.origin}/mobile/payments/fail`,
+  });
+}
+
 function NotificationCard({ notif }: { notif: NotificationItem }) {
   const [expanded, setExpanded] = useState(false);
+  const [payLoading, setPayLoading] = useState(false);
   const ts = TYPE_STYLE[notif.type] ?? TYPE_STYLE['일반'];
   const isPayment = notif.type === '수납알림';
   const totalAmount = isPayment ? parseTotalAmount(notif.content) : null;
+  const hasBillIds = notif.billIds.length > 0;
+  const isMissed = notif.content.includes('미납 총액');
 
-  // 본문 첫 줄 미리보기
   const preview = notif.content.split('\n').filter(Boolean)[0] ?? '';
   const hasMore = notif.content.length > preview.length;
+
+  const handlePay = async () => {
+    if (!totalAmount || !hasBillIds) {
+      toast('결제 정보를 확인할 수 없습니다.', 'error');
+      return;
+    }
+    setPayLoading(true);
+    try {
+      await requestTossPayment(
+        notif.billIds,
+        totalAmount,
+        notif.title,
+      );
+      // 결제 완료 → successUrl로 이동 (여기는 도달 안 함)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '결제 중 오류가 발생했습니다.';
+      toast(msg, 'error');
+      setPayLoading(false);
+    }
+  };
 
   return (
     <div
@@ -104,37 +156,49 @@ function NotificationCard({ notif }: { notif: NotificationItem }) {
         <div className="px-4 pb-4">
           <div className="border-t border-[#f1f5f9] pt-3">
             {totalAmount !== null ? (
-              // 청구서 또는 미납 알림: 총액 표시 + 결제 버튼
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-[12.5px]">
-                  <span className="text-[#6b7280]">
-                    {notif.content.includes('미납 총액') ? '미납 총액' : '청구 총액'}
-                  </span>
+                  <span className="text-[#6b7280]">{isMissed ? '미납 총액' : '청구 총액'}</span>
                   <span
                     className="font-bold text-[15px]"
-                    style={{ color: notif.content.includes('미납 총액') ? '#991B1B' : '#0D9E7A' }}
+                    style={{ color: isMissed ? '#991B1B' : '#0D9E7A' }}
                   >
                     {totalAmount.toLocaleString()}원
                   </span>
                 </div>
-                <Link href="/mobile/payments">
+
+                {hasBillIds ? (
+                  // 청구서 ID 연결됨 → 토스 실결제
                   <button
-                    className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80"
-                    style={{ backgroundColor: notif.content.includes('미납 총액') ? '#991B1B' : '#4fc3a1' }}
-                    onClick={() => toast('결제 페이지로 이동합니다. (결제 연동 예정)', 'info')}
+                    disabled={payLoading}
+                    onClick={handlePay}
+                    className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80 disabled:opacity-60 cursor-pointer"
+                    style={{ backgroundColor: isMissed ? '#991B1B' : '#4fc3a1' }}
                   >
-                    <CreditCard size={16} />
-                    {totalAmount.toLocaleString()}원 결제하기
+                    {payLoading ? (
+                      <><Loader2 size={16} className="animate-spin" /> 결제 준비 중...</>
+                    ) : (
+                      <><CreditCard size={16} /> {totalAmount.toLocaleString()}원 결제하기</>
+                    )}
                   </button>
-                </Link>
+                ) : (
+                  // billIds 없음 → 수납 내역 페이지로 이동
+                  <Link href="/mobile/payments">
+                    <button
+                      className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80 cursor-pointer"
+                      style={{ backgroundColor: isMissed ? '#991B1B' : '#4fc3a1' }}
+                    >
+                      <CreditCard size={16} />
+                      {totalAmount.toLocaleString()}원 결제하기
+                    </button>
+                  </Link>
+                )}
               </div>
             ) : (
-              // 총액 정보 없는 수납 알림
               <Link href="/mobile/payments">
                 <button
-                  className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80"
+                  className="w-full py-3 rounded-[10px] text-[13.5px] font-bold text-white flex items-center justify-center gap-2 active:opacity-80 cursor-pointer"
                   style={{ backgroundColor: '#4fc3a1' }}
-                  onClick={() => toast('결제 페이지로 이동합니다. (결제 연동 예정)', 'info')}
                 >
                   <CreditCard size={16} />
                   결제하기

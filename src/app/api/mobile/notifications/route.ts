@@ -60,14 +60,18 @@ export async function GET(req: NextRequest) {
       GENERAL: '일반',
     };
 
-    const result = recipients.map((r) => ({
-      id: r.notification.id,
-      type: TYPE_TO_UI[r.notification.type] ?? '일반',
-      title: r.notification.title,
-      content: r.notification.content,
-      sentAt: r.notification.sentAt.toISOString(),
-      readAt: r.readAt ? r.readAt.toISOString() : null,
-    }));
+    const result = recipients.map((r) => {
+      const meta = r.notification.metadata as { billIds?: string[] } | null;
+      return {
+        id: r.notification.id,
+        type: TYPE_TO_UI[r.notification.type] ?? '일반',
+        title: r.notification.title,
+        content: r.notification.content,
+        sentAt: r.notification.sentAt.toISOString(),
+        readAt: r.readAt ? r.readAt.toISOString() : null,
+        billIds: meta?.billIds ?? [],
+      };
+    });
 
     // 읽음 처리: 조회 시 readAt 업데이트 (아직 읽지 않은 것만)
     const unreadIds = recipients

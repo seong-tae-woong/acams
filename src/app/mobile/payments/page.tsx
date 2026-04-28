@@ -3,12 +3,21 @@ import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { formatKoreanDate } from '@/lib/utils/format';
-import { ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import Link from 'next/link';
 
 type BillStatus = 'PAID' | 'UNPAID' | 'PARTIAL';
-type BillItem = { id: string; className: string; month: string; amount: number; paidAmount: number; status: BillStatus; dueDate: string; memo: string };
+type BillItem = {
+  id: string;
+  className: string;
+  month: string;
+  amount: number;
+  paidAmount: number;
+  status: BillStatus;
+  dueDate: string;
+  memo: string;
+};
 type ReceiptItem = { id: string; amount: number; issuedDate: string; method: string };
 
 const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string; icon: typeof CheckCircle }> = {
@@ -17,10 +26,42 @@ const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string
   PARTIAL: { label: '부분납', bg: '#FEF3C7', text: '#92400E', icon: AlertCircle },
 };
 
+async function requestTossPayment(billId: string, amount: number, orderName: string) {
+  // 1. PaymentOrder 생성
+  const orderRes = await fetch('/api/mobile/payments/order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ billIds: [billId], amount }),
+  });
+
+  if (!orderRes.ok) {
+    const err = await orderRes.json();
+    throw new Error(err.error ?? '주문 생성에 실패했습니다.');
+  }
+
+  const { orderId } = await orderRes.json();
+
+  // 2. 토스페이먼츠 SDK 동적 로드
+  const { loadTossPayments, ANONYMOUS } = await import('@tosspayments/tosspayments-sdk');
+  const tossPayments = await loadTossPayments(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY!);
+  const payment = tossPayments.payment({ customerKey: ANONYMOUS });
+
+  // 3. 결제 요청
+  await payment.requestPayment({
+    method: 'CARD',
+    amount: { currency: 'KRW', value: amount },
+    orderId,
+    orderName,
+    successUrl: `${window.location.origin}/mobile/payments/success`,
+    failUrl: `${window.location.origin}/mobile/payments/fail`,
+  });
+}
+
 export default function MobilePaymentsPage() {
   const [bills, setBills] = useState<BillItem[]>([]);
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/mobile/payments')
@@ -34,6 +75,23 @@ export default function MobilePaymentsPage() {
 
   const totalAmount = bills.reduce((s, b) => s + b.amount, 0);
   const totalPaid   = bills.reduce((s, b) => s + b.paidAmount, 0);
+
+  const handlePay = async (bill: BillItem) => {
+    const remaining = bill.amount - bill.paidAmount;
+    setPayingId(bill.id);
+    try {
+      await requestTossPayment(
+        bill.id,
+        remaining,
+        `${bill.className} 수강료`,
+      );
+      // 결제 성공 시 successUrl로 리다이렉트됨
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '결제 중 오류가 발생했습니다.';
+      toast(msg, 'error');
+      setPayingId(null);
+    }
+  };
 
   return (
     <div className="flex flex-col pb-20">
@@ -70,6 +128,9 @@ export default function MobilePaymentsPage() {
               ) : bills.map((b) => {
                 const ss = STATUS_STYLE[b.status];
                 const Icon = ss.icon;
+                const remaining = b.amount - b.paidAmount;
+                const isPaying = payingId === b.id;
+
                 return (
                   <div key={b.id} className="px-4 py-4">
                     <div className="flex items-start justify-between mb-2">
@@ -82,24 +143,27 @@ export default function MobilePaymentsPage() {
                         <Icon size={10} />{ss.label}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[12px]">
+                    <div className="flex items-center justify-between text-[12px] mb-3">
                       <span className="text-[#6b7280]">납부액 / 청구액</span>
                       <span className="font-medium text-[#111827]">
                         {b.paidAmount.toLocaleString()} / {b.amount.toLocaleString()}원
                       </span>
                     </div>
                     {b.status !== 'PAID' && (
-                      <div className="mt-3">
-                        <button
-                          className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white"
-                          style={{ backgroundColor: '#4fc3a1' }}
-                          onClick={() => toast('결제 페이지로 이동합니다. (추후 연동 예정)', 'info')}
-                        >
-                          {b.status === 'PARTIAL'
-                            ? `잔여 ${(b.amount - b.paidAmount).toLocaleString()}원 납부`
-                            : `${b.amount.toLocaleString()}원 납부하기`}
-                        </button>
-                      </div>
+                      <button
+                        disabled={isPaying || payingId !== null}
+                        onClick={() => handlePay(b)}
+                        className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:opacity-80"
+                        style={{ backgroundColor: '#4fc3a1' }}
+                      >
+                        {isPaying ? (
+                          <><Loader2 size={14} className="animate-spin" /> 결제 준비 중...</>
+                        ) : b.status === 'PARTIAL' ? (
+                          `잔여 ${remaining.toLocaleString()}원 납부하기`
+                        ) : (
+                          `${b.amount.toLocaleString()}원 납부하기`
+                        )}
+                      </button>
                     )}
                     {b.memo && <div className="mt-1 text-[11px] text-[#9ca3af]">{b.memo}</div>}
                   </div>

@@ -22,6 +22,17 @@ model Academy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
+  intro          String?  // 한 줄 소개
+  directorName   String?  // 대표자명
+  businessNumber String?  // 사업자등록번호
+  operatingHours String?  // 운영 시간 (자유 입력)
+  refundPolicy   String?  // 환불 정책
+  showFees       Boolean  @default(true)    // 수강료 공개 여부
+  profileEnabled Boolean  @default(false)   // 공개 페이지 활성화 여부
+  kakaoMapUrl    String?  // 카카오맵 iframe embed URL
+  galleryImages  Json?    // string[] — 학원 사진 URL 목록 (최대 6장)
+
   users              User[]
   students           Student[]
   teachers           Teacher[]
@@ -462,12 +473,27 @@ model Notification {
   type      NotificationType
   title     String
   content   String
+  metadata  Json?            // { billIds: string[] } 등 추가 데이터
   sentAt    DateTime         @default(now())
   sentById  String           @default("")
 
   recipients NotificationRecipient[]
 
   @@map("notifications")
+}
+
+model PaymentOrder {
+  id         String    @id @default(cuid())
+  academyId  String
+  studentId  String
+  billIds    Json      // string[] — 결제 대상 청구서 ID 목록
+  amount     Int
+  status     String    @default("PENDING") // PENDING | PAID | FAILED
+  paymentKey String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("payment_orders")
 }
 
 model NotificationRecipient {

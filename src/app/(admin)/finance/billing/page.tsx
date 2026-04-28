@@ -293,6 +293,7 @@ export default function BillingPage() {
           content: generateBillingContent(studentName, bills, monthLabel),
           recipients: [studentId],
           sentBy: '',
+          billIds: bills.map((b) => b.id),
         });
       }
       toast(`${billingNotifTargets.length}명에게 청구서를 발송했습니다.`, 'success');
@@ -313,6 +314,7 @@ export default function BillingPage() {
       content: generateOverdueContent(studentName, studentBills),
       recipients: [studentId],
       sentBy: '',
+      billIds: studentBills.map((b) => b.id),
     });
   };
 
@@ -342,6 +344,7 @@ export default function BillingPage() {
               title: `미납 수강료 안내`,
               content: generateOverdueContent(studentName, studentBills),
               recipients: [studentId],
+              billIds: studentBills.map((b) => b.id),
             }),
           });
           successCount++;
