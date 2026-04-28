@@ -68,6 +68,7 @@ export default function SettingsPage() {
   });
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetchTeachers();
@@ -197,13 +198,13 @@ export default function SettingsPage() {
   const saveProfile = async () => {
     setProfileSaving(true);
     try {
+      // galleryImages는 갤러리 API로 별도 관리, slug는 읽기 전용
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { galleryImages, slug, ...fields } = profileForm;
       const res = await fetch('/api/settings/academy', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...profileForm,
-          galleryImages: profileForm.galleryImages.filter(Boolean),
-        }),
+        body: JSON.stringify(fields),
       });
       if (res.ok) {
         toast('공개 프로필이 저장되었습니다.', 'success');
@@ -213,6 +214,48 @@ export default function SettingsPage() {
     } finally {
       setProfileSaving(false);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingIndex(index);
+    try {
+      const imageCompression = (await import('browser-image-compression')).default;
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.3,
+        maxWidthOrHeight: 800,
+        useWebWorker: true,
+      });
+      const formData = new FormData();
+      formData.append('file', compressed, 'image.jpg');
+      formData.append('index', String(index));
+      const res = await fetch('/api/settings/gallery', { method: 'POST', body: formData });
+      if (!res.ok) { toast('업로드에 실패했습니다.', 'error'); return; }
+      const { url } = await res.json();
+      setProfileForm((f) => {
+        const imgs = [...f.galleryImages];
+        imgs[index] = url;
+        return { ...f, galleryImages: imgs };
+      });
+      toast('사진이 업로드되었습니다.', 'success');
+    } catch {
+      toast('업로드에 실패했습니다.', 'error');
+    } finally {
+      setUploadingIndex(null);
+      e.target.value = '';
+    }
+  };
+
+  const deleteImage = async (index: number) => {
+    const res = await fetch(`/api/settings/gallery?index=${index}`, { method: 'DELETE' });
+    if (!res.ok) { toast('삭제에 실패했습니다.', 'error'); return; }
+    setProfileForm((f) => {
+      const imgs = [...f.galleryImages];
+      imgs[index] = '';
+      return { ...f, galleryImages: imgs };
+    });
+    toast('사진이 삭제되었습니다.', 'success');
   };
 
   const handleRegister = async () => {
@@ -549,42 +592,51 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* 카카오맵 */}
-                  <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-2">
-                    <div className="text-[13px] font-semibold text-[#111827] mb-1">카카오맵 위치</div>
-                    <p className="text-[11px] text-[#9ca3af] leading-relaxed">
-                      카카오맵에서 학원을 검색한 후 주소창 URL을 그대로 복사해서 붙여넣으세요.
-                    </p>
-                    <input
-                      type="url"
-                      value={profileForm.kakaoMapUrl}
-                      onChange={(e) => setProfileForm((f) => ({ ...f, kakaoMapUrl: e.target.value }))}
-                      className={fieldCls}
-                      placeholder="https://place.map.kakao.com/..."
-                    />
-                  </div>
-
                   {/* 갤러리 */}
-                  <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-2">
-                    <div className="text-[13px] font-semibold text-[#111827] mb-1">학원 사진 (최대 6장)</div>
-                    <p className="text-[11px] text-[#9ca3af]">이미지 URL을 직접 입력하세요.</p>
-                    <div className="space-y-2">
-                      {profileForm.galleryImages.map((url, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-[11px] text-[#9ca3af] w-4 shrink-0 text-right">{i + 1}</span>
-                          <input
-                            type="url"
-                            value={url}
-                            onChange={(e) => {
-                              const imgs = [...profileForm.galleryImages];
-                              imgs[i] = e.target.value;
-                              setProfileForm((f) => ({ ...f, galleryImages: imgs }));
-                            }}
-                            className={fieldCls}
-                            placeholder="https://example.com/image.jpg"
-                          />
-                        </div>
-                      ))}
+                  <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
+                    <div className="text-[13px] font-semibold text-[#111827]">학원 사진 (최대 6장)</div>
+                    <p className="text-[11px] text-[#9ca3af]">사진을 선택하면 자동으로 최적화되어 업로드됩니다.</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Array.from({ length: 6 }).map((_, i) => {
+                        const url = profileForm.galleryImages[i] ?? '';
+                        const isUploading = uploadingIndex === i;
+                        return (
+                          <div
+                            key={i}
+                            className="relative aspect-[4/3] rounded-[8px] overflow-hidden border border-dashed border-[#e2e8f0] bg-[#f8fafc]"
+                          >
+                            {url ? (
+                              <>
+                                <img src={url} alt={`사진 ${i + 1}`} className="w-full h-full object-cover" />
+                                <button
+                                  onClick={() => deleteImage(i)}
+                                  className="absolute top-1 right-1 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 cursor-pointer transition-colors"
+                                >
+                                  <X size={10} className="text-white" />
+                                </button>
+                              </>
+                            ) : (
+                              <label className="w-full h-full flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-[#f1f5f9] transition-colors">
+                                {isUploading ? (
+                                  <div className="w-5 h-5 border-2 border-[#4fc3a1] border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <Plus size={18} className="text-[#d1d5db]" />
+                                    <span className="text-[10px] text-[#9ca3af]">추가</span>
+                                  </>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingIndex !== null}
+                                  onChange={(e) => handleImageUpload(e, i)}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
