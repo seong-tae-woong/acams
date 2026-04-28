@@ -34,7 +34,7 @@ export default function GradesPage() {
     getExamsByClass, getGradesByExam,
     setSelectedExam, fetchExams, fetchGrades, addExam, deleteExam, saveGrades, updateGrade,
   } = useGradeStore();
-  const { students } = useStudentStore();
+  const { students, fetchStudents } = useStudentStore();
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? '');
 
   // 시험 등록 모달
@@ -69,6 +69,10 @@ export default function GradesPage() {
     if (!classId) return;
     await fetchExams(classId);
   }, [fetchExams]);
+
+  useEffect(() => {
+    if (students.length === 0) fetchStudents();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (selectedClassId) loadExams(selectedClassId);
