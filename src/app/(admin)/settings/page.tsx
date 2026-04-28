@@ -553,15 +553,14 @@ export default function SettingsPage() {
                   <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-2">
                     <div className="text-[13px] font-semibold text-[#111827] mb-1">카카오맵 위치</div>
                     <p className="text-[11px] text-[#9ca3af] leading-relaxed">
-                      카카오맵 → 학원 검색 → &apos;지도 퍼가기&apos; → iframe의{' '}
-                      <span className="font-mono bg-[#f4f6f8] px-1 rounded">src</span> 값을 붙여넣으세요.
+                      카카오맵에서 학원을 검색한 후 주소창 URL을 그대로 복사해서 붙여넣으세요.
                     </p>
                     <input
                       type="url"
                       value={profileForm.kakaoMapUrl}
                       onChange={(e) => setProfileForm((f) => ({ ...f, kakaoMapUrl: e.target.value }))}
                       className={fieldCls}
-                      placeholder="https://map.kakao.com/link/embed/..."
+                      placeholder="https://place.map.kakao.com/..."
                     />
                   </div>
 

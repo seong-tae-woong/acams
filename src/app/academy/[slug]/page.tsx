@@ -229,44 +229,20 @@ export default function AcademyPublicPage() {
         {profile.address && (
           <Section title="오시는 길" icon={<MapPin size={18} />}>
             <div className="bg-white rounded-[12px] border border-[#e2e8f0] overflow-hidden">
-              {/* 지도 embed 또는 링크 버튼 */}
-              {profile.kakaoMapUrl ? (
-                <iframe
-                  src={profile.kakaoMapUrl}
-                  width="100%"
-                  height="300"
-                  className="block"
-                  title="카카오맵"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="h-[180px] bg-[#f8fafc] flex flex-col items-center justify-center gap-3">
-                  <MapPin size={32} className="text-[#d1d5db]" />
-                  <a
-                    href={kakaoSearchUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[#FAE100] text-[#3C1E1E] text-[13px] font-semibold hover:opacity-90 transition-opacity"
-                  >
-                    <ExternalLink size={14} /> 카카오맵에서 보기
-                  </a>
-                </div>
-              )}
-              <div className="px-4 py-3 flex items-start gap-2">
+              <div className="h-[160px] bg-[#f8fafc] flex flex-col items-center justify-center gap-3">
+                <MapPin size={32} className="text-[#d1d5db]" />
+                <a
+                  href={profile.kakaoMapUrl || kakaoSearchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[#FAE100] text-[#3C1E1E] text-[13px] font-semibold hover:opacity-90 transition-opacity"
+                >
+                  <ExternalLink size={14} /> 카카오맵에서 보기
+                </a>
+              </div>
+              <div className="px-4 py-3 flex items-start gap-2 border-t border-[#f1f5f9]">
                 <MapPin size={14} className="text-[#9ca3af] shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[13px] text-[#374151]">{profile.address}</p>
-                  {profile.kakaoMapUrl && (
-                    <a
-                      href={kakaoSearchUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11.5px] text-[#4fc3a1] flex items-center gap-0.5 mt-0.5 hover:underline"
-                    >
-                      카카오맵에서 보기 <ExternalLink size={11} />
-                    </a>
-                  )}
-                </div>
+                <p className="text-[13px] text-[#374151]">{profile.address}</p>
               </div>
             </div>
           </Section>
