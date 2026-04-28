@@ -4,8 +4,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   MapPin, Phone, Clock, BookOpen, Megaphone,
-  ExternalLink, ChevronRight, Building2, FileText,
-  GraduationCap, Camera, AlertCircle,
+  ExternalLink, ChevronRight, ChevronLeft, Building2, FileText,
+  GraduationCap, Camera, AlertCircle, X,
 } from 'lucide-react';
 
 type ClassItem = {
@@ -66,6 +66,13 @@ export default function AcademyPublicPage() {
   const [notFound, setNotFound] = useState(false);
   const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
 
+  // 슬라이드쇼 상태
+  const [heroSlide, setHeroSlide] = useState(0);
+
+  // 갤러리 팝업 상태
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
   useEffect(() => {
     fetch(`/api/academy/${slug}`)
       .then((r) => {
@@ -76,6 +83,33 @@ export default function AcademyPublicPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // 히어로 슬라이드쇼 자동 전환 (4초)
+  useEffect(() => {
+    const images = profile?.galleryImages.filter(Boolean) ?? [];
+    if (images.length <= 1) return;
+    const timer = setInterval(() => {
+      setHeroSlide((prev) => (prev + 1) % images.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [profile]);
+
+  // 갤러리 팝업 키보드 네비게이션 + body scroll lock
+  useEffect(() => {
+    if (!galleryOpen || !profile) return;
+    const images = profile.galleryImages.filter(Boolean);
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGalleryOpen(false);
+      if (e.key === 'ArrowLeft') setGalleryIndex((i) => (i - 1 + images.length) % images.length);
+      if (e.key === 'ArrowRight') setGalleryIndex((i) => (i + 1) % images.length);
+    };
+    window.addEventListener('keydown', handler);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handler);
+      document.body.style.overflow = '';
+    };
+  }, [galleryOpen, profile]);
 
   if (loading) {
     return (
@@ -100,6 +134,11 @@ export default function AcademyPublicPage() {
   const validImages = profile.galleryImages.filter(Boolean);
   const kakaoSearchUrl = `https://map.kakao.com/link/search/${encodeURIComponent(profile.address)}`;
 
+  const openGallery = (index: number) => {
+    setGalleryIndex(index);
+    setGalleryOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc]">
 
@@ -116,27 +155,75 @@ export default function AcademyPublicPage() {
         </Link>
       </nav>
 
-      {/* ── 히어로 ── */}
-      <div className="bg-[#1a2535] px-6 pt-12 pb-14 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#4fc3a1]/20 mb-4">
-          <GraduationCap size={32} className="text-[#4fc3a1]" />
+      {/* ── 히어로 (슬라이드쇼 배경) ── */}
+      <div className="relative bg-[#1a2535] px-6 pt-12 pb-14 text-center overflow-hidden"
+        style={{ minHeight: validImages.length > 0 ? 260 : undefined }}
+      >
+        {/* 배경 슬라이드 이미지들 */}
+        {validImages.map((url, i) => (
+          <div
+            key={i}
+            className="absolute inset-0 transition-opacity duration-1000"
+            style={{ opacity: i === heroSlide ? 1 : 0 }}
+          >
+            <img
+              src={url}
+              alt=""
+              className="w-full h-full object-cover"
+              draggable={false}
+            />
+            {/* 텍스트 가독성을 위한 어두운 오버레이 */}
+            <div className="absolute inset-0 bg-[#1a2535]/65" />
+          </div>
+        ))}
+
+        {/* 콘텐츠 */}
+        <div className="relative z-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#4fc3a1]/20 mb-4">
+            <GraduationCap size={32} className="text-[#4fc3a1]" />
+          </div>
+          <h1 className="text-[28px] font-bold text-white mb-2">{profile.name}</h1>
+          {profile.intro && (
+            <p className="text-[15px] text-white/70 mb-4 max-w-lg mx-auto">{profile.intro}</p>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[13px] text-white/60">
+            {profile.phone && (
+              <a href={`tel:${profile.phone}`} className="flex items-center gap-1.5 hover:text-[#4fc3a1] transition-colors">
+                <Phone size={13} /> {profile.phone}
+              </a>
+            )}
+            {profile.address && (
+              <span className="flex items-center gap-1.5">
+                <MapPin size={13} /> {profile.address}
+              </span>
+            )}
+          </div>
+
+          {/* 사진 보기 버튼 */}
+          {validImages.length > 0 && (
+            <button
+              onClick={() => openGallery(heroSlide)}
+              className="mt-5 flex items-center gap-1.5 mx-auto px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-[12.5px] font-medium transition-colors cursor-pointer"
+            >
+              <Camera size={13} /> 사진 {validImages.length}장 보기
+            </button>
+          )}
         </div>
-        <h1 className="text-[28px] font-bold text-white mb-2">{profile.name}</h1>
-        {profile.intro && (
-          <p className="text-[15px] text-white/70 mb-4 max-w-lg mx-auto">{profile.intro}</p>
+
+        {/* 슬라이드 인디케이터 도트 */}
+        {validImages.length > 1 && (
+          <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10">
+            {validImages.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setHeroSlide(i)}
+                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                  i === heroSlide ? 'bg-white w-5' : 'bg-white/40 w-1.5'
+                }`}
+              />
+            ))}
+          </div>
         )}
-        <div className="flex flex-wrap items-center justify-center gap-4 text-[13px] text-white/60">
-          {profile.phone && (
-            <a href={`tel:${profile.phone}`} className="flex items-center gap-1.5 hover:text-[#4fc3a1] transition-colors">
-              <Phone size={13} /> {profile.phone}
-            </a>
-          )}
-          {profile.address && (
-            <span className="flex items-center gap-1.5">
-              <MapPin size={13} /> {profile.address}
-            </span>
-          )}
-        </div>
       </div>
 
       {/* ── 본문 ── */}
@@ -187,11 +274,15 @@ export default function AcademyPublicPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {validImages.map((url, i) => (
                 !imgErrors[i] ? (
-                  <div key={i} className="aspect-[4/3] rounded-[10px] overflow-hidden bg-[#f1f5f9]">
+                  <div
+                    key={i}
+                    className="aspect-[4/3] rounded-[10px] overflow-hidden bg-[#f1f5f9] cursor-pointer"
+                    onClick={() => openGallery(i)}
+                  >
                     <img
                       src={url}
                       alt={`${profile.name} 사진 ${i + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                       onError={() => setImgErrors((prev) => ({ ...prev, [i]: true }))}
                     />
                   </div>
@@ -306,6 +397,78 @@ export default function AcademyPublicPage() {
           </p>
         </footer>
       </div>
+
+      {/* ── 갤러리 팝업 라이트박스 ── */}
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/92 flex flex-col items-center justify-center"
+          onClick={() => setGalleryOpen(false)}
+        >
+          {/* 닫기 버튼 */}
+          <button
+            onClick={() => setGalleryOpen(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer z-10"
+          >
+            <X size={18} />
+          </button>
+
+          {/* 카운터 */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-[13px] select-none">
+            {galleryIndex + 1} / {validImages.length}
+          </div>
+
+          {/* 메인 이미지 + 이전/다음 버튼 */}
+          <div
+            className="relative w-full max-w-3xl px-14 flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {validImages.length > 1 && (
+              <button
+                onClick={() => setGalleryIndex((i) => (i - 1 + validImages.length) % validImages.length)}
+                className="absolute left-2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <ChevronLeft size={22} />
+              </button>
+            )}
+            <img
+              src={validImages[galleryIndex]}
+              alt={`${profile.name} 사진 ${galleryIndex + 1}`}
+              className="max-h-[70vh] max-w-full rounded-[10px] object-contain select-none"
+              draggable={false}
+            />
+            {validImages.length > 1 && (
+              <button
+                onClick={() => setGalleryIndex((i) => (i + 1) % validImages.length)}
+                className="absolute right-2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <ChevronRight size={22} />
+              </button>
+            )}
+          </div>
+
+          {/* 썸네일 스트립 */}
+          {validImages.length > 1 && (
+            <div
+              className="absolute bottom-4 flex gap-2 px-6 overflow-x-auto max-w-full pb-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {validImages.map((url, i) => (
+                <div
+                  key={i}
+                  onClick={() => setGalleryIndex(i)}
+                  className={`w-14 h-14 rounded-[6px] overflow-hidden shrink-0 cursor-pointer transition-all duration-200 ${
+                    i === galleryIndex
+                      ? 'ring-2 ring-[#4fc3a1] opacity-100 scale-110'
+                      : 'opacity-45 hover:opacity-70'
+                  }`}
+                >
+                  <img src={url} alt="" className="w-full h-full object-cover" draggable={false} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

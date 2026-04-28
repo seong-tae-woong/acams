@@ -62,10 +62,10 @@ export async function PATCH(req: NextRequest) {
       phone, address,
     } = body;
 
-    // galleryImages: 빈 문자열 제거 후 최대 6개
+    // galleryImages: 명시적으로 전달된 경우에만 업데이트 (미전달 시 기존 값 유지)
     const cleanImages = Array.isArray(galleryImages)
       ? galleryImages.filter((u: string) => u.trim()).slice(0, 6)
-      : [];
+      : null;
 
     const updated = await prisma.academy.update({
       where: { id: academyId },
@@ -80,7 +80,7 @@ export async function PATCH(req: NextRequest) {
         ...(showFees     !== undefined && { showFees: Boolean(showFees) }),
         ...(profileEnabled !== undefined && { profileEnabled: Boolean(profileEnabled) }),
         ...(kakaoMapUrl  !== undefined && { kakaoMapUrl }),
-        galleryImages: cleanImages,
+        ...(cleanImages !== null && { galleryImages: cleanImages }),
       },
       select: { slug: true, profileEnabled: true },
     });
