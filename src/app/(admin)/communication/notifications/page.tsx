@@ -27,11 +27,6 @@ const ANN_STATUS_STYLE: Record<AnnouncementStatus, { bg: string; text: string }>
 
 const TYPES: NotificationType[] = ['공지', '출결알림', '수납알림', '상담알림', '일반'];
 
-const COMM_TABS = [
-  { value: 'notifications', label: '학부모 알림' },
-  { value: 'announcements', label: '공지사항' },
-  { value: 'inquiries',     label: '문의사항' },
-];
 
 const INQ_STATUS_OPTIONS: InquiryStatus[] = ['NEW', 'READ', 'REPLIED'];
 
@@ -104,6 +99,12 @@ export default function NotificationsPage() {
 
   const newCount = inquiries.filter((inq) => inq.status === 'NEW').length;
 
+  const commTabs = [
+    { value: 'notifications', label: '학부모 알림' },
+    { value: 'announcements', label: '공지사항' },
+    { value: 'inquiries',     label: '문의사항', badge: newCount },
+  ];
+
   const topbarBadge = () => {
     if (commTab === 'notifications') return `총 ${notifications.length}건`;
     if (commTab === 'announcements') return `${announcements.filter((a) => a.status === '게시됨').length}건 게시 중`;
@@ -124,7 +125,7 @@ export default function NotificationsPage() {
         }
       />
 
-      <Tabs tabs={COMM_TABS} value={commTab} onChange={setCommTab} />
+      <Tabs tabs={commTabs} value={commTab} onChange={setCommTab} />
 
       {loading ? <LoadingSpinner /> : (
         <>
