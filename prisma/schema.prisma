@@ -22,6 +22,12 @@ model Academy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ── 토스페이먼츠 (학원별 결제 키) ──────────────────────
+  tossClientKey      String?   // 공개 키 — 평문 (브라우저 노출 OK)
+  tossSecretKeyEnc   String?   // 비밀 키 — AES-256-GCM 암호화 저장
+  tossKeyUpdatedAt   DateTime? // 마지막 키 등록/변경 일시
+  tossKeyUpdatedBy   String?   // 변경한 super_admin userId (감사 로그)
+
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
   intro          String?  // 한 줄 소개
   directorName   String?  // 대표자명

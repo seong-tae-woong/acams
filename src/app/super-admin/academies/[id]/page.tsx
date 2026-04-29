@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, BookOpen, ToggleLeft, ToggleRight, KeyRound, Save } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, ToggleLeft, ToggleRight, KeyRound, Save, CreditCard, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Button from '@/components/shared/Button';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
@@ -26,6 +26,14 @@ interface AcademyDetail {
   createdAt: string;
   _count: { students: number; classes: number };
   users: AcademyUser[];
+}
+
+interface TossKeyStatus {
+  clientKey: string | null;
+  secretKeyMasked: string | null;
+  isRegistered: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -56,12 +64,21 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
   // 비밀번호 초기화
   const [pwState, setPwState] = useState<Record<string, { open: boolean; value: string; loading: boolean }>>({});
 
+  // 토스 키 관리
+  const [tossKey, setTossKey] = useState<TossKeyStatus | null>(null);
+  const [tossForm, setTossForm] = useState({ clientKey: '', secretKey: '' });
+  const [tossShowSecret, setTossShowSecret] = useState(false);
+  const [tossSaving, setTossSaving] = useState(false);
+
   useEffect(() => {
-    fetch(`/api/super-admin/academies/${id}`)
-      .then((r) => r.json())
-      .then((data: AcademyDetail) => {
-        setAcademy(data);
-        setEditForm({ name: data.name, loginKey: data.loginKey ?? '', phone: data.phone ?? '', address: data.address ?? '' });
+    Promise.all([
+      fetch(`/api/super-admin/academies/${id}`).then((r) => r.json()),
+      fetch(`/api/super-admin/academies/${id}/toss-key`).then((r) => r.json()),
+    ])
+      .then(([academyData, tossData]: [AcademyDetail, TossKeyStatus]) => {
+        setAcademy(academyData);
+        setEditForm({ name: academyData.name, loginKey: academyData.loginKey ?? '', phone: academyData.phone ?? '', address: academyData.address ?? '' });
+        setTossKey(tossData);
         setLoading(false);
       })
       .catch(() => {
@@ -150,6 +167,34 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
       toast('네트워크 오류가 발생했습니다.', 'error');
     } finally {
       setPwState((s) => ({ ...s, [user.id]: { ...s[user.id], loading: false } }));
+    }
+  };
+
+  // 토스 키 저장
+  const handleSaveTossKey = async () => {
+    if (!tossForm.clientKey.trim() || !tossForm.secretKey.trim()) {
+      toast('Client Key와 Secret Key를 모두 입력해주세요.', 'error');
+      return;
+    }
+    setTossSaving(true);
+    try {
+      const res = await fetch(`/api/super-admin/academies/${id}/toss-key`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: tossForm.clientKey, secretKey: tossForm.secretKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error ?? '키 저장에 실패했습니다.', 'error'); return; }
+
+      // 저장 후 최신 상태 재조회 (마스킹 표시 위해)
+      const updated: TossKeyStatus = await fetch(`/api/super-admin/academies/${id}/toss-key`).then((r) => r.json());
+      setTossKey(updated);
+      setTossForm({ clientKey: '', secretKey: '' });
+      toast(`토스 ${data.clientEnv === 'live' ? '실서비스' : '테스트'} 키가 등록되었습니다.`, 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      setTossSaving(false);
     }
   };
 
@@ -276,7 +321,92 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {/* 섹션 B: 계정 관리 */}
+      {/* 섹션 B: 토스페이먼츠 결제 키 */}
+      <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CreditCard size={15} className="text-[#6b7280]" />
+            <h2 className="text-[13px] font-semibold text-[#374151]">토스페이먼츠 결제 키</h2>
+          </div>
+          {tossKey?.isRegistered ? (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-[#065f46] bg-[#D1FAE5] px-2.5 py-1 rounded-full">
+              <CheckCircle2 size={11} />
+              등록됨
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-[#92400e] bg-[#FEF3C7] px-2.5 py-1 rounded-full">
+              <AlertCircle size={11} />
+              미등록
+            </span>
+          )}
+        </div>
+
+        {/* 현재 등록된 키 상태 표시 */}
+        {tossKey?.isRegistered && (
+          <div className="bg-[#f8fafc] rounded-[10px] border border-[#e2e8f0] px-4 py-3 space-y-1.5">
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="text-[#9ca3af] w-20 shrink-0">Client Key</span>
+              <span className="font-mono text-[#374151] truncate">{tossKey.clientKey}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[12px]">
+              <span className="text-[#9ca3af] w-20 shrink-0">Secret Key</span>
+              <span className="font-mono text-[#374151]">{tossKey.secretKeyMasked}</span>
+            </div>
+            {tossKey.updatedAt && (
+              <div className="text-[11px] text-[#9ca3af] pt-1">
+                마지막 변경: {new Date(tossKey.updatedAt).toLocaleString('ko-KR')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 키 등록/교체 폼 */}
+        <div className="space-y-3">
+          <p className="text-[11.5px] text-[#6b7280]">
+            {tossKey?.isRegistered
+              ? '새 키를 입력하면 기존 키가 교체됩니다.'
+              : '토스페이먼츠 상점에서 발급받은 Client Key와 Secret Key를 입력하세요.'}
+          </p>
+          <div>
+            <label className="block text-[12px] text-[#6b7280] mb-1.5">Client Key</label>
+            <input
+              className={fieldCls}
+              value={tossForm.clientKey}
+              onChange={(e) => setTossForm((f) => ({ ...f, clientKey: e.target.value }))}
+              placeholder="test_ck_... 또는 live_ck_..."
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className="block text-[12px] text-[#6b7280] mb-1.5">Secret Key</label>
+            <div className="relative">
+              <input
+                type={tossShowSecret ? 'text' : 'password'}
+                className={fieldCls + ' pr-10'}
+                value={tossForm.secretKey}
+                onChange={(e) => setTossForm((f) => ({ ...f, secretKey: e.target.value }))}
+                placeholder="test_sk_... 또는 live_sk_..."
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                onClick={() => setTossShowSecret((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#374151]"
+              >
+                {tossShowSecret ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="dark" size="sm" onClick={handleSaveTossKey}>
+              <Save size={13} />
+              {tossSaving ? '저장 중...' : tossKey?.isRegistered ? '키 교체' : '키 등록'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 섹션 C: 계정 관리 */}
       <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-5 space-y-4">
         <h2 className="text-[13px] font-semibold text-[#374151]">계정 관리</h2>
 

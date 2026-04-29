@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
+import { decryptTossKey } from '@/lib/crypto/tossKey';
 
 // POST /api/mobile/payments/toss/confirm
 // 토스페이먼츠 결제 승인 → 청구서 상태 업데이트 + 영수증 발행
@@ -18,6 +19,21 @@ export async function POST(req: NextRequest) {
 
     if (!paymentKey || !orderId || !amount) {
       return NextResponse.json({ error: 'paymentKey, orderId, amount는 필수입니다.' }, { status: 400 });
+    }
+
+    // 학원별 토스 Secret Key 조회
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { tossSecretKeyEnc: true },
+    });
+    if (!academy?.tossSecretKeyEnc) {
+      return NextResponse.json({ error: '이 학원은 결제가 설정되지 않았습니다. 관리자에게 문의해주세요.' }, { status: 503 });
+    }
+    let tossSecretKey: string;
+    try {
+      tossSecretKey = decryptTossKey(academy.tossSecretKeyEnc);
+    } catch {
+      return NextResponse.json({ error: '결제 키 오류가 발생했습니다. 관리자에게 문의해주세요.' }, { status: 500 });
     }
 
     // PaymentOrder 조회
@@ -58,8 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 토스페이먼츠 승인 API 호출 ──────────────────────────
-    const secretKey = process.env.TOSS_SECRET_KEY!;
-    const authHeader = `Basic ${Buffer.from(`${secretKey}:`).toString('base64')}`;
+    const authHeader = `Basic ${Buffer.from(`${tossSecretKey}:`).toString('base64')}`;
 
     const tossRes = await fetch('https://api.tosspayments.com/v1/payments/confirm', {
       method: 'POST',
@@ -73,7 +88,7 @@ export async function POST(req: NextRequest) {
     const tossData = await tossRes.json();
 
     if (!tossRes.ok) {
-      console.error('[Toss confirm error]', tossData);
+      console.error('[Toss confirm error]', tossData?.code, tossData?.message);
       // PaymentOrder 실패 처리
       await prisma.paymentOrder.update({
         where: { id: orderId },

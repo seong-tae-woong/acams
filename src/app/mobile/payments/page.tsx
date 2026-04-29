@@ -27,7 +27,15 @@ const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string
 };
 
 async function requestTossPayment(billId: string, amount: number, orderName: string) {
-  // 1. PaymentOrder 생성
+  // 1. 학원별 Client Key 조회
+  const keyRes = await fetch('/api/mobile/payments/toss-client-key');
+  if (!keyRes.ok) {
+    const err = await keyRes.json();
+    throw new Error(err.error ?? '결제 설정을 불러오지 못했습니다.');
+  }
+  const { clientKey } = await keyRes.json();
+
+  // 2. PaymentOrder 생성
   const orderRes = await fetch('/api/mobile/payments/order', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,12 +49,12 @@ async function requestTossPayment(billId: string, amount: number, orderName: str
 
   const { orderId } = await orderRes.json();
 
-  // 2. 토스페이먼츠 SDK 동적 로드
+  // 3. 토스페이먼츠 SDK 동적 로드
   const { loadTossPayments, ANONYMOUS } = await import('@tosspayments/tosspayments-sdk');
-  const tossPayments = await loadTossPayments(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY!);
+  const tossPayments = await loadTossPayments(clientKey);
   const payment = tossPayments.payment({ customerKey: ANONYMOUS });
 
-  // 3. 결제 요청
+  // 4. 결제 요청
   await payment.requestPayment({
     method: 'CARD',
     amount: { currency: 'KRW', value: amount },
