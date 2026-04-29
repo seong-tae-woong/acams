@@ -234,7 +234,8 @@ export default function AcademyPublicPage() {
 
   // 상담 신청 폼
   const [inquiry, setInquiry] = useState({ name: '', phone: '', classId: '', message: '' });
-  const [inquiryDone, setInquiryDone] = useState(false);
+  const [inquiryDone, setInquiryDone]       = useState(false);
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
 
   /* ── Pretendard 폰트 주입 ── */
   useEffect(() => {
@@ -300,10 +301,33 @@ export default function AcademyPublicPage() {
   const kakaoSearchUrl = `https://map.kakao.com/link/search/${encodeURIComponent(profile.address)}`;
   const openGallery    = (i: number) => { setGalleryIndex(i); setGalleryOpen(true); };
 
-  const handleInquiry = (e: React.FormEvent) => {
+  const handleInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: POST /api/academy/[slug]/inquiry
-    setInquiryDone(true);
+    setInquirySubmitting(true);
+    try {
+      const selectedClass = profile!.classes.find((c) => c.id === inquiry.classId);
+      const res = await fetch(`/api/academy/${slug}/inquiry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:      inquiry.name.trim(),
+          phone:     inquiry.phone.trim(),
+          classId:   inquiry.classId || null,
+          className: selectedClass?.name || null,
+          message:   inquiry.message.trim(),
+        }),
+      });
+      if (res.ok) {
+        setInquiryDone(true);
+      } else {
+        const err = await res.json();
+        alert(err.error ?? '신청에 실패했습니다. 다시 시도해 주세요.');
+      }
+    } catch {
+      alert('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setInquirySubmitting(false);
+    }
   };
 
   return (
@@ -533,18 +557,20 @@ export default function AcademyPublicPage() {
 
               <button
                 type="submit"
-                disabled={!inquiry.name.trim() || !inquiry.phone.trim()}
+                disabled={!inquiry.name.trim() || !inquiry.phone.trim() || inquirySubmitting}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   padding: '14px 0', borderRadius: 12,
-                  background: (!inquiry.name.trim() || !inquiry.phone.trim()) ? C.border : C.accent,
-                  color:      (!inquiry.name.trim() || !inquiry.phone.trim()) ? C.muted  : '#fff',
+                  background: (!inquiry.name.trim() || !inquiry.phone.trim() || inquirySubmitting) ? C.border : C.accent,
+                  color:      (!inquiry.name.trim() || !inquiry.phone.trim() || inquirySubmitting) ? C.muted  : '#fff',
                   fontSize: 14.5, fontWeight: 700, border: 'none', fontFamily: FONT,
-                  cursor: (!inquiry.name.trim() || !inquiry.phone.trim()) ? 'not-allowed' : 'pointer',
+                  cursor: (!inquiry.name.trim() || !inquiry.phone.trim() || inquirySubmitting) ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s',
                 }}
               >
-                <Send size={15} /> 상담 신청하기
+                {inquirySubmitting
+                  ? '신청 중...'
+                  : <><Send size={15} /> 상담 신청하기</>}
               </button>
             </form>
           )}

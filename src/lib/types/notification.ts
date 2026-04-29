@@ -65,6 +65,33 @@ export type ConsultationCreateInput = Omit<ConsultationRecord, 'id'>;
 
 export type AnnouncementCreateInput = Omit<Announcement, 'id' | 'createdAt' | 'publishedAt' | 'readCount' | 'totalCount'>;
 
+// ── 공개 페이지 상담 신청 ──────────────────────────
+export type InquiryStatus = 'NEW' | 'READ' | 'REPLIED';
+
+export const INQUIRY_STATUS_LABEL: Record<InquiryStatus, string> = {
+  NEW:     '신규',
+  READ:    '확인',
+  REPLIED: '답변완료',
+};
+
+export const INQUIRY_STATUS_STYLE: Record<InquiryStatus, { bg: string; text: string }> = {
+  NEW:     { bg: '#FEE2E2', text: '#991B1B' },
+  READ:    { bg: '#DBEAFE', text: '#1E40AF' },
+  REPLIED: { bg: '#D1FAE5', text: '#065F46' },
+};
+
+export interface PublicInquiry {
+  id:        string;
+  name:      string;   // 학생 이름
+  phone:     string;   // 연락처
+  classId:   string | null;
+  className: string | null;
+  message:   string;
+  status:    InquiryStatus;
+  memo:      string;
+  createdAt: string;   // ISO datetime
+}
+
 export interface NotificationFilter {
   type?: NotificationType;
   sentBy?: string;

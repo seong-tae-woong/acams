@@ -1,30 +1,34 @@
 'use client';
 import { create } from 'zustand';
-import type { Notification, ConsultationRecord, Announcement } from '@/lib/types/notification';
+import type { Notification, ConsultationRecord, Announcement, PublicInquiry, InquiryStatus } from '@/lib/types/notification';
 import { toast } from '@/lib/stores/toastStore';
 
 interface CommunicationStore {
   notifications: Notification[];
   consultations: ConsultationRecord[];
   announcements: Announcement[];
+  inquiries:     PublicInquiry[];
   loading: boolean;
 
   fetchNotifications: () => Promise<void>;
   fetchConsultations: (studentId?: string) => Promise<void>;
   fetchAnnouncements: () => Promise<void>;
+  fetchInquiries:     () => Promise<void>;
 
   getConsultationsByStudent: (studentId: string) => ConsultationRecord[];
 
-  addNotification: (n: Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>) => Promise<void>;
-  addConsultation: (c: Omit<ConsultationRecord, 'id'>) => Promise<void>;
-  addAnnouncement: (a: Omit<Announcement, 'id' | 'createdAt' | 'publishedAt' | 'readCount' | 'totalCount'>) => Promise<void>;
-  publishAnnouncement: (id: string) => Promise<void>;
+  addNotification:    (n: Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>) => Promise<void>;
+  addConsultation:    (c: Omit<ConsultationRecord, 'id'>) => Promise<void>;
+  addAnnouncement:    (a: Omit<Announcement, 'id' | 'createdAt' | 'publishedAt' | 'readCount' | 'totalCount'>) => Promise<void>;
+  publishAnnouncement:(id: string) => Promise<void>;
+  updateInquiry:      (id: string, data: { status?: InquiryStatus; memo?: string }) => Promise<void>;
 }
 
 export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
   notifications: [],
   consultations: [],
   announcements: [],
+  inquiries:     [],
   loading: false,
 
   fetchNotifications: async () => {
@@ -63,6 +67,18 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
     } catch (err) {
       console.error('[communicationStore.fetchAnnouncements]', err);
       toast('공지사항을 불러오는 데 실패했습니다.', 'error');
+    }
+  },
+
+  fetchInquiries: async () => {
+    try {
+      const res = await fetch('/api/communication/inquiries');
+      if (!res.ok) throw new Error('문의사항 조회 실패');
+      const data: PublicInquiry[] = await res.json();
+      set({ inquiries: data });
+    } catch (err) {
+      console.error('[communicationStore.fetchInquiries]', err);
+      toast('문의사항을 불러오는 데 실패했습니다.', 'error');
     }
   },
 
@@ -136,6 +152,25 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
     } catch (err) {
       console.error('[communicationStore.publishAnnouncement]', err);
       toast('공지 게시에 실패했습니다.', 'error');
+    }
+  },
+
+  updateInquiry: async (id, data) => {
+    try {
+      const res = await fetch(`/api/communication/inquiries/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('문의 업데이트 실패');
+      const updated: PublicInquiry = await res.json();
+      set((state) => ({
+        inquiries: state.inquiries.map((inq) => (inq.id === id ? updated : inq)),
+      }));
+      toast('저장되었습니다.', 'success');
+    } catch (err) {
+      console.error('[communicationStore.updateInquiry]', err);
+      toast('저장에 실패했습니다.', 'error');
     }
   },
 }));

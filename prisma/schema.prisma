@@ -49,6 +49,7 @@ model Academy {
   announcements      Announcement[]
   textbooks          Textbook[]
   curriculumRows     CurriculumRow[]
+  inquiries          PublicInquiry[]
 
   @@map("academies")
 }
@@ -554,6 +555,36 @@ model Announcement {
   updatedAt   DateTime @updatedAt
 
   @@map("announcements")
+}
+
+// ─────────────────────────────────────────────
+// PUBLIC INQUIRY (공개 페이지 상담 신청)
+// ─────────────────────────────────────────────
+
+enum InquiryStatus {
+  NEW      // 신규 (미확인)
+  READ     // 확인
+  REPLIED  // 답변완료
+}
+
+model PublicInquiry {
+  id        String        @id @default(cuid())
+  academyId String
+  academy   Academy       @relation(fields: [academyId], references: [id])
+
+  name      String        // 학생 이름
+  phone     String        // 연락처
+  classId   String?       // 관심 수업 ID (선택)
+  className String?       // 관심 수업명 스냅샷
+  message   String        @default("")  // 문의 내용
+
+  status    InquiryStatus @default(NEW)
+  memo      String        @default("")  // 원장 메모
+
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("public_inquiries")
 }
 
 // ─────────────────────────────────────────────
