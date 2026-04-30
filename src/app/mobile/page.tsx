@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { Bell, ChevronRight, Calendar, BookOpen, CreditCard } from 'lucide-react';
+import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft } from 'lucide-react';
+import clsx from 'clsx';
 
 type StudentInfo = { id: string; name: string; avatarColor: string };
 type ClassInfo = {
@@ -12,8 +13,18 @@ type ClassInfo = {
 };
 type BillInfo = { id: string; className: string; amount: number; paidAmount: number; status: string };
 type AnnouncementInfo = { id: string; title: string; pinned: boolean };
+type CalendarEventItem = {
+  id: string; title: string; date: string;
+  startTime: string | null; endTime: string | null;
+  type: string; description: string; color: string;
+  classId: string | null; className: string | null;
+};
 
 const DAY_NAMES: Record<number, string> = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일' };
+const DOW_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+
+function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
+function firstDayOfMonth(y: number, m: number) { const d = new Date(y, m, 1).getDay(); return d === 0 ? 6 : d - 1; }
 
 export default function MobileHomePage() {
   const [student, setStudent] = useState<StudentInfo | null>(null);
@@ -21,6 +32,14 @@ export default function MobileHomePage() {
   const [unpaid, setUnpaid] = useState<BillInfo[]>([]);
   const [pinned, setPinned] = useState<AnnouncementInfo | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const today = new Date();
+  const [calYear, setCalYear] = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-indexed
+  const [events, setEvents] = useState<CalendarEventItem[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   useEffect(() => {
     Promise.all([
@@ -33,6 +52,23 @@ export default function MobileHomePage() {
       if (ann.announcements) setPinned(ann.announcements.find((a: AnnouncementInfo) => a.pinned) ?? null);
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/mobile/calendar?year=${calYear}&month=${calMonth + 1}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.events) setEvents(data.events); });
+  }, [calYear, calMonth]);
+
+  const prevMonth = () => {
+    setSelectedDate(null);
+    if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); }
+    else setCalMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    setSelectedDate(null);
+    if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); }
+    else setCalMonth((m) => m + 1);
+  };
 
   const todayDow = new Date().getDay() || 7;
   const todayClasses = classes.filter((c) => c.schedule.some((s) => s.dayOfWeek === todayDow));
@@ -110,6 +146,131 @@ export default function MobileHomePage() {
             <div className="text-[12.5px] font-medium text-[#111827]">{pinned.title}</div>
           </div>
         )}
+
+        {/* 학원 일정 미니 캘린더 */}
+        {(() => {
+          const days = daysInMonth(calYear, calMonth);
+          const first = firstDayOfMonth(calYear, calMonth);
+          const totalCells = Math.ceil((first + days) / 7) * 7;
+          const getDateStr = (d: number) =>
+            `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const eventsFor = (ds: string) => events.filter((e) => e.date === ds);
+          const selectedEvents = selectedDate ? eventsFor(selectedDate) : [];
+
+          return (
+            <div className="bg-white rounded-[12px] border border-[#e2e8f0] overflow-hidden">
+              {/* 캘린더 헤더 */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#f1f5f9]">
+                <div className="text-[13px] font-semibold text-[#111827]">
+                  학원 일정
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={prevMonth} className="p-1 text-[#6b7280] active:text-[#111827] cursor-pointer">
+                    <ChevronLeft size={15} />
+                  </button>
+                  <span className="text-[12px] font-medium text-[#374151] w-16 text-center">
+                    {calYear}년 {calMonth + 1}월
+                  </span>
+                  <button onClick={nextMonth} className="p-1 text-[#6b7280] active:text-[#111827] cursor-pointer">
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-2 pt-1 pb-2">
+                {/* 요일 헤더 */}
+                <div className="grid grid-cols-7 mb-1">
+                  {DOW_LABELS.map((d) => (
+                    <div key={d} className="py-1 text-center text-[10.5px] font-medium text-[#9ca3af]">{d}</div>
+                  ))}
+                </div>
+
+                {/* 날짜 그리드 */}
+                <div className="grid grid-cols-7">
+                  {Array.from({ length: totalCells }).map((_, i) => {
+                    const dayNum = i - first + 1;
+                    const isValid = dayNum >= 1 && dayNum <= days;
+                    const dateStr = isValid ? getDateStr(dayNum) : '';
+                    const dayEvents = isValid ? eventsFor(dateStr) : [];
+                    const isToday = dateStr === todayStr;
+                    const isSelected = dateStr === selectedDate;
+                    const isWeekend = i % 7 >= 5;
+
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => isValid && setSelectedDate(dateStr === selectedDate ? null : dateStr)}
+                        className={clsx(
+                          'min-h-[42px] flex flex-col items-center pt-1 pb-0.5 rounded-[8px]',
+                          isValid ? 'cursor-pointer' : '',
+                          isSelected ? 'bg-[#f0fdf9]' : '',
+                        )}
+                      >
+                        {isValid && (
+                          <>
+                            <div className={clsx(
+                              'w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-medium',
+                              isToday ? 'bg-[#4fc3a1] text-white' : isWeekend ? 'text-[#6366f1]' : 'text-[#374151]',
+                            )}>
+                              {dayNum}
+                            </div>
+                            <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
+                              {dayEvents.slice(0, 3).map((ev) => (
+                                <span
+                                  key={ev.id}
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: ev.color }}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 선택한 날 일정 상세 */}
+              {selectedDate && (
+                <div className="border-t border-[#f1f5f9] px-4 py-3">
+                  <div className="text-[12px] font-semibold text-[#374151] mb-2">
+                    {selectedDate.slice(5, 7)}월 {selectedDate.slice(8)}일
+                  </div>
+                  {selectedEvents.length === 0 ? (
+                    <div className="text-[11.5px] text-[#9ca3af]">일정 없음</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedEvents.map((ev) => (
+                        <div key={ev.id} className="flex items-start gap-2">
+                          <span className="w-2 h-2 rounded-full mt-1 shrink-0" style={{ backgroundColor: ev.color }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12.5px] font-medium text-[#111827]">{ev.title}</div>
+                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                              {ev.startTime && (
+                                <span className="text-[11px] text-[#6b7280]">
+                                  {ev.startTime}{ev.endTime ? `~${ev.endTime}` : ''}
+                                </span>
+                              )}
+                              {ev.className && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#DBEAFE] text-[#1d4ed8]">
+                                  {ev.className}
+                                </span>
+                              )}
+                            </div>
+                            {ev.description && (
+                              <div className="text-[11px] text-[#6b7280] mt-0.5">{ev.description}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 바로가기 메뉴 */}
         <div className="grid grid-cols-2 gap-3">
