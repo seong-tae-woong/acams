@@ -92,6 +92,14 @@ export interface PublicInquiry {
   createdAt: string;   // ISO datetime
 }
 
+export interface NotificationTemplate {
+  id: string;
+  category: NotificationType;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface NotificationFilter {
   type?: NotificationType;
   sentBy?: string;

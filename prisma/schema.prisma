@@ -55,9 +55,10 @@ model Academy {
   announcements      Announcement[]
   textbooks          Textbook[]
   curriculumRows     CurriculumRow[]
-  inquiries          PublicInquiry[]
-  lectures           Lecture[]
-  customTags         AcademyTag[]
+  inquiries              PublicInquiry[]
+  lectures               Lecture[]
+  customTags             AcademyTag[]
+  notificationTemplates  NotificationTemplate[]
 
   @@map("academies")
 }
@@ -565,6 +566,25 @@ model Announcement {
   updatedAt   DateTime @updatedAt
 
   @@map("announcements")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATION TEMPLATE (알림 템플릿)
+// ─────────────────────────────────────────────
+
+model NotificationTemplate {
+  id        String           @id @default(cuid())
+  academyId String
+  academy   Academy          @relation(fields: [academyId], references: [id])
+
+  category  NotificationType
+  title     String
+  content   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_templates")
 }
 
 // ─────────────────────────────────────────────

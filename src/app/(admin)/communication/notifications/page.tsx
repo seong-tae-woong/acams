@@ -5,11 +5,13 @@ import Button from '@/components/shared/Button';
 import Tabs from '@/components/shared/Tabs';
 import { useCommunicationStore } from '@/lib/stores/communicationStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
-import type { NotificationType, AnnouncementStatus, InquiryStatus, PublicInquiry } from '@/lib/types/notification';
+import { useClassStore } from '@/lib/stores/classStore';
+import type { NotificationType, InquiryStatus, PublicInquiry } from '@/lib/types/notification';
 import { INQUIRY_STATUS_LABEL, INQUIRY_STATUS_STYLE } from '@/lib/types/notification';
-import { Send, Plus, Pin, Edit2, Phone, BookOpen, MessageSquare, Save } from 'lucide-react';
+import { Send, Plus, Phone, BookOpen, MessageSquare, Save, LayoutTemplate, Users, GraduationCap, School } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
+import NotificationTemplateModal from '@/components/communication/NotificationTemplateModal';
 import clsx from 'clsx';
 
 const TYPE_STYLE: Record<NotificationType, { bg: string; text: string }> = {
@@ -20,59 +22,83 @@ const TYPE_STYLE: Record<NotificationType, { bg: string; text: string }> = {
   '일반':    { bg: '#f1f5f9', text: '#374151' },
 };
 
-const ANN_STATUS_STYLE: Record<AnnouncementStatus, { bg: string; text: string }> = {
-  '게시됨':   { bg: '#D1FAE5', text: '#065f46' },
-  '임시저장': { bg: '#FEF3C7', text: '#92400E' },
-};
-
 const TYPES: NotificationType[] = ['공지', '출결알림', '수납알림', '상담알림', '일반'];
-
-
 const INQ_STATUS_OPTIONS: InquiryStatus[] = ['NEW', 'READ', 'REPLIED'];
+
+type RecipientMode = 'all' | 'class' | 'student';
 
 export default function NotificationsPage() {
   const {
-    notifications, announcements, inquiries, loading,
-    addNotification, fetchNotifications, fetchAnnouncements, fetchInquiries,
-    updateInquiry,
+    notifications, inquiries, loading,
+    addNotification, fetchNotifications, fetchInquiries,
+    updateInquiry, fetchTemplates,
   } = useCommunicationStore();
   const { students, fetchStudents } = useStudentStore();
+  const { classes, fetchClasses } = useClassStore();
   const [commTab, setCommTab] = useState('notifications');
 
   useEffect(() => {
     fetchNotifications();
-    fetchAnnouncements();
     fetchInquiries();
     fetchStudents();
+    fetchClasses();
+    fetchTemplates();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── 알림 탭 ── */
+  /* ── 학부모 알림 탭 ── */
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const [selectedNotifId, setSelectedNotifId] = useState<string | null>(null);
+
+  // 첫 알림 자동 선택
+  useEffect(() => {
+    if (!selectedNotifId && notifications.length > 0) {
+      setSelectedNotifId(notifications[0].id);
+    }
+  }, [notifications, selectedNotifId]);
+
+  const filteredNotifs = notifications.filter((n) => filter === 'all' || n.type === filter);
+  const selectedNotif = notifications.find((n) => n.id === selectedNotifId);
+
+  /* ── 알림 작성 ── */
   const [composing, setComposing] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newType, setNewType] = useState<NotificationType>('공지');
+  const [recipientMode, setRecipientMode] = useState<RecipientMode>('all');
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [studentSearch, setStudentSearch] = useState('');
 
-  const filtered = notifications.filter((n) => filter === 'all' || n.type === filter);
+  const activeStudents = students.filter((s) => s.status === '재원');
+
+  const computeRecipients = (): string[] => {
+    if (recipientMode === 'all') return activeStudents.map((s) => s.id);
+    if (recipientMode === 'class') {
+      return activeStudents
+        .filter((s) => s.classes.some((c) => selectedClassIds.includes(c)))
+        .map((s) => s.id);
+    }
+    return selectedStudentIds;
+  };
+
+  const recipientCount = (() => {
+    if (recipientMode === 'all') return activeStudents.length;
+    if (recipientMode === 'class') {
+      return activeStudents.filter((s) => s.classes.some((c) => selectedClassIds.includes(c))).length;
+    }
+    return selectedStudentIds.length;
+  })();
+
+  const toggleClass = (id: string) =>
+    setSelectedClassIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+
+  const toggleStudent = (id: string) =>
+    setSelectedStudentIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const formatTime = (iso: string) => {
     const d = new Date(iso);
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
-
-  /* ── 공지사항 탭 ── */
-  const [selectedAnnId, setSelectedAnnId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!selectedAnnId && announcements.length > 0) setSelectedAnnId(announcements[0].id);
-  }, [announcements, selectedAnnId]);
-  const [annStatusFilter, setAnnStatusFilter] = useState<AnnouncementStatus | 'all'>('all');
-
-  const filteredAnn = announcements.filter((a) => annStatusFilter === 'all' || a.status === annStatusFilter);
-  const selectedAnn = announcements.find((a) => a.id === selectedAnnId);
-
-  const formatDate = (iso: string | null) => {
-    if (!iso) return '-';
-    return iso.slice(0, 10);
   };
 
   /* ── 문의사항 탭 ── */
@@ -84,30 +110,24 @@ export default function NotificationsPage() {
 
   const filteredInq = inquiries.filter((inq) => inqStatusFilter === 'all' || inq.status === inqStatusFilter);
   const selectedInq: PublicInquiry | undefined = inquiries.find((inq) => inq.id === selectedInqId);
+  const newCount = inquiries.filter((inq) => inq.status === 'NEW').length;
 
-  // 문의 선택 시 편집 상태 초기화
   useEffect(() => {
     if (selectedInq) {
       setEditMemo(selectedInq.memo);
       setEditStatus(selectedInq.status);
-      // 신규 문의를 열면 자동으로 '확인' 처리
-      if (selectedInq.status === 'NEW') {
-        updateInquiry(selectedInq.id, { status: 'READ' });
-      }
+      if (selectedInq.status === 'NEW') updateInquiry(selectedInq.id, { status: 'READ' });
     }
   }, [selectedInqId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const newCount = inquiries.filter((inq) => inq.status === 'NEW').length;
-
+  /* ── 탭 ── */
   const commTabs = [
     { value: 'notifications', label: '학부모 알림' },
-    { value: 'announcements', label: '공지사항' },
-    { value: 'inquiries',     label: '문의사항', badge: newCount },
+    { value: 'inquiries', label: '문의사항', badge: newCount },
   ];
 
   const topbarBadge = () => {
     if (commTab === 'notifications') return `총 ${notifications.length}건`;
-    if (commTab === 'announcements') return `${announcements.filter((a) => a.status === '게시됨').length}건 게시 중`;
     return `총 ${inquiries.length}건${newCount > 0 ? ` · 미확인 ${newCount}건` : ''}`;
   };
 
@@ -119,8 +139,6 @@ export default function NotificationsPage() {
         actions={
           commTab === 'notifications'
             ? <Button variant="dark" size="sm" onClick={() => setComposing(true)}><Plus size={13} /> 알림 작성</Button>
-            : commTab === 'announcements'
-            ? <Button variant="dark" size="sm" onClick={() => toast('공지 작성 기능은 추후 지원 예정입니다.', 'info')}><Plus size={13} /> 공지 작성</Button>
             : null
         }
       />
@@ -132,232 +150,244 @@ export default function NotificationsPage() {
           {/* ── 학부모 알림 탭 ── */}
           {commTab === 'notifications' && (
             <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                <div className="flex gap-2 flex-wrap">
+
+              {/* 좌측: 알림 목록 */}
+              <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden">
+                {/* 유형 필터 */}
+                <div className="p-2 border-b border-[#e2e8f0] flex gap-1 flex-wrap">
                   <button
                     onClick={() => setFilter('all')}
-                    className={clsx(
-                      'px-3 py-1.5 rounded-[8px] text-[12px] font-medium border transition-colors cursor-pointer',
-                      filter === 'all' ? 'bg-[#1a2535] text-white border-transparent' : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
-                    )}
-                  >
-                    전체
-                  </button>
+                    className={clsx('px-2 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
+                      filter === 'all' ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]')}
+                  >전체</button>
                   {TYPES.map((t) => (
                     <button
                       key={t}
                       onClick={() => setFilter(t)}
-                      className={clsx(
-                        'px-3 py-1.5 rounded-[8px] text-[12px] font-medium border transition-colors cursor-pointer',
-                        filter === t ? 'bg-[#1a2535] text-white border-transparent' : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
-                      )}
-                    >
-                      {t}
-                    </button>
+                      className={clsx('px-2 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
+                        filter === t ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]')}
+                    >{t}</button>
                   ))}
                 </div>
 
-                <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-                  <div className="px-4 py-3 border-b border-[#e2e8f0]">
-                    <span className="text-[12.5px] font-semibold text-[#111827]">발송 이력</span>
-                  </div>
-                  <div className="divide-y divide-[#f1f5f9]">
-                    {filtered.map((n) => {
-                      const ts = TYPE_STYLE[n.type];
-                      const readRate = n.totalCount > 0 ? Math.round((n.readCount / n.totalCount) * 100) : 0;
-                      return (
-                        <div key={n.id} className="px-5 py-4 hover:bg-[#f9fafb]">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: ts.bg, color: ts.text }}>
-                                  {n.type}
-                                </span>
-                                <span className="text-[11.5px] text-[#9ca3af]">{formatTime(n.sentAt)}</span>
-                              </div>
-                              <div className="text-[13px] font-semibold text-[#111827] mb-0.5">{n.title}</div>
-                              <div className="text-[12px] text-[#6b7280] line-clamp-2">{n.content}</div>
-                            </div>
-                            <div className="ml-4 text-right shrink-0">
-                              <div className="text-[12px] text-[#374151]">
-                                <span className="font-semibold">{n.readCount}</span>/{n.totalCount}명 확인
-                              </div>
-                              <div className="mt-1 w-20 h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden ml-auto">
-                                <div className="h-full bg-[#4fc3a1] rounded-full" style={{ width: `${readRate}%` }} />
-                              </div>
-                              <div className="text-[10.5px] text-[#9ca3af] mt-0.5">{readRate}%</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {composing && (
-                <div className="w-80 shrink-0 border-l border-[#e2e8f0] bg-white overflow-y-auto p-4 space-y-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[13px] font-semibold text-[#111827]">알림 작성</span>
-                    <button onClick={() => setComposing(false)} className="text-[#9ca3af] hover:text-[#374151] cursor-pointer text-[18px]">×</button>
-                  </div>
-                  <div>
-                    <label className="text-[11.5px] text-[#6b7280] block mb-1">유형</label>
-                    <select
-                      value={newType}
-                      onChange={(e) => setNewType(e.target.value as NotificationType)}
-                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                    >
-                      {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[11.5px] text-[#6b7280] block mb-1">제목</label>
-                    <input
-                      type="text"
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="알림 제목"
-                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none focus:border-[#4fc3a1]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11.5px] text-[#6b7280] block mb-1">내용</label>
-                    <textarea
-                      value={newContent}
-                      onChange={(e) => setNewContent(e.target.value)}
-                      placeholder="알림 내용을 입력하세요"
-                      rows={5}
-                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none focus:border-[#4fc3a1] resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11.5px] text-[#6b7280] block mb-1">수신 대상</label>
-                    <div className="p-2.5 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#374151]">
-                      전체 학부모 ({students.filter((s) => s.status === '재원').length}명)
-                    </div>
-                  </div>
-                  <Button
-                    variant="dark"
-                    size="md"
-                    onClick={async () => {
-                      if (!newTitle.trim() || !newContent.trim()) { toast('제목과 내용을 입력해주세요.', 'error'); return; }
-                      const activeStudentIds = students.filter((s) => s.status === '재원').map((s) => s.id);
-                      await addNotification({ type: newType, title: newTitle.trim(), content: newContent.trim(), recipients: activeStudentIds, sentBy: '' });
-                      setComposing(false); setNewTitle(''); setNewContent('');
-                    }}
-                  >
-                    <Send size={13} /> 발송
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── 공지사항 탭 ── */}
-          {commTab === 'announcements' && (
-            <div className="flex flex-1 overflow-hidden">
-              <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-                <div className="p-2 border-b border-[#e2e8f0] flex gap-1.5">
-                  {(['all', '게시됨', '임시저장'] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setAnnStatusFilter(s)}
-                      className={clsx(
-                        'px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
-                        annStatusFilter === s ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]',
-                      )}
-                    >
-                      {s === 'all' ? '전체' : s}
-                    </button>
-                  ))}
-                </div>
-                <div className="divide-y divide-[#f1f5f9]">
-                  {filteredAnn.map((a) => {
-                    const ss = ANN_STATUS_STYLE[a.status];
+                {/* 목록 */}
+                <div className="flex-1 overflow-y-auto divide-y divide-[#f1f5f9]">
+                  {filteredNotifs.length === 0 && (
+                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">발송된 알림이 없습니다</div>
+                  )}
+                  {filteredNotifs.map((n) => {
+                    const ts = TYPE_STYLE[n.type];
+                    const readRate = n.totalCount > 0 ? Math.round((n.readCount / n.totalCount) * 100) : 0;
                     return (
                       <button
-                        key={a.id}
-                        onClick={() => setSelectedAnnId(a.id)}
-                        className={clsx(
-                          'w-full text-left px-3 py-3 transition-colors cursor-pointer',
-                          selectedAnnId === a.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
-                        )}
+                        key={n.id}
+                        onClick={() => setSelectedNotifId(n.id)}
+                        className={clsx('w-full text-left px-3 py-3 transition-colors cursor-pointer',
+                          selectedNotifId === n.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]')}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
-                          {a.pinned && <Pin size={11} className="text-[#4fc3a1] shrink-0" />}
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: ss.bg, color: ss.text }}>
-                            {a.status}
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: ts.bg, color: ts.text }}>
+                            {n.type}
                           </span>
+                          <span className="text-[10.5px] text-[#9ca3af]">{formatTime(n.sentAt)}</span>
                         </div>
-                        <div className="text-[12.5px] font-medium text-[#111827] line-clamp-2">{a.title}</div>
-                        <div className="text-[11px] text-[#9ca3af] mt-0.5">{formatDate(a.publishedAt ?? a.createdAt)}</div>
+                        <div className="text-[12.5px] font-medium text-[#111827] line-clamp-2">{n.title}</div>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <div className="flex-1 h-1 bg-[#f1f5f9] rounded-full overflow-hidden">
+                            <div className="h-full bg-[#4fc3a1] rounded-full" style={{ width: `${readRate}%` }} />
+                          </div>
+                          <span className="text-[10.5px] text-[#9ca3af] shrink-0">{n.readCount}/{n.totalCount}</span>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {selectedAnn ? (
-                <div className="flex-1 overflow-y-auto p-5">
-                  <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-5 max-w-2xl">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          {selectedAnn.pinned && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-[#E1F5EE] rounded text-[11px] text-[#065f46] font-medium">
-                              <Pin size={10} /> 상단 고정
-                            </span>
-                          )}
-                          <span
-                            className="px-2 py-0.5 rounded text-[11px] font-medium"
-                            style={{ backgroundColor: ANN_STATUS_STYLE[selectedAnn.status].bg, color: ANN_STATUS_STYLE[selectedAnn.status].text }}
-                          >
-                            {selectedAnn.status}
+              {/* 중앙: 상세 */}
+              {selectedNotif ? (() => {
+                const ts = TYPE_STYLE[selectedNotif.type];
+                const readRate = selectedNotif.totalCount > 0
+                  ? Math.round((selectedNotif.readCount / selectedNotif.totalCount) * 100)
+                  : 0;
+                const recipientStudents = students.filter((s) => selectedNotif.recipients.includes(s.id));
+                return (
+                  <div className="flex-1 overflow-y-auto p-5">
+                    <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-5 max-w-2xl">
+                      {/* 헤더 */}
+                      <div className="flex items-start gap-3 mb-4">
+                        <span className="px-2 py-0.5 rounded-[20px] text-[11.5px] font-medium shrink-0 mt-0.5"
+                          style={{ backgroundColor: ts.bg, color: ts.text }}>{selectedNotif.type}</span>
+                        <div className="flex-1">
+                          <h2 className="text-[16px] font-bold text-[#111827]">{selectedNotif.title}</h2>
+                          <div className="text-[12px] text-[#9ca3af] mt-0.5">{formatTime(selectedNotif.sentAt)}</div>
+                        </div>
+                      </div>
+
+                      {/* 내용 */}
+                      <div className="border-t border-[#e2e8f0] pt-4 mb-4">
+                        <p className="text-[13px] text-[#374151] leading-relaxed whitespace-pre-line">
+                          {selectedNotif.content}
+                        </p>
+                      </div>
+
+                      {/* 발송 현황 */}
+                      <div className="border border-[#e2e8f0] rounded-[10px] p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[12.5px] font-semibold text-[#111827]">발송 현황</span>
+                          <span className="text-[12px] text-[#374151]">
+                            <span className="font-semibold text-[#4fc3a1]">{selectedNotif.readCount}</span>
+                            /{selectedNotif.totalCount}명 확인 ({readRate}%)
                           </span>
                         </div>
-                        <h2 className="text-[16px] font-bold text-[#111827]">{selectedAnn.title}</h2>
-                        <div className="text-[12px] text-[#6b7280] mt-1">
-                          작성자: {selectedAnn.author} · 작성일: {formatDate(selectedAnn.createdAt)}
-                          {selectedAnn.publishedAt && ` · 게시일: ${formatDate(selectedAnn.publishedAt)}`}
+                        <div className="w-full h-2 bg-[#f1f5f9] rounded-full overflow-hidden mb-4">
+                          <div className="h-full bg-[#4fc3a1] rounded-full transition-all" style={{ width: `${readRate}%` }} />
                         </div>
-                        <div className="text-[12px] text-[#6b7280] mt-0.5">
-                          대상: {selectedAnn.targetAudience.includes('all') ? '전체' : selectedAnn.targetAudience.join(', ')}
-                          {selectedAnn.status === '게시됨' && ` · 읽음 ${selectedAnn.readCount}/${selectedAnn.totalCount}명`}
-                        </div>
-                      </div>
-                      <Button variant="default" size="sm" onClick={() => toast('수정 기능은 추후 지원 예정입니다.', 'info')}><Edit2 size={12} /> 수정</Button>
-                    </div>
 
-                    <div className="border-t border-[#e2e8f0] pt-4">
-                      <div className="text-[13px] text-[#374151] leading-relaxed whitespace-pre-line">
-                        {selectedAnn.content}
-                      </div>
-                    </div>
-
-                    {selectedAnn.attachments.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                        <div className="text-[12px] text-[#6b7280] mb-2">첨부파일</div>
-                        {selectedAnn.attachments.map((att) => (
-                          <div key={att.id} className="flex items-center gap-2 text-[12px] text-[#374151]">
-                            <span>{att.fileName}</span>
-                            <span className="text-[#9ca3af]">({(att.fileSize / 1024).toFixed(1)}KB)</span>
+                        {/* 수신자 목록 */}
+                        {recipientStudents.length > 0 && (
+                          <div>
+                            <div className="text-[11.5px] text-[#6b7280] mb-2">수신 대상 ({recipientStudents.length}명)</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {recipientStudents.map((s) => (
+                                <span key={s.id} className="px-2 py-0.5 bg-[#f4f6f8] rounded-[6px] text-[11.5px] text-[#374151]">
+                                  {s.name}
+                                </span>
+                              ))}
+                            </div>
                           </div>
-                        ))}
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-[#f4f6f8]">
+                  <MessageSquare size={32} className="text-[#d1d5db]" />
+                  <p className="text-[13px] text-[#9ca3af]">
+                    {filteredNotifs.length === 0 ? '발송된 알림이 없습니다' : '알림을 선택하세요'}
+                  </p>
+                </div>
+              )}
+
+              {/* 우측: 알림 작성 패널 */}
+              {composing && (
+                <div className="w-80 shrink-0 border-l border-[#e2e8f0] bg-white overflow-y-auto p-4 space-y-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[13px] font-semibold text-[#111827]">알림 작성</span>
+                    <button onClick={() => { setComposing(false); setRecipientMode('all'); setSelectedClassIds([]); setSelectedStudentIds([]); }}
+                      className="text-[#9ca3af] hover:text-[#374151] cursor-pointer text-[18px]">×</button>
+                  </div>
+
+                  <div>
+                    <label className="text-[11.5px] text-[#6b7280] block mb-1">유형</label>
+                    <select value={newType} onChange={(e) => setNewType(e.target.value as NotificationType)}
+                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer">
+                      {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11.5px] text-[#6b7280] block mb-1">제목</label>
+                    <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="알림 제목"
+                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none focus:border-[#4fc3a1]" />
+                  </div>
+
+                  <div>
+                    <label className="text-[11.5px] text-[#6b7280] block mb-1">내용</label>
+                    <textarea value={newContent} onChange={(e) => setNewContent(e.target.value)}
+                      placeholder="알림 내용을 입력하세요" rows={5}
+                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none focus:border-[#4fc3a1] resize-none" />
+                  </div>
+
+                  {/* 수신 대상 */}
+                  <div>
+                    <label className="text-[11.5px] text-[#6b7280] block mb-1.5">수신 대상</label>
+                    <div className="flex gap-1 mb-2">
+                      {([
+                        { mode: 'all' as const, label: '전체', icon: <Users size={11} /> },
+                        { mode: 'class' as const, label: '반 별', icon: <School size={11} /> },
+                        { mode: 'student' as const, label: '학생 별', icon: <GraduationCap size={11} /> },
+                      ]).map(({ mode, label, icon }) => (
+                        <button key={mode} onClick={() => { setRecipientMode(mode); setSelectedClassIds([]); setSelectedStudentIds([]); }}
+                          className={clsx(
+                            'flex items-center gap-1 px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors border flex-1 justify-center',
+                            recipientMode === mode
+                              ? 'bg-[#1a2535] text-white border-transparent'
+                              : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]'
+                          )}>
+                          {icon}{label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {recipientMode === 'all' && (
+                      <div className="p-2.5 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#374151]">
+                        전체 학부모 ({activeStudents.length}명)
                       </div>
                     )}
 
-                    {selectedAnn.status === '임시저장' && (
-                      <div className="mt-4 pt-4 border-t border-[#e2e8f0] flex gap-2">
-                        <Button variant="dark" size="md" onClick={() => toast('공지가 게시되었습니다.', 'success')}>게시하기</Button>
-                        <Button variant="default" size="md" onClick={() => toast('임시저장 되었습니다.', 'info')}>저장</Button>
+                    {recipientMode === 'class' && (
+                      <div className="border border-[#e2e8f0] rounded-[8px] max-h-40 overflow-y-auto">
+                        {classes.length === 0 ? (
+                          <div className="p-3 text-[12px] text-[#9ca3af] text-center">반이 없습니다</div>
+                        ) : classes.map((cls) => {
+                          const studentCount = activeStudents.filter((s) => s.classes.includes(cls.id)).length;
+                          return (
+                            <label key={cls.id} className="flex items-center gap-2 px-3 py-2 hover:bg-[#f4f6f8] cursor-pointer border-b border-[#f1f5f9] last:border-0">
+                              <input type="checkbox" checked={selectedClassIds.includes(cls.id)}
+                                onChange={() => toggleClass(cls.id)}
+                                className="accent-[#4fc3a1] w-3.5 h-3.5" />
+                              <span className="flex-1 text-[12px] text-[#374151]">{cls.name}</span>
+                              <span className="text-[11px] text-[#9ca3af]">{studentCount}명</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {recipientMode === 'student' && (
+                      <div className="border border-[#e2e8f0] rounded-[8px] overflow-hidden">
+                        <input type="text" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)}
+                          placeholder="학생 검색" className="w-full text-[12px] px-3 py-2 border-b border-[#e2e8f0] focus:outline-none" />
+                        <div className="max-h-36 overflow-y-auto">
+                          {activeStudents
+                            .filter((s) => s.name.includes(studentSearch) || s.attendanceNumber?.includes(studentSearch))
+                            .map((s) => (
+                              <label key={s.id} className="flex items-center gap-2 px-3 py-2 hover:bg-[#f4f6f8] cursor-pointer border-b border-[#f1f5f9] last:border-0">
+                                <input type="checkbox" checked={selectedStudentIds.includes(s.id)}
+                                  onChange={() => toggleStudent(s.id)}
+                                  className="accent-[#4fc3a1] w-3.5 h-3.5" />
+                                <span className="flex-1 text-[12px] text-[#374151]">{s.name}</span>
+                                <span className="text-[11px] text-[#9ca3af]">{s.classes.length > 0 ? classes.find((c) => c.id === s.classes[0])?.name ?? '' : ''}</span>
+                              </label>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {recipientMode !== 'all' && (
+                      <div className="mt-1.5 text-[11.5px] text-[#6b7280]">
+                        {recipientCount}명 선택됨
                       </div>
                     )}
                   </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center bg-[#f4f6f8]">
-                  <p className="text-[13px] text-[#9ca3af]">공지사항을 선택하세요</p>
+
+                  <div className="flex gap-2">
+                    <Button variant="default" size="md" onClick={() => setShowTemplateModal(true)}>
+                      <LayoutTemplate size={13} /> 템플릿
+                    </Button>
+                    <Button variant="dark" size="md" onClick={async () => {
+                      if (!newTitle.trim() || !newContent.trim()) { toast('제목과 내용을 입력해주세요.', 'error'); return; }
+                      const recipients = computeRecipients();
+                      if (recipients.length === 0) { toast('수신 대상을 선택해주세요.', 'error'); return; }
+                      await addNotification({ type: newType, title: newTitle.trim(), content: newContent.trim(), recipients, sentBy: '' });
+                      setComposing(false); setNewTitle(''); setNewContent(''); setRecipientMode('all'); setSelectedClassIds([]); setSelectedStudentIds([]);
+                    }}>
+                      <Send size={13} /> 발송
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -366,56 +396,35 @@ export default function NotificationsPage() {
           {/* ── 문의사항 탭 ── */}
           {commTab === 'inquiries' && (
             <div className="flex flex-1 overflow-hidden">
-              {/* 좌측: 문의 목록 */}
               <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-                {/* 상태 필터 */}
                 <div className="p-2 border-b border-[#e2e8f0] flex gap-1.5 flex-wrap">
-                  <button
-                    onClick={() => setInqStatusFilter('all')}
-                    className={clsx(
-                      'px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
-                      inqStatusFilter === 'all' ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]',
-                    )}
-                  >
+                  <button onClick={() => setInqStatusFilter('all')}
+                    className={clsx('px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
+                      inqStatusFilter === 'all' ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]')}>
                     전체
                   </button>
                   {INQ_STATUS_OPTIONS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setInqStatusFilter(s)}
-                      className={clsx(
-                        'px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
-                        inqStatusFilter === s ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]',
-                      )}
-                    >
+                    <button key={s} onClick={() => setInqStatusFilter(s)}
+                      className={clsx('px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium cursor-pointer transition-colors',
+                        inqStatusFilter === s ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]')}>
                       {INQUIRY_STATUS_LABEL[s]}
                     </button>
                   ))}
                 </div>
 
-                {/* 목록 */}
                 <div className="divide-y divide-[#f1f5f9]">
                   {filteredInq.length === 0 && (
-                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">
-                      문의사항이 없습니다
-                    </div>
+                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">문의사항이 없습니다</div>
                   )}
                   {filteredInq.map((inq) => {
                     const ss = INQUIRY_STATUS_STYLE[inq.status];
                     return (
-                      <button
-                        key={inq.id}
-                        onClick={() => setSelectedInqId(inq.id)}
-                        className={clsx(
-                          'w-full text-left px-3 py-3 transition-colors cursor-pointer',
-                          selectedInqId === inq.id ? 'bg-[#EEF2FF]' : 'hover:bg-[#f4f6f8]',
-                        )}
-                      >
+                      <button key={inq.id} onClick={() => setSelectedInqId(inq.id)}
+                        className={clsx('w-full text-left px-3 py-3 transition-colors cursor-pointer',
+                          selectedInqId === inq.id ? 'bg-[#EEF2FF]' : 'hover:bg-[#f4f6f8]')}>
                         <div className="flex items-center justify-between mb-1">
-                          <span
-                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                            style={{ backgroundColor: ss.bg, color: ss.text }}
-                          >
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                            style={{ backgroundColor: ss.bg, color: ss.text }}>
                             {INQUIRY_STATUS_LABEL[inq.status]}
                           </span>
                           <span className="text-[10.5px] text-[#9ca3af]">
@@ -424,20 +433,16 @@ export default function NotificationsPage() {
                         </div>
                         <div className="text-[13px] font-semibold text-[#111827]">{inq.name}</div>
                         <div className="text-[11.5px] text-[#6b7280] mt-0.5">{inq.phone}</div>
-                        {inq.className && (
-                          <div className="text-[11px] text-[#9ca3af] mt-0.5 truncate">{inq.className}</div>
-                        )}
+                        {inq.className && <div className="text-[11px] text-[#9ca3af] mt-0.5 truncate">{inq.className}</div>}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* 우측: 문의 상세 */}
               {selectedInq ? (
                 <div className="flex-1 overflow-y-auto p-5">
                   <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-5 max-w-2xl">
-                    {/* 헤더 */}
                     <div className="flex items-start justify-between mb-5">
                       <div>
                         <h2 className="text-[16px] font-bold text-[#111827] mb-1">{selectedInq.name}</h2>
@@ -445,15 +450,12 @@ export default function NotificationsPage() {
                           접수일: {new Date(selectedInq.createdAt).toLocaleString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
-                      <span
-                        className="px-2.5 py-1 rounded-[6px] text-[12px] font-semibold"
-                        style={{ backgroundColor: INQUIRY_STATUS_STYLE[selectedInq.status].bg, color: INQUIRY_STATUS_STYLE[selectedInq.status].text }}
-                      >
+                      <span className="px-2.5 py-1 rounded-[6px] text-[12px] font-semibold"
+                        style={{ backgroundColor: INQUIRY_STATUS_STYLE[selectedInq.status].bg, color: INQUIRY_STATUS_STYLE[selectedInq.status].text }}>
                         {INQUIRY_STATUS_LABEL[selectedInq.status]}
                       </span>
                     </div>
 
-                    {/* 신청자 정보 */}
                     <div className="border border-[#e2e8f0] rounded-[10px] p-4 mb-4 space-y-2.5">
                       <div className="flex items-center gap-2">
                         <Phone size={13} className="text-[#9ca3af] shrink-0" />
@@ -468,14 +470,11 @@ export default function NotificationsPage() {
                       {selectedInq.message && (
                         <div className="flex items-start gap-2">
                           <MessageSquare size={13} className="text-[#9ca3af] shrink-0 mt-0.5" />
-                          <p className="text-[12.5px] text-[#374151] leading-relaxed whitespace-pre-wrap">
-                            {selectedInq.message}
-                          </p>
+                          <p className="text-[12.5px] text-[#374151] leading-relaxed whitespace-pre-wrap">{selectedInq.message}</p>
                         </div>
                       )}
                     </div>
 
-                    {/* 상태 변경 + 메모 */}
                     <div className="border-t border-[#e2e8f0] pt-4 space-y-3">
                       <div>
                         <label className="text-[11.5px] font-semibold text-[#374151] block mb-1.5">처리 상태</label>
@@ -483,44 +482,27 @@ export default function NotificationsPage() {
                           {INQ_STATUS_OPTIONS.map((s) => {
                             const ss = INQUIRY_STATUS_STYLE[s];
                             return (
-                              <button
-                                key={s}
-                                onClick={() => setEditStatus(s)}
-                                className={clsx(
-                                  'px-3 py-1.5 rounded-[8px] text-[12px] font-medium border cursor-pointer transition-all',
-                                  editStatus === s
-                                    ? 'border-transparent'
-                                    : 'bg-white text-[#6b7280] border-[#e2e8f0] hover:bg-[#f4f6f8]',
-                                )}
-                                style={editStatus === s ? { backgroundColor: ss.bg, color: ss.text, borderColor: 'transparent' } : {}}
-                              >
+                              <button key={s} onClick={() => setEditStatus(s)}
+                                className={clsx('px-3 py-1.5 rounded-[8px] text-[12px] font-medium border cursor-pointer transition-all',
+                                  editStatus === s ? 'border-transparent' : 'bg-white text-[#6b7280] border-[#e2e8f0] hover:bg-[#f4f6f8]')}
+                                style={editStatus === s ? { backgroundColor: ss.bg, color: ss.text } : {}}>
                                 {INQUIRY_STATUS_LABEL[s]}
                               </button>
                             );
                           })}
                         </div>
                       </div>
-
                       <div>
                         <label className="text-[11.5px] font-semibold text-[#374151] block mb-1.5">메모 (내부용)</label>
-                        <textarea
-                          value={editMemo}
-                          onChange={(e) => setEditMemo(e.target.value)}
-                          placeholder="상담 결과, 연락 내용 등을 기록하세요"
-                          rows={4}
-                          className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1] resize-none"
-                        />
+                        <textarea value={editMemo} onChange={(e) => setEditMemo(e.target.value)}
+                          placeholder="상담 결과, 연락 내용 등을 기록하세요" rows={4}
+                          className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1] resize-none" />
                       </div>
-
-                      <Button
-                        variant="dark"
-                        size="md"
-                        onClick={async () => {
-                          setSavingInq(true);
-                          await updateInquiry(selectedInq.id, { status: editStatus, memo: editMemo });
-                          setSavingInq(false);
-                        }}
-                      >
+                      <Button variant="dark" size="md" onClick={async () => {
+                        setSavingInq(true);
+                        await updateInquiry(selectedInq.id, { status: editStatus, memo: editMemo });
+                        setSavingInq(false);
+                      }}>
                         {savingInq ? '저장 중...' : <><Save size={13} /> 저장</>}
                       </Button>
                     </div>
@@ -537,6 +519,17 @@ export default function NotificationsPage() {
             </div>
           )}
         </>
+      )}
+
+      {showTemplateModal && (
+        <NotificationTemplateModal
+          onClose={() => setShowTemplateModal(false)}
+          onApply={(t) => {
+            setNewType(t.category as NotificationType);
+            setNewTitle(t.title);
+            setNewContent(t.content);
+          }}
+        />
       )}
     </div>
   );

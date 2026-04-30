@@ -1,6 +1,6 @@
 'use client';
 import { create } from 'zustand';
-import type { Notification, ConsultationRecord, Announcement, PublicInquiry, InquiryStatus } from '@/lib/types/notification';
+import type { Notification, ConsultationRecord, Announcement, PublicInquiry, InquiryStatus, NotificationTemplate, NotificationType } from '@/lib/types/notification';
 import { toast } from '@/lib/stores/toastStore';
 
 interface CommunicationStore {
@@ -8,12 +8,14 @@ interface CommunicationStore {
   consultations: ConsultationRecord[];
   announcements: Announcement[];
   inquiries:     PublicInquiry[];
+  templates:     NotificationTemplate[];
   loading: boolean;
 
   fetchNotifications: () => Promise<void>;
   fetchConsultations: (studentId?: string) => Promise<void>;
   fetchAnnouncements: () => Promise<void>;
   fetchInquiries:     () => Promise<void>;
+  fetchTemplates:     () => Promise<void>;
 
   getConsultationsByStudent: (studentId: string) => ConsultationRecord[];
 
@@ -22,6 +24,8 @@ interface CommunicationStore {
   addAnnouncement:    (a: Omit<Announcement, 'id' | 'createdAt' | 'publishedAt' | 'readCount' | 'totalCount'>) => Promise<void>;
   publishAnnouncement:(id: string) => Promise<void>;
   updateInquiry:      (id: string, data: { status?: InquiryStatus; memo?: string }) => Promise<void>;
+  addTemplate:        (t: { category: NotificationType; title: string; content: string }) => Promise<void>;
+  deleteTemplate:     (id: string) => Promise<void>;
 }
 
 export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
@@ -29,6 +33,7 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
   consultations: [],
   announcements: [],
   inquiries:     [],
+  templates:     [],
   loading: false,
 
   fetchNotifications: async () => {
@@ -171,6 +176,46 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
     } catch (err) {
       console.error('[communicationStore.updateInquiry]', err);
       toast('저장에 실패했습니다.', 'error');
+    }
+  },
+
+  fetchTemplates: async () => {
+    try {
+      const res = await fetch('/api/communication/notification-templates');
+      if (!res.ok) return;
+      const data: NotificationTemplate[] = await res.json();
+      set({ templates: data });
+    } catch {
+      // 템플릿 로드 실패는 조용히 처리 (기능에 필수적이지 않음)
+    }
+  },
+
+  addTemplate: async (input) => {
+    try {
+      const res = await fetch('/api/communication/notification-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('템플릿 저장 실패');
+      const t: NotificationTemplate = await res.json();
+      set((state) => ({ templates: [t, ...state.templates] }));
+      toast('템플릿이 저장되었습니다.', 'success');
+    } catch (err) {
+      console.error('[communicationStore.addTemplate]', err);
+      toast('템플릿 저장에 실패했습니다.', 'error');
+    }
+  },
+
+  deleteTemplate: async (id) => {
+    try {
+      const res = await fetch(`/api/communication/notification-templates/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('템플릿 삭제 실패');
+      set((state) => ({ templates: state.templates.filter((t) => t.id !== id) }));
+      toast('템플릿이 삭제되었습니다.', 'success');
+    } catch (err) {
+      console.error('[communicationStore.deleteTemplate]', err);
+      toast('템플릿 삭제에 실패했습니다.', 'error');
     }
   },
 }));
