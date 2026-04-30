@@ -1,0 +1,21 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db/prisma';
+
+// DELETE /api/lectures/tags/[id]
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const academyId = req.headers.get('x-academy-id');
+  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await ctx.params;
+
+  try {
+    const deleted = await prisma.academyTag.deleteMany({
+      where: { id, academyId },
+    });
+    if (deleted.count === 0) return NextResponse.json({ error: '태그를 찾을 수 없습니다.' }, { status: 404 });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[DELETE /api/lectures/tags/[id]]', err);
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}

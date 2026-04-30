@@ -40,13 +40,21 @@ export default function GNB() {
             학원 관리
           </Link>
 
-          <span
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium text-white/30 cursor-not-allowed select-none"
-            title="추후 개발 예정"
+          <Link
+            href="/ingang/lectures"
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium transition-colors',
+              isIngang
+                ? 'bg-white/10 text-[#a78bfa]'
+                : 'text-white/60 hover:text-white/80 hover:bg-white/5',
+            )}
           >
-            <span className="w-2 h-2 rounded-full bg-[#a78bfa]/40" />
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: isIngang ? '#a78bfa' : 'rgba(167,139,250,0.4)' }}
+            />
             인강
-          </span>
+          </Link>
         </nav>
       </div>
 

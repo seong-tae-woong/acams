@@ -18,6 +18,7 @@
 | 재무 | `(admin)/finance/*` (billing·payments·receipts·overdue·settlement) | `finance/bills/`, `finance/bills/[id]/pay/`, `finance/expenses/`, `finance/receipts/` | `financeStore.ts` | `finance.ts` | Bill, Receipt, Expense |
 | 소통 | `(admin)/communication/*` (announcements·consultation·notifications) | `communication/announcements/` (GET·POST, classId 지원) | `communicationStore.ts` | `notification.ts` | Notification, NotificationRecipient, ConsultationRecord, Announcement |
 | 캘린더 | `(admin)/calendar` | `calendar/`, `calendar/[id]/` (classId 지원) | `calendarStore.ts` | — | CalendarEvent |
+| 인강 (UI only) | `ingang/*` (lectures·lectures/new·lectures/tags·lectures/targets·exams·completion·completion/stats·completion/notifications) | **미구현** (mock inline) | — | — | (미정 — 추후 Lecture, LectureTag, LectureTarget, ExamQuestion, ViewProgress, CompletionRecord 등 예정) |
 | 모바일 PWA | `mobile/*` (grades·announcements·calendar·attendance·schedule·payments·profile) | `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/` | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
 | 모바일 결제 | `mobile/payments/*` (목록·success·fail) | `mobile/payments/order/`, `mobile/payments/toss/confirm/` | — | — | Bill, Receipt, PaymentOrder |
 | 키오스크 | `kiosk/` (QR/수동 학번) | **미구현** | `classStore` 일부 | — | (AttendanceRecord 예정) |
@@ -37,11 +38,13 @@
 
 ```
 super_admin       → /super-admin/*
-director, teacher → /(admin)/*
+director, teacher → /(admin)/*, /ingang/*
 parent, student   → /mobile/*
 미인증            → /login, /kiosk
 공개(인증무관)    → /academy/*, /api/academy/*
 ```
+
+> 인강 메뉴는 GNB 탭(`/ingang/lectures` 진입)으로 분리. 사이드바는 보라색 테마(`#1e1b2e`)를 쓰는 `src/components/ingang/InGangSidebar.tsx`이고, 같은 페이지의 탭 구분은 `?tab=cond|retry|exam|cert` URL search param으로 처리.
 
 ---
 
@@ -138,7 +141,18 @@ prisma.calendarEvent.findMany({
 
 ---
 
-## §6. 작업 지침 (토큰 절약)
+## §6. 인강 (Phase F · UI only)
+
+- 라우트: `src/app/ingang/*` — layout.tsx + InGangSidebar로 보라색 테마 단독 영역 구성
+- 사이드바: `src/components/ingang/InGangSidebar.tsx` — `usePathname()` + `useSearchParams()`로 활성 메뉴 표시, **`<Suspense>`로 래핑 필수**
+- 탭 분기: 같은 경로 + `?tab=` 패턴 (예: `/ingang/lectures/targets?tab=cond` ↔ `?tab=retry`) — `router.replace()`로 URL 동기화
+- 데이터: 전부 컴포넌트 내부 `const` mock — **`src/lib/mock/`에 추가 금지**, API/Store/Type 신규는 §3 절대 규칙대로 DB 모델 설계 후 진행
+- 디자인 토큰 (인강 전용): bg `#1e1b2e` · accent `#a78bfa` · sub-accent `#5B4FBE` · highlight `#EEEDFE`
+- 진입: GNB의 "인강" 링크(`src/components/admin/GNB.tsx`) → `/ingang/lectures` 리다이렉트
+
+---
+
+## §7. 작업 지침 (토큰 절약)
 
 - **Read 후에만 Edit** — 미열람 파일 수정 금지
 - **단일 도메인 집중** — 한 번에 §1의 1행만

@@ -56,6 +56,8 @@ model Academy {
   textbooks          Textbook[]
   curriculumRows     CurriculumRow[]
   inquiries          PublicInquiry[]
+  lectures           Lecture[]
+  customTags         AcademyTag[]
 
   @@map("academies")
 }
@@ -191,6 +193,7 @@ model Teacher {
   checkedAttendance  AttendanceRecord[] @relation("CheckedBy")
   makeupClasses      MakeupClass[]
   consultations      ConsultationRecord[]
+  lectures           Lecture[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -224,10 +227,11 @@ model Class {
   exams       Exam[]
   bills       Bill[]
   makeupClasses MakeupClass[]
-  textbooks     Textbook[]
-  curriculumRows CurriculumRow[]
-  announcements  Announcement[]
-  calendarEvents CalendarEvent[]
+  textbooks       Textbook[]
+  curriculumRows  CurriculumRow[]
+  announcements   Announcement[]
+  calendarEvents  CalendarEvent[]
+  lectureTargets  LectureTarget[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -669,4 +673,63 @@ model CalendarEvent {
   createdAt   DateTime @default(now())
 
   @@map("calendar_events")
+}
+
+// ─────────────────────────────────────────────
+// IN-GANG (인강)
+// ─────────────────────────────────────────────
+
+enum LectureStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Lecture {
+  id           String        @id @default(cuid())
+  academyId    String
+  academy      Academy       @relation(fields: [academyId], references: [id])
+
+  title        String
+  description  String        @default("")
+  teacherId    String?
+  teacher      Teacher?      @relation(fields: [teacherId], references: [id])
+
+  subjects     String[]      @default([])
+  levels       String[]      @default([])
+  targetGrades String[]      @default([])
+
+  cfVideoId    String?       // Cloudflare Stream video UID
+  videoUrl     String?
+  duration     String        @default("--:--")
+  orderIndex   Int           @default(0)
+  status       LectureStatus @default(DRAFT)
+
+  targets      LectureTarget[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("lectures")
+}
+
+model LectureTarget {
+  lectureId String
+  classId   String
+  lecture   Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  class     Class   @relation(fields: [classId], references: [id])
+
+  @@id([lectureId, classId])
+  @@map("lecture_targets")
+}
+
+model AcademyTag {
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  label     String
+  tagType   String   // "subject" | "level" | "grade"
+  createdAt DateTime @default(now())
+
+  @@unique([academyId, tagType, label])
+  @@map("academy_tags")
 }
