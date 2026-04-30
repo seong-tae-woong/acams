@@ -4,8 +4,8 @@ import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import AddScheduleModal from '@/components/calendar/AddScheduleModal';
 import { useCalendarStore } from '@/lib/stores/calendarStore';
-import type { CalendarEventType } from '@/lib/types/calendar';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import type { CalendarEvent, CalendarEventType } from '@/lib/types/calendar';
+import { ChevronLeft, ChevronRight, Plus, Pencil } from 'lucide-react';
 import clsx from 'clsx';
 
 const DAYS_OF_WEEK = ['월', '화', '수', '목', '금', '토', '일'];
@@ -37,6 +37,7 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(() => parseInt(today.slice(5, 7)) - 1); // 0-indexed
   const [selectedDate, setSelectedDate] = useState<string | null>(today);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
 
   // 종류별 체크박스 상태
   const [visibleTypes, setVisibleTypes] = useState<Record<CalendarEventType, boolean>>({
@@ -205,24 +206,32 @@ export default function CalendarPage() {
               {selectedEvents.map((ev) => (
                 <div
                   key={ev.id}
-                  className="p-3 rounded-[8px] border border-[#e2e8f0]"
+                  className="p-3 rounded-[8px] border border-[#e2e8f0] group"
                   style={{ borderLeftColor: ev.color, borderLeftWidth: 3 }}
                 >
-                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                    <span
-                      className="text-[10.5px] px-1.5 py-0.5 rounded text-white"
-                      style={{ backgroundColor: ev.color }}
-                    >
-                      {ev.type}
-                    </span>
-                    {ev.className && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#DBEAFE] text-[#1d4ed8]">
-                        {ev.className}
+                  <div className="flex items-start justify-between gap-1 mb-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className="text-[10.5px] px-1.5 py-0.5 rounded text-white"
+                        style={{ backgroundColor: ev.color }}
+                      >
+                        {ev.type}
                       </span>
-                    )}
-                    {!ev.isPublic && (
-                      <span className="text-[10px] text-[#9ca3af]">비공개</span>
-                    )}
+                      {ev.className && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#DBEAFE] text-[#1d4ed8]">
+                          {ev.className}
+                        </span>
+                      )}
+                      {!ev.isPublic && (
+                        <span className="text-[10px] text-[#9ca3af]">비공개</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setEditEvent(ev); setIsAddOpen(true); }}
+                      className="shrink-0 p-1 rounded hover:bg-[#f4f6f8] text-[#9ca3af] hover:text-[#6b7280] transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Pencil size={11} />
+                    </button>
                   </div>
                   <div className="text-[12.5px] font-medium text-[#111827]">{ev.title}</div>
                   {(ev.startTime || ev.endTime) && (
@@ -240,11 +249,12 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* 일정 추가 모달 */}
+      {/* 일정 추가/수정 모달 */}
       <AddScheduleModal
         open={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
+        onClose={() => { setIsAddOpen(false); setEditEvent(null); }}
         defaultDate={selectedDate ?? today}
+        editEvent={editEvent}
       />
     </div>
   );

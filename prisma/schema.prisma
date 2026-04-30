@@ -667,8 +667,9 @@ model CalendarEvent {
   description String            @default("")
   color       String            @default("#4fc3a1")
 
-  classId     String?
-  class       Class?            @relation(fields: [classId], references: [id])
+  classId          String?
+  class            Class?   @relation(fields: [classId], references: [id])
+  relatedStudentId String?
 
   createdAt   DateTime @default(now())
 

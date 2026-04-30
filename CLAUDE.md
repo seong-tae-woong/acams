@@ -18,7 +18,7 @@
 | 재무 | `(admin)/finance/*` (billing·payments·receipts·overdue·settlement) | `finance/bills/`, `finance/bills/[id]/pay/`, `finance/expenses/`, `finance/receipts/` | `financeStore.ts` | `finance.ts` | Bill, Receipt, Expense |
 | 소통 | `(admin)/communication/*` (announcements·consultation·notifications) | `communication/announcements/` (GET·POST, classId 지원) | `communicationStore.ts` | `notification.ts` | Notification, NotificationRecipient, ConsultationRecord, Announcement |
 | 캘린더 | `(admin)/calendar` | `calendar/`, `calendar/[id]/` (classId 지원) | `calendarStore.ts` | — | CalendarEvent |
-| 인강 (UI only) | `ingang/*` (lectures·lectures/new·lectures/tags·lectures/targets·exams·completion·completion/stats·completion/notifications) | **미구현** (mock inline) | — | — | (미정 — 추후 Lecture, LectureTag, LectureTarget, ExamQuestion, ViewProgress, CompletionRecord 등 예정) |
+| 인강 | `ingang/*` (lectures·lectures/new·lectures/tags·lectures/targets·exams·completion·completion/stats·completion/notifications) | `lectures/`, `lectures/[id]/`, `lectures/tags/`, `lectures/tags/[id]/`, `lectures/upload-url/` | — | — | Lecture, LectureTarget, AcademyTag |
 | 모바일 PWA | `mobile/*` (grades·announcements·calendar·attendance·schedule·payments·profile) | `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/` | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
 | 모바일 결제 | `mobile/payments/*` (목록·success·fail) | `mobile/payments/order/`, `mobile/payments/toss/confirm/` | — | — | Bill, Receipt, PaymentOrder |
 | 키오스크 | `kiosk/` (QR/수동 학번) | **미구현** | `classStore` 일부 | — | (AttendanceRecord 예정) |
@@ -141,12 +141,17 @@ prisma.calendarEvent.findMany({
 
 ---
 
-## §6. 인강 (Phase F · UI only)
+## §6. 인강 (Phase F · DB 연동)
 
 - 라우트: `src/app/ingang/*` — layout.tsx + InGangSidebar로 보라색 테마 단독 영역 구성
 - 사이드바: `src/components/ingang/InGangSidebar.tsx` — `usePathname()` + `useSearchParams()`로 활성 메뉴 표시, **`<Suspense>`로 래핑 필수**
 - 탭 분기: 같은 경로 + `?tab=` 패턴 (예: `/ingang/lectures/targets?tab=cond` ↔ `?tab=retry`) — `router.replace()`로 URL 동기화
-- 데이터: 전부 컴포넌트 내부 `const` mock — **`src/lib/mock/`에 추가 금지**, API/Store/Type 신규는 §3 절대 규칙대로 DB 모델 설계 후 진행
+- **DB 연동 완료**: lectures 목록·등록·태그·수강대상(강의 목록) → `/api/lectures/*` (x-academy-id 필수)
+- **커스텀 태그**: 기본 태그는 프론트 하드코딩(모든 학원 공통), 학원별 추가 태그는 `AcademyTag` 모델 → `GET/POST/DELETE /api/lectures/tags/`
+- **영상 업로드**: `tus-js-client`(동적 import) + Cloudflare Stream Direct Creator Upload → `POST /api/lectures/upload-url` → `{ uploadURL, uid }` → TUS 업로드 → `cfVideoId` 저장
+  - 재생: `https://iframe.videodelivery.net/{cfVideoId}` (iframe)
+  - 환경변수 필요: `CF_ACCOUNT_ID`, `CF_STREAM_API_TOKEN`
+- **mock 영역**: exams·completion·completion/stats·completion/notifications — **`src/lib/mock/`에 추가 금지**
 - 디자인 토큰 (인강 전용): bg `#1e1b2e` · accent `#a78bfa` · sub-accent `#5B4FBE` · highlight `#EEEDFE`
 - 진입: GNB의 "인강" 링크(`src/components/admin/GNB.tsx`) → `/ingang/lectures` 리다이렉트
 

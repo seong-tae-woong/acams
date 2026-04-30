@@ -28,6 +28,44 @@ export async function GET(req: NextRequest) {
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
+  const studentId = searchParams.get('studentId');
+
+  // studentId 기반 조회: 해당 학생의 상담일정 전체
+  // relatedStudentId로 직접 연결된 것 + 학생 이름이 제목에 포함된 레거시 이벤트(relatedStudentId가 없는 것) 모두 반환
+  if (studentId) {
+    try {
+      const student = await prisma.student.findUnique({ where: { id: studentId }, select: { name: true } });
+      const studentName = student?.name ?? '';
+
+      const events = await prisma.calendarEvent.findMany({
+        where: {
+          academyId,
+          type: 'CONSULTATION_SCHEDULE',
+          OR: [
+            { relatedStudentId: studentId },
+            ...(studentName ? [{ relatedStudentId: null, title: { contains: studentName } }] : []),
+          ],
+        },
+        orderBy: { date: 'asc' },
+      });
+      return NextResponse.json(events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        date: e.date.toISOString().slice(0, 10),
+        startTime: e.startTime,
+        endTime: e.endTime,
+        type: PRISMA_TO_UI[e.type],
+        isPublic: e.isPublic,
+        description: e.description,
+        color: e.color,
+        relatedStudentId: e.relatedStudentId,
+      })));
+    } catch (err) {
+      console.error('[GET /api/calendar studentId]', err);
+      return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+    }
+  }
+
   const year = parseInt(searchParams.get('year') ?? String(new Date().getFullYear()), 10);
   const month = parseInt(searchParams.get('month') ?? String(new Date().getMonth() + 1), 10); // 1-indexed
 
@@ -53,7 +91,7 @@ export async function GET(req: NextRequest) {
       isPublic: e.isPublic,
       description: e.description,
       color: e.color,
-      relatedStudentId: null,
+      relatedStudentId: e.relatedStudentId,
     }));
 
     return NextResponse.json(result);
@@ -74,7 +112,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { title, date, startTime, endTime, type, isPublic, description, color, classId } = await req.json();
+    const { title, date, startTime, endTime, type, isPublic, description, color, classId, relatedStudentId } = await req.json();
 
     if (!title || !date || !type) {
       return NextResponse.json({ error: '제목, 날짜, 일정 종류는 필수입니다.' }, { status: 400 });
@@ -99,6 +137,7 @@ export async function POST(req: NextRequest) {
         description: description ?? '',
         color: resolvedColor,
         classId: classId ?? null,
+        relatedStudentId: relatedStudentId ?? null,
       },
       include: { class: { select: { id: true, name: true } } },
     });
@@ -115,7 +154,7 @@ export async function POST(req: NextRequest) {
       color: event.color,
       classId: event.classId,
       className: event.class?.name ?? null,
-      relatedStudentId: null,
+      relatedStudentId: event.relatedStudentId,
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/calendar]', err);

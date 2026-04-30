@@ -13,6 +13,7 @@ interface CalendarStore {
   // API 연동 (async)
   fetchEvents: (year: number, month: number) => Promise<void>;
   addEvent: (input: Omit<CalendarEvent, 'id'>) => Promise<void>;
+  updateEvent: (id: string, input: Partial<Omit<CalendarEvent, 'id'>>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
 }
 
@@ -53,6 +54,24 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
       toast('일정이 추가되었습니다.', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '일정 추가에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  updateEvent: async (id, input) => {
+    try {
+      const res = await fetch(`/api/calendar/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('일정 수정 실패');
+      const event: CalendarEvent = await res.json();
+      set((state) => ({ events: state.events.map((e) => (e.id === id ? event : e)) }));
+      toast('일정이 수정되었습니다.', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '일정 수정에 실패했습니다.';
       toast(msg, 'error');
       throw err;
     }

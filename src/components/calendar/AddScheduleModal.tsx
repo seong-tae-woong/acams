@@ -4,7 +4,8 @@ import Modal from '@/components/shared/Modal';
 import Button from '@/components/shared/Button';
 import { useCalendarStore } from '@/lib/stores/calendarStore';
 import { useClassStore } from '@/lib/stores/classStore';
-import type { CalendarEventType } from '@/lib/types/calendar';
+import { useStudentStore } from '@/lib/stores/studentStore';
+import type { CalendarEvent, CalendarEventType } from '@/lib/types/calendar';
 
 const EVENT_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정'];
 
@@ -18,11 +19,13 @@ interface Props {
   open: boolean;
   onClose: () => void;
   defaultDate: string; // 'YYYY-MM-DD'
+  editEvent?: CalendarEvent | null; // 수정 모드
 }
 
-export default function AddScheduleModal({ open, onClose, defaultDate }: Props) {
-  const addEvent = useCalendarStore((s) => s.addEvent);
+export default function AddScheduleModal({ open, onClose, defaultDate, editEvent }: Props) {
+  const { addEvent, updateEvent } = useCalendarStore();
   const { classes, fetchClasses } = useClassStore();
+  const { students, fetchStudents } = useStudentStore();
 
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(defaultDate);
@@ -32,10 +35,13 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
   const [isPublic, setIsPublic] = useState(true);
   const [description, setDescription] = useState('');
   const [classId, setClassId] = useState<string>(''); // '' = 전체
+  const [relatedStudentId, setRelatedStudentId] = useState<string>('');
+  const [studentSearch, setStudentSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (classes.length === 0) fetchClasses();
+    if (students.length === 0) fetchStudents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // type이 상담일정으로 바뀌면 기본적으로 비공개
@@ -44,19 +50,40 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
     else setIsPublic(true);
   }, [type]);
 
-  // 모달 열릴 때 defaultDate 반영 및 폼 초기화
+  // 모달 열릴 때 폼 초기화 (수정 모드면 기존 값으로)
   useEffect(() => {
     if (open) {
-      setTitle('');
-      setDate(defaultDate);
-      setStartTime('');
-      setEndTime('');
-      setType('학원일정');
-      setIsPublic(true);
-      setDescription('');
-      setClassId('');
+      if (editEvent) {
+        setTitle(editEvent.title);
+        setDate(editEvent.date);
+        setStartTime(editEvent.startTime ?? '');
+        setEndTime(editEvent.endTime ?? '');
+        setType(editEvent.type);
+        setIsPublic(editEvent.isPublic);
+        setDescription(editEvent.description ?? '');
+        setClassId(editEvent.classId ?? '');
+        setRelatedStudentId(editEvent.relatedStudentId ?? '');
+        // 수정 모드에서 학생 이름 표시
+        if (editEvent.relatedStudentId) {
+          const s = students.find((st) => st.id === editEvent.relatedStudentId);
+          setStudentSearch(s?.name ?? '');
+        } else {
+          setStudentSearch('');
+        }
+      } else {
+        setTitle('');
+        setDate(defaultDate);
+        setStartTime('');
+        setEndTime('');
+        setType('학원일정');
+        setIsPublic(true);
+        setDescription('');
+        setClassId('');
+        setRelatedStudentId('');
+        setStudentSearch('');
+      }
     }
-  }, [open, defaultDate]);
+  }, [open, defaultDate, editEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +91,7 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
 
     setSubmitting(true);
     try {
-      await addEvent({
+      const payload = {
         title: title.trim(),
         date,
         startTime: startTime || null,
@@ -74,8 +101,13 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
         description: description.trim(),
         color: TYPE_COLOR[type],
         classId: classId || null,
-        relatedStudentId: null,
-      });
+        relatedStudentId: relatedStudentId || null,
+      };
+      if (editEvent) {
+        await updateEvent(editEvent.id, payload);
+      } else {
+        await addEvent(payload);
+      }
       onClose();
     } catch {
       // 에러는 store에서 toast로 처리
@@ -92,7 +124,7 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
     <Modal
       open={open}
       onClose={onClose}
-      title="일정 추가"
+      title={editEvent ? '일정 수정' : '일정 추가'}
       size="sm"
       footer={
         <>
@@ -106,7 +138,7 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
             form="add-schedule-form"
             disabled={submitting || !title.trim() || !date}
           >
-            {submitting ? '저장 중...' : '저장'}
+            {submitting ? '저장 중...' : editEvent ? '수정' : '저장'}
           </Button>
         </>
       }
@@ -188,6 +220,46 @@ export default function AddScheduleModal({ open, onClose, defaultDate }: Props) 
             />
           </div>
         </div>
+
+        {/* 상담 대상 학생 (상담일정일 때만) */}
+        {type === '상담일정' && (
+          <div>
+            <label className={labelClass}>대상 학생</label>
+            <input
+              type="text"
+              placeholder="이름으로 검색"
+              value={studentSearch}
+              onChange={(e) => { setStudentSearch(e.target.value); setRelatedStudentId(''); }}
+              className={inputClass}
+            />
+            {studentSearch && !relatedStudentId && (
+              <div className="mt-1 border border-[#e2e8f0] rounded-[8px] max-h-36 overflow-y-auto bg-white shadow-sm">
+                {students
+                  .filter((s) => s.name.includes(studentSearch) || s.school.includes(studentSearch))
+                  .slice(0, 8)
+                  .map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-[#f4f6f8] flex items-center justify-between"
+                      onClick={() => { setRelatedStudentId(s.id); setStudentSearch(s.name); }}
+                    >
+                      <span className="font-medium text-[#111827]">{s.name}</span>
+                      <span className="text-[11px] text-[#9ca3af]">{s.school} {s.grade}학년</span>
+                    </button>
+                  ))}
+                {students.filter((s) => s.name.includes(studentSearch) || s.school.includes(studentSearch)).length === 0 && (
+                  <p className="px-3 py-2 text-[12px] text-[#9ca3af]">검색 결과가 없습니다.</p>
+                )}
+              </div>
+            )}
+            {relatedStudentId && (
+              <p className="mt-1 text-[11.5px] text-[#4fc3a1]">
+                ✓ {studentSearch} 학생이 선택되었습니다.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* 대상 반 */}
         <div>
