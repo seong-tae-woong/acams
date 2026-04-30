@@ -37,6 +37,7 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
   loading: false,
 
   fetchNotifications: async () => {
+    set({ loading: true });
     try {
       const res = await fetch('/api/communication/notifications');
       if (!res.ok) throw new Error('알림 목록 조회 실패');
@@ -45,6 +46,8 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
     } catch (err) {
       console.error('[communicationStore.fetchNotifications]', err);
       toast('알림 목록을 불러오는 데 실패했습니다.', 'error');
+    } finally {
+      set({ loading: false });
     }
   },
 
