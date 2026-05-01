@@ -57,6 +57,7 @@ model Academy {
   curriculumRows     CurriculumRow[]
   inquiries              PublicInquiry[]
   lectures               Lecture[]
+  lectureSeries          LectureSeries[]
   customTags             AcademyTag[]
   notificationTemplates  NotificationTemplate[]
 
@@ -719,6 +720,10 @@ model Lecture {
   levels       String[]      @default([])
   targetGrades String[]      @default([])
 
+  seriesId      String?
+  series        LectureSeries? @relation(fields: [seriesId], references: [id])
+  episodeNumber Int?
+
   cfVideoId    String?       // Cloudflare Stream video UID
   videoUrl     String?
   duration     String        @default("--:--")
@@ -731,6 +736,21 @@ model Lecture {
   updatedAt    DateTime @updatedAt
 
   @@map("lectures")
+}
+
+model LectureSeries {
+  id          String        @id @default(cuid())
+  academyId   String
+  academy     Academy       @relation(fields: [academyId], references: [id])
+  title       String
+  description String        @default("")
+  orderIndex  Int           @default(0)
+  status      LectureStatus @default(DRAFT)
+  lectures    Lecture[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("lecture_series")
 }
 
 model LectureTarget {

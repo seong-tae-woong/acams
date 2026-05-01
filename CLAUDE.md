@@ -3,7 +3,7 @@
 # AcaMS — Claude 작업 가이드
 
 > 이 문서는 **길잡이(약도)**입니다. 사용자 질문이 들어오면 먼저 §1 도메인 인덱스에서 도메인 1행을 찾아 수정 대상 파일을 즉시 결정하세요.
-> 프로젝트 소개·시드계정·환경변수·28개 모델 상세·Phase 진행·Breaking Changes → **README.md**
+> 프로젝트 소개·시드계정·환경변수·31개 모델 상세·Phase 진행·Breaking Changes → **README.md**
 
 ---
 
@@ -11,20 +11,21 @@
 
 | 도메인 | UI 페이지 (`src/app/`) | API 라우트 (`src/app/api/`) | Store (`src/lib/stores/`) | Type (`src/lib/types/`) | Prisma 모델 |
 |--------|-----------------------|-----------------------------|---------------------------|-------------------------|-------------|
-| 학생 | `(admin)/students/*` (목록·출결·성적·리포트) | `students/`, `students/[id]/` | `studentStore.ts` | `student.ts` | Student, Parent, StudentParent, StudentSibling |
-| 반 | `(admin)/classes/*` (목록·커리큘럼·보강·강사) | `classes/`, `classes/[id]/`, `teachers/`, `teachers/[id]/`, `makeup/`, `makeup/[id]/` | `classStore.ts`, `teacherStore.ts`, `makeupStore.ts` | `class.ts`, `teacher.ts` | Class, ClassTeacher, ClassEnrollment, ClassSchedule, MakeupClass, MakeupClassTarget, Teacher |
+| 학생 | `(admin)/students/*` (목록·출결·성적·리포트) | `students/`, `students/[id]/`, `students/[id]/reset-password/` | `studentStore.ts` | `student.ts` | Student, Parent, StudentParent, StudentSibling |
+| 반 | `(admin)/classes/*` (목록·커리큘럼·보강·강사) | `classes/`, `classes/[id]/`, `classes/[id]/curriculum/`, `classes/[id]/textbooks/`, `teachers/`, `teachers/[id]/`, `teachers/[id]/reset-password/`, `makeup/`, `makeup/[id]/` | `classStore.ts`, `teacherStore.ts`, `makeupStore.ts` | `class.ts`, `teacher.ts` | Class, ClassTeacher, ClassEnrollment, ClassSchedule, MakeupClass, MakeupClassTarget, Teacher, CurriculumRow, Textbook |
 | 출결 | `(admin)/classes/attendance`, `(admin)/students/attendance` | `attendance/`, `attendance/[id]/` | `attendanceStore.ts` | `attendance.ts` | AttendanceRecord |
 | 성적 | `(admin)/students/grades` | `exams/`, `exams/[id]/`, `grades/`, `grades/[id]/` | `gradeStore.ts` | `grade.ts` | Exam, GradeRecord |
 | 재무 | `(admin)/finance/*` (billing·payments·receipts·overdue·settlement) | `finance/bills/`, `finance/bills/[id]/pay/`, `finance/expenses/`, `finance/receipts/` | `financeStore.ts` | `finance.ts` | Bill, Receipt, Expense |
-| 소통 | `(admin)/communication/*` (announcements·consultation·notifications) | `communication/announcements/` (GET·POST, classId 지원) | `communicationStore.ts` | `notification.ts` | Notification, NotificationRecipient, ConsultationRecord, Announcement |
+| 소통 | `(admin)/communication/*` (announcements·consultation·notifications) | `communication/announcements/`, `communication/consultations/`, `communication/consultations/[id]/`, `communication/notifications/`, `communication/inquiries/`, `communication/inquiries/[id]/`, `communication/notification-templates/` | `communicationStore.ts` | `notification.ts` | Notification, NotificationRecipient, NotificationTemplate, ConsultationRecord, Announcement, PublicInquiry |
 | 캘린더 | `(admin)/calendar` | `calendar/`, `calendar/[id]/` (classId 지원) | `calendarStore.ts` | — | CalendarEvent |
+| 통계 | `(admin)/analytics` | `analytics/monthly/` | — | — | (집계 쿼리, 별도 모델 없음) |
 | 인강 | `ingang/*` (lectures·lectures/new·lectures/tags·lectures/targets·exams·completion·completion/stats·completion/notifications) | `lectures/`, `lectures/[id]/`, `lectures/tags/`, `lectures/tags/[id]/`, `lectures/upload-url/` | — | — | Lecture, LectureTarget, AcademyTag |
-| 모바일 PWA | `mobile/*` (grades·announcements·calendar·attendance·schedule·payments·profile) | `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/` | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
-| 모바일 결제 | `mobile/payments/*` (목록·success·fail) | `mobile/payments/order/`, `mobile/payments/toss/confirm/` | — | — | Bill, Receipt, PaymentOrder |
-| 키오스크 | `kiosk/` (QR/수동 학번) | **미구현** | `classStore` 일부 | — | (AttendanceRecord 예정) |
-| 슈퍼어드민 | `super-admin/*` (학원 목록·상세·신규) | `super-admin/academies/`, `.../[id]/`, `.../[id]/users/[userId]/`, `super-admin/profile/password/` | — | — | Academy, User |
+| 모바일 PWA | `mobile/*` (홈·grades·announcements·calendar·attendance·schedule·payments·notifications·profile) | `mobile/me/`, `mobile/children/`, `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/`, `mobile/attendance/`, `mobile/schedule/`, `mobile/notifications/` | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
+| 모바일 결제 | `mobile/payments/*` (목록·success·fail) | `mobile/payments/`, `mobile/payments/order/`, `mobile/payments/toss-client-key/`, `mobile/payments/toss/confirm/` | — | — | Bill, Receipt, PaymentOrder |
+| 키오스크 | `kiosk/` (QR/수동 학번) | `kiosk/session/`, `kiosk/recent/`, `kiosk/check-in/` (인증 불필요) | `classStore` 일부 | — | AttendanceRecord |
+| 슈퍼어드민 | `super-admin/*` (학원 목록·상세·신규) | `super-admin/academies/`, `.../[id]/`, `.../[id]/users/[userId]/`, `.../[id]/toss-key/`, `super-admin/profile/password/` | — | — | Academy, User |
 | 인증 | `login/`, `src/proxy.ts` | `auth/login/`, `auth/logout/`, `auth/me/` | `authStore.ts` | — | User |
-| 학원 공개 페이지 | `academy/[slug]/` (공개, 인증불필요) | `api/academy/[slug]/` (GET, 공개) · `api/settings/academy/` (GET·PATCH, 원장전용) | — | — | Academy (공개프로필 필드) |
+| 학원 공개 페이지 | `academy/[slug]/` (공개, 인증불필요) | `api/academy/[slug]/` (GET, 공개) · `api/academy/[slug]/inquiry/` (POST, 공개) · `api/settings/academy/` (GET·PATCH, 원장전용) · `api/settings/gallery/` (POST, 이미지 업로드) | — | — | Academy (공개프로필 필드), PublicInquiry |
 
 **활용 규칙**
 - 도메인 키워드 → 1행 → 5개 후보 파일 결정 → 추가 Glob 없이 바로 Read
@@ -41,7 +42,7 @@ super_admin       → /super-admin/*
 director, teacher → /(admin)/*, /ingang/*
 parent, student   → /mobile/*
 미인증            → /login, /kiosk
-공개(인증무관)    → /academy/*, /api/academy/*
+공개(인증무관)    → /academy/*, /api/academy/*, /api/kiosk/*
 ```
 
 > 인강 메뉴는 GNB 탭(`/ingang/lectures` 진입)으로 분리. 사이드바는 보라색 테마(`#1e1b2e`)를 쓰는 `src/components/ingang/InGangSidebar.tsx`이고, 같은 페이지의 탭 구분은 `?tab=cond|retry|exam|cert` URL search param으로 처리.
@@ -90,8 +91,8 @@ if (req.headers.get('x-user-role') !== 'super_admin') return 403;
 ## §5. Mobile PWA (학부모·학생)
 
 ### 라우트 및 API
-- UI: `src/app/mobile/*` — 5탭 (홈·출결·성적·공지·내정보), 캘린더·일정·결제 탭 포함
-- API: `src/app/api/mobile/` — grades · announcements · calendar · payments/order · payments/toss/confirm
+- UI: `src/app/mobile/*` — 5탭 (홈·출결·성적·공지·내정보), 캘린더·일정·결제·알림 탭 포함
+- API: `src/app/api/mobile/` — me · children · grades · announcements · calendar · attendance · schedule · notifications · payments/order · payments/toss-client-key · payments/toss/confirm
 - 레이아웃: `src/app/mobile/layout.tsx` — manifest·SW·ToastContainer 포함
 - 서비스 워커: `public/sw.js`, 등록: `src/components/mobile/SwRegister.tsx`
 - PWA manifest: `public/manifest.json` (start_url=/mobile, scope=/mobile)
@@ -99,6 +100,7 @@ if (req.headers.get('x-user-role') !== 'super_admin') return 403;
 ### 토스페이먼츠 결제 플로우
 ```
 알림/수납 "결제하기" → POST /api/mobile/payments/order (billIds 검증·금액확인·PaymentOrder 생성)
+  → GET /api/mobile/payments/toss-client-key (NEXT_PUBLIC_TOSS_CLIENT_KEY)
   → 토스 SDK requestPayment() → /mobile/payments/success?paymentKey=&orderId=&amount=
   → POST /api/mobile/payments/toss/confirm (Toss 승인 → Bill PAID + Receipt 생성)
 실패 시 → /mobile/payments/fail
@@ -164,4 +166,4 @@ prisma.calendarEvent.findMany({
 - **타입 재사용** — `src/lib/types/` 먼저 확인 후 신규 정의
 - **mock 파일은 참고용** — 필드 구조 파악만, 수정 금지
 - **Zustand 패턴** — 기존 store(예: `gradeStore.ts`) 그대로 따라가기
-- **상세는 README** — 시드계정·Phase·28개 모델 풀 스펙·Prisma/Next.js Breaking Changes 전체 코드 예시는 `README.md`에서 찾기
+- **상세는 README** — 시드계정·Phase·31개 모델 풀 스펙·Prisma/Next.js Breaking Changes 전체 코드 예시는 `README.md`에서 찾기

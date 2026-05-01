@@ -1,6 +1,8 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+type SeriesItem = { id: string; title: string; _count: { lectures: number } };
 
 const SUBJECTS = ['수학', '영어', '국어', '과학'];
 const LEVELS   = ['기초', '심화', '최상위'];
@@ -178,17 +180,59 @@ function VideoUpload({ onComplete }: {
 
 // ─── 강의 등록 페이지 ──────────────────────────────────────
 export default function LectureNewPage() {
-  const router = useRouter();
+  return (
+    <Suspense>
+      <LectureNewForm />
+    </Suspense>
+  );
+}
+
+function LectureNewForm() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
   const [title,      setTitle]      = useState('');
   const [desc,       setDesc]       = useState('');
   const [subjects,   setSubjects]   = useState<string[]>([]);
   const [levels,     setLevels]     = useState<string[]>([]);
   const [grades,     setGrades]     = useState<string[]>([]);
-  const [targets,    setTargets]    = useState<string[]>([]);
-  const [teacher,    setTeacher]    = useState('');
-  const [order,      setOrder]      = useState('');
-  const [cfVideoId,  setCfVideoId]  = useState('');
-  const [saving,     setSaving]     = useState(false);
+  const [targets,       setTargets]       = useState<string[]>([]);
+  const [teacher,       setTeacher]       = useState('');
+  const [order,         setOrder]         = useState('');
+  const [cfVideoId,     setCfVideoId]     = useState('');
+  const [saving,        setSaving]        = useState(false);
+  const [seriesList,    setSeriesList]    = useState<SeriesItem[]>([]);
+  const [seriesId,      setSeriesId]      = useState('');       // '' = 없음, 'new' = 신규생성
+  const [newSeriesTitle, setNewSeriesTitle] = useState('');
+  const [episodeNumber, setEpisodeNumber] = useState('');
+
+  useEffect(() => {
+    fetch('/api/lecture-series')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        setSeriesList(data);
+        const presetId = searchParams.get('seriesId');
+        if (presetId) {
+          const found = data.find((s: SeriesItem) => s.id === presetId);
+          if (found) {
+            setSeriesId(presetId);
+            setEpisodeNumber(String(found._count.lectures + 1));
+          }
+        }
+      })
+      .catch(() => {});
+  }, [searchParams]);
+
+  const handleSeriesChange = (val: string) => {
+    setSeriesId(val);
+    setNewSeriesTitle('');
+    if (val && val !== 'new') {
+      const found = seriesList.find((s) => s.id === val);
+      if (found) setEpisodeNumber(String(found._count.lectures + 1));
+    } else {
+      setEpisodeNumber('');
+    }
+  };
 
   const toggle = <T extends string>(arr: T[], val: T, set: (v: T[]) => void) => {
     set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
@@ -196,8 +240,22 @@ export default function LectureNewPage() {
 
   const save = async (status: 'DRAFT' | 'PUBLISHED') => {
     if (!title.trim()) { alert('강의명을 입력해주세요.'); return; }
+    if (seriesId === 'new' && !newSeriesTitle.trim()) { alert('새 시리즈명을 입력해주세요.'); return; }
     setSaving(true);
     try {
+      // 새 시리즈 생성이면 먼저 시리즈를 만들고 ID를 받아옴
+      let resolvedSeriesId: string | null = seriesId || null;
+      if (seriesId === 'new') {
+        const sr = await fetch('/api/lecture-series', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newSeriesTitle.trim() }),
+        });
+        if (!sr.ok) { alert('시리즈 생성에 실패했습니다.'); setSaving(false); return; }
+        const created = await sr.json();
+        resolvedSeriesId = created.id;
+      }
+
       const res = await fetch('/api/lectures', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,6 +269,8 @@ export default function LectureNewPage() {
           cfVideoId: cfVideoId || null,
           orderIndex: order ? Number(order) : 0,
           status,
+          seriesId: resolvedSeriesId,
+          episodeNumber: episodeNumber ? Number(episodeNumber) : null,
         }),
       });
       if (res.ok) {
@@ -257,7 +317,7 @@ export default function LectureNewPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5 flex gap-4">
+      <div className="flex-1 overflow-y-auto p-5 flex gap-4 items-start">
         {/* Left */}
         <div className="flex-1 flex flex-col gap-3.5">
           {/* 기본 정보 */}
@@ -280,6 +340,30 @@ export default function LectureNewPage() {
                   className="text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] text-[#374151] placeholder-[#c4c4c4] outline-none focus:border-[#a78bfa] focus:bg-white w-full resize-none leading-relaxed"
                 />
               </div>
+              {/* 시리즈 */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11.5px] font-semibold text-[#6b7280]">시리즈 <span className="font-normal text-[#9ca3af]">(선택)</span></label>
+                <select
+                  value={seriesId}
+                  onChange={(e) => handleSeriesChange(e.target.value)}
+                  className="text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] text-[#374151] outline-none focus:border-[#a78bfa] focus:bg-white"
+                >
+                  <option value="">시리즈 없음</option>
+                  {seriesList.map((s) => (
+                    <option key={s.id} value={s.id}>{s.title} ({s._count.lectures}강)</option>
+                  ))}
+                  <option value="new">+ 새 시리즈 만들기</option>
+                </select>
+                {seriesId === 'new' && (
+                  <input
+                    type="text" value={newSeriesTitle} onChange={(e) => setNewSeriesTitle(e.target.value)}
+                    placeholder="예: 수학 중급"
+                    autoFocus
+                    className="text-[13px] px-3 py-2 border border-[#a78bfa] rounded-[8px] bg-white text-[#374151] placeholder-[#c4c4c4] outline-none"
+                  />
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11.5px] font-semibold text-[#6b7280]">담당 강사</label>
@@ -290,9 +374,13 @@ export default function LectureNewPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11.5px] font-semibold text-[#6b7280]">강의 순서</label>
+                  <label className="text-[11.5px] font-semibold text-[#6b7280]">
+                    {seriesId ? '강 번호' : '강의 순서'}
+                  </label>
                   <input
-                    type="number" value={order} onChange={(e) => setOrder(e.target.value)}
+                    type="number"
+                    value={seriesId ? episodeNumber : order}
+                    onChange={(e) => seriesId ? setEpisodeNumber(e.target.value) : setOrder(e.target.value)}
                     placeholder="예: 1" min={1}
                     className="text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] text-[#374151] placeholder-[#c4c4c4] outline-none focus:border-[#a78bfa] focus:bg-white"
                   />
@@ -339,7 +427,7 @@ export default function LectureNewPage() {
         </div>
 
         {/* Right: 미리보기 + 수강 대상 + 저장 */}
-        <div className="w-[280px] shrink-0 flex flex-col gap-3.5">
+        <div className="w-[280px] shrink-0 flex flex-col gap-3.5 sticky top-0">
           <p className="text-[11.5px] font-semibold uppercase tracking-wider text-[#6b7280]">미리보기</p>
           <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
             <div className="h-[140px] flex items-center justify-center relative" style={{ background: '#1e1b2e' }}>

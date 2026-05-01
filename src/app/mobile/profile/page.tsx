@@ -105,7 +105,7 @@ export default function MobileProfilePage() {
               <div className="flex items-center gap-3">
                 <Phone size={14} className="text-[#6b7280]" />
                 <div>
-                  <div className="text-[11px] text-[#9ca3af]">{student.parentName ?? '학부모'}</div>
+                  <div className="text-[11px] text-[#9ca3af]">학부모 연락처 : {student.parentName ?? '학부모'}</div>
                   <div className="text-[12.5px] text-[#111827]">{formatPhone(student.parentPhone)}</div>
                 </div>
               </div>

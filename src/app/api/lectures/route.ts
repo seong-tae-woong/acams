@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const lectures = await prisma.lecture.findMany({
       where: { academyId },
       include: { teacher: { select: { name: true } } },
-      orderBy: [{ orderIndex: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ seriesId: 'asc' }, { episodeNumber: 'asc' }, { orderIndex: 'asc' }, { createdAt: 'desc' }],
     });
     return NextResponse.json(lectures);
   } catch (err) {
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { title, description, teacherId, subjects, levels, targetGrades, cfVideoId, videoUrl, duration, orderIndex, status } = body;
+    const { title, description, teacherId, subjects, levels, targetGrades, cfVideoId, videoUrl, duration, orderIndex, status, seriesId, episodeNumber } = body;
 
     if (!title?.trim()) return NextResponse.json({ error: '강의명은 필수입니다.' }, { status: 400 });
 
@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
         duration: duration ?? '--:--',
         orderIndex: orderIndex ?? 0,
         status: (status as LectureStatus) ?? LectureStatus.DRAFT,
+        seriesId: seriesId ?? null,
+        episodeNumber: episodeNumber ?? null,
       },
       include: { teacher: { select: { name: true } } },
     });

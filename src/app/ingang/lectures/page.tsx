@@ -11,29 +11,66 @@ type Lecture = {
   duration: string;
   status: 'DRAFT' | 'PUBLISHED';
   teacher?: { name: string } | null;
+  seriesId: string | null;
+  episodeNumber: number | null;
+  orderIndex: number;
+};
+
+type Series = {
+  id: string;
+  title: string;
+  description: string;
+  status: 'DRAFT' | 'PUBLISHED';
+  _count: { lectures: number };
 };
 
 export default function LecturesPage() {
   const [lectures,      setLectures]      = useState<Lecture[]>([]);
+  const [seriesList,    setSeriesList]    = useState<Series[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [subjectFilter, setSubjectFilter] = useState('');
   const [statusFilter,  setStatusFilter]  = useState('');
   const [search,        setSearch]        = useState('');
+  const [expandedId,    setExpandedId]    = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/lectures')
-      .then((r) => r.json())
-      .then((data) => setLectures(Array.isArray(data) ? data : []))
-      .catch(() => setLectures([]))
+    Promise.all([
+      fetch('/api/lectures').then((r) => r.json()),
+      fetch('/api/lecture-series').then((r) => r.json()),
+    ])
+      .then(([lecs, series]) => {
+        setLectures(Array.isArray(lecs) ? lecs : []);
+        setSeriesList(Array.isArray(series) ? series : []);
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = lectures.filter((l) => {
+  const matchesFilter = (l: Lecture) => {
     if (subjectFilter && !l.subjects.includes(subjectFilter)) return false;
-    if (statusFilter && l.status !== statusFilter) return false;
-    if (search && !l.title.includes(search)) return false;
+    if (statusFilter  && l.status !== statusFilter)           return false;
+    if (search        && !l.title.includes(search))           return false;
     return true;
-  });
+  };
+
+  const episodesOf = (seriesId: string) =>
+    lectures
+      .filter((l) => l.seriesId === seriesId && matchesFilter(l))
+      .sort((a, b) => (a.episodeNumber ?? a.orderIndex) - (b.episodeNumber ?? b.orderIndex));
+
+  const seriesSubjects = (seriesId: string) => {
+    const set = new Set<string>();
+    lectures.filter((l) => l.seriesId === seriesId).forEach((l) => l.subjects.forEach((s) => set.add(s)));
+    return Array.from(set);
+  };
+
+  const standalone = lectures.filter((l) => !l.seriesId && matchesFilter(l));
+
+  const visibleSeries = seriesList.filter((s) =>
+    !subjectFilter && !statusFilter && !search ? true : episodesOf(s.id).length > 0
+  );
+
+  const isEmpty = visibleSeries.length === 0 && standalone.length === 0;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -53,12 +90,11 @@ export default function LecturesPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
         {/* Toolbar */}
         <div className="flex items-center gap-2.5">
           <select
-            value={subjectFilter}
-            onChange={(e) => setSubjectFilter(e.target.value)}
+            value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}
             className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none"
           >
             <option value="">전체 과목</option>
@@ -68,8 +104,7 @@ export default function LecturesPage() {
             <option value="과학">과학</option>
           </select>
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none"
           >
             <option value="">전체 상태</option>
@@ -77,82 +112,166 @@ export default function LecturesPage() {
             <option value="DRAFT">임시저장</option>
           </select>
           <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="강의명 검색"
             className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none w-44"
           />
         </div>
 
-        {/* Lecture Grid */}
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-[13px] text-[#9ca3af]">불러오는 중...</div>
-        ) : filtered.length === 0 ? (
+        ) : isEmpty ? (
           <div className="flex-1 flex items-center justify-center text-[13px] text-[#9ca3af]">
-            {lectures.length === 0 ? '등록된 강의가 없습니다' : '검색 결과가 없습니다'}
+            {lectures.length === 0 && seriesList.length === 0 ? '등록된 강의가 없습니다' : '검색 결과가 없습니다'}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3.5">
-            {filtered.map((lec) => (
-              <div
-                key={lec.id}
-                className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden cursor-pointer transition-all hover:border-[#a78bfa] hover:shadow-md"
-              >
-                {/* Thumbnail */}
-                <div
-                  className="h-[110px] flex items-center justify-center relative"
-                  style={{ background: lec.status === 'DRAFT' ? '#2a2040' : '#1e1b2e' }}
-                >
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{
-                      background: 'rgba(167,139,250,0.25)',
-                      border: '2px solid rgba(167,139,250,0.5)',
-                      opacity: lec.status === 'DRAFT' ? 0.5 : 1,
-                    }}
-                  >
-                    <span style={{ borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '15px solid #a78bfa', marginLeft: 3, display: 'inline-block' }} />
-                  </div>
-                  <span
-                    className="absolute bottom-2 right-2.5 text-[10.5px] px-1.5 py-0.5 rounded"
-                    style={{ background: 'rgba(0,0,0,0.4)', color: lec.status === 'DRAFT' ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)' }}
-                  >
-                    {lec.duration}
-                  </span>
-                  {lec.subjects.length > 0 && (
-                    <span
-                      className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: 'rgba(167,139,250,0.25)', color: '#c4b5fd' }}
-                    >
-                      {lec.subjects[0]}
-                    </span>
-                  )}
-                </div>
+          <>
+            {/* ── 시리즈 강좌 ───────────────────────────── */}
+            {visibleSeries.length > 0 && (
+              <section className="flex flex-col gap-2.5">
+                <p className="text-[11.5px] font-semibold uppercase tracking-wider text-[#6b7280]">시리즈 강좌</p>
+                {visibleSeries.map((series) => {
+                  const episodes = episodesOf(series.id);
+                  const isOpen   = expandedId === series.id;
+                  const subjects = seriesSubjects(series.id);
 
-                {/* Body */}
-                <div className="p-3">
-                  <p className="text-[13px] font-semibold text-[#111827] mb-2 leading-snug line-clamp-2">
-                    {lec.title}
-                  </p>
-                  {/* Footer */}
-                  <div className="flex justify-between items-center pt-2 border-t border-[#f1f5f9]">
-                    {lec.status === 'PUBLISHED' ? (
-                      <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#D1FAE5', color: '#065f46' }}>게시됨</span>
-                    ) : (
-                      <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400e' }}>임시저장</span>
-                    )}
-                    <div className="flex gap-1.5">
-                      <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">수정</button>
-                      <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">
-                        {lec.status === 'DRAFT' ? '게시' : '시험'}
-                      </button>
+                  return (
+                    <div key={series.id} className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden transition-all" style={isOpen ? { borderColor: '#a78bfa' } : {}}>
+                      {/* 시리즈 헤더 */}
+                      <div
+                        onClick={() => setExpandedId(isOpen ? null : series.id)}
+                        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-[#fafafa] transition-colors select-none"
+                      >
+                        <div
+                          className="w-9 h-9 rounded-[8px] flex items-center justify-center shrink-0"
+                          style={{ background: '#1e1b2e' }}
+                        >
+                          <span style={{ borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: '11px solid #a78bfa', marginLeft: 2, display: 'inline-block' }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13.5px] font-semibold text-[#111827]">{series.title}</p>
+                          <p className="text-[11.5px] text-[#9ca3af] mt-0.5">
+                            총 {series._count.lectures}강
+                            {subjects.length > 0 && <span> · {subjects.join(' · ')}</span>}
+                          </p>
+                        </div>
+                        {series.status === 'PUBLISHED' ? (
+                          <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: '#D1FAE5', color: '#065f46' }}>게시됨</span>
+                        ) : (
+                          <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium shrink-0" style={{ background: '#FEF3C7', color: '#92400e' }}>임시저장</span>
+                        )}
+                        <span className="text-[11px] text-[#9ca3af] shrink-0 w-4 text-center">{isOpen ? '▲' : '▼'}</span>
+                      </div>
+
+                      {/* 에피소드 목록 */}
+                      {isOpen && (
+                        <div className="border-t border-[#f1f5f9]">
+                          {episodes.length === 0 ? (
+                            <p className="px-4 py-3.5 text-[12.5px] text-[#9ca3af]">이 시리즈에 등록된 강의가 없습니다.</p>
+                          ) : (
+                            episodes.map((ep, idx) => (
+                              <div
+                                key={ep.id}
+                                className="flex items-center gap-3 px-4 py-3 border-b border-[#f1f5f9] last:border-none hover:bg-[#fafafa] transition-colors"
+                              >
+                                {/* 강 번호 배지 */}
+                                <span
+                                  className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                                  style={{ background: '#EEEDFE', color: '#534AB7' }}
+                                >
+                                  {ep.episodeNumber ?? idx + 1}
+                                </span>
+                                <p className="flex-1 text-[12.5px] font-medium text-[#374151] truncate">{ep.title}</p>
+                                <span className="text-[11px] text-[#9ca3af] shrink-0">{ep.duration}</span>
+                                {ep.status === 'PUBLISHED' ? (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: '#D1FAE5', color: '#065f46' }}>게시</span>
+                                ) : (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ background: '#FEF3C7', color: '#92400e' }}>임시</span>
+                                )}
+                                <div className="flex gap-1 shrink-0">
+                                  <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">수정</button>
+                                  <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">미리보기</button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                          {/* 강의 추가 버튼 */}
+                          <div className="px-4 py-2.5 bg-[#fafafa] border-t border-[#f1f5f9]">
+                            <Link
+                              href={`/ingang/lectures/new?seriesId=${series.id}`}
+                              className="text-[12px] font-semibold hover:underline"
+                              style={{ color: '#5B4FBE' }}
+                            >
+                              + {series.title}에 강의 추가
+                            </Link>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  );
+                })}
+              </section>
+            )}
+
+            {/* ── 단독 강의 ─────────────────────────────── */}
+            {standalone.length > 0 && (
+              <section className="flex flex-col gap-2.5">
+                {visibleSeries.length > 0 && (
+                  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-[#6b7280]">단독 강의</p>
+                )}
+                <div className="grid grid-cols-3 gap-3.5">
+                  {standalone.map((lec) => (
+                    <div
+                      key={lec.id}
+                      className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden cursor-pointer transition-all hover:border-[#a78bfa] hover:shadow-md"
+                    >
+                      <div
+                        className="h-[110px] flex items-center justify-center relative"
+                        style={{ background: lec.status === 'DRAFT' ? '#2a2040' : '#1e1b2e' }}
+                      >
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center"
+                          style={{ background: 'rgba(167,139,250,0.25)', border: '2px solid rgba(167,139,250,0.5)', opacity: lec.status === 'DRAFT' ? 0.5 : 1 }}
+                        >
+                          <span style={{ borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '15px solid #a78bfa', marginLeft: 3, display: 'inline-block' }} />
+                        </div>
+                        <span
+                          className="absolute bottom-2 right-2.5 text-[10.5px] px-1.5 py-0.5 rounded"
+                          style={{ background: 'rgba(0,0,0,0.4)', color: lec.status === 'DRAFT' ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)' }}
+                        >
+                          {lec.duration}
+                        </span>
+                        {lec.subjects.length > 0 && (
+                          <span
+                            className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: 'rgba(167,139,250,0.25)', color: '#c4b5fd' }}
+                          >
+                            {lec.subjects[0]}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <p className="text-[13px] font-semibold text-[#111827] mb-2 leading-snug line-clamp-2">{lec.title}</p>
+                        <div className="flex justify-between items-center pt-2 border-t border-[#f1f5f9]">
+                          {lec.status === 'PUBLISHED' ? (
+                            <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#D1FAE5', color: '#065f46' }}>게시됨</span>
+                          ) : (
+                            <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400e' }}>임시저장</span>
+                          )}
+                          <div className="flex gap-1.5">
+                            <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">수정</button>
+                            <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">
+                              {lec.status === 'DRAFT' ? '게시' : '시험'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
+              </section>
+            )}
+          </>
         )}
       </div>
     </div>
