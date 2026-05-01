@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useMobileChild } from '@/contexts/MobileChildContext';
@@ -85,9 +85,7 @@ export default function MobileAttendancePage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center py-16"><LoadingSpinner /></div>
-      ) : (
+      <MobileContentLoader loading={loading}>
         <div className="px-4 py-4 space-y-3">
           {/* 달력 */}
           <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
@@ -140,7 +138,7 @@ export default function MobileAttendancePage() {
             </div>
           </div>
         </div>
-      )}
+      </MobileContentLoader>
       <BottomTabBar />
     </div>
   );

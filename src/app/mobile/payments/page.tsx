@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { ChevronLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
@@ -125,9 +125,7 @@ export default function MobilePaymentsPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center py-16"><LoadingSpinner /></div>
-      ) : (
+      <MobileContentLoader loading={loading}>
         <div className="px-4 py-4 space-y-3">
           {/* 청구 목록 */}
           <div className="bg-white rounded-[12px] border border-[#e2e8f0]">
@@ -204,7 +202,7 @@ export default function MobilePaymentsPage() {
             </div>
           )}
         </div>
-      )}
+      </MobileContentLoader>
       <BottomTabBar />
     </div>
   );

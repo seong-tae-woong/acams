@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
@@ -87,17 +87,6 @@ export default function MobileHomePage() {
   const displayName = selectedChild?.name ?? student?.name ?? '학생';
   const greeting = isParent ? `${displayName} 부모님` : `${displayName}님`;
 
-  if (loading && !student) {
-    return (
-      <div className="flex flex-col min-h-screen pb-20 bg-[#f4f6f8]">
-        <div className="bg-[#1a2535] px-4 pt-12 pb-6 flex items-center justify-center min-h-[140px]">
-          <LoadingSpinner />
-        </div>
-        <BottomTabBar />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col pb-20">
       {/* 헤더 */}
@@ -150,6 +139,7 @@ export default function MobileHomePage() {
         </div>
       </div>
 
+      <MobileContentLoader loading={loading}>
       <div className="px-4 py-4 space-y-3">
         {/* 미납 알림 */}
         {unpaid.length > 0 && (
@@ -346,6 +336,7 @@ export default function MobileHomePage() {
           </div>
         </div>
       </div>
+      </MobileContentLoader>
       <BottomTabBar />
 
       {/* 자녀 선택 모달 */}

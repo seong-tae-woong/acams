@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -60,23 +60,6 @@ export default function MobileGradesPage() {
     total: g.exam.totalScore,
   }));
 
-  if (loading) {
-    return (
-      <div className="flex flex-col pb-20 min-h-screen">
-        <div className="bg-[#1a2535] px-4 pt-12 pb-5">
-          <div className="flex items-center gap-3">
-            <Link href="/mobile"><ChevronLeft size={20} className="text-white" /></Link>
-            <span className="text-[17px] font-bold text-white">성적 리포트</span>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
-        <BottomTabBar />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col pb-20">
       {/* 헤더 */}
@@ -108,6 +91,7 @@ export default function MobileGradesPage() {
         )}
       </div>
 
+      <MobileContentLoader loading={loading}>
       <div className="px-4 py-4 space-y-3">
         {/* 추이 차트 */}
         {chartData.length > 0 && (
@@ -163,6 +147,7 @@ export default function MobileGradesPage() {
           </div>
         </div>
       </div>
+      </MobileContentLoader>
       <BottomTabBar />
     </div>
   );

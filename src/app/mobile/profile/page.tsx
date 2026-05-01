@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { formatPhone } from '@/lib/utils/format';
 import { ChevronLeft, QrCode, Phone, School, LogOut } from 'lucide-react';
 import Link from 'next/link';
@@ -25,7 +25,7 @@ async function handleLogout() {
 }
 
 export default function MobileProfilePage() {
-  const { selectedChildId } = useMobileChild();
+  const { selectedChildId, selectedChild } = useMobileChild();
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,18 +43,7 @@ export default function MobileProfilePage() {
       .finally(() => setLoading(false));
   }, [selectedChildId]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col min-h-screen pb-20">
-        <div className="bg-[#1a2535] px-4 pt-12 pb-6 min-h-[160px] flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
-        <BottomTabBar />
-      </div>
-    );
-  }
-
-  if (!student) {
+  if (!loading && !student) {
     return (
       <div className="flex flex-col min-h-screen pb-20">
         <div className="bg-[#1a2535] px-4 pt-12 pb-6 min-h-[160px] flex items-center">
@@ -87,17 +76,18 @@ export default function MobileProfilePage() {
         </div>
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full flex items-center justify-center text-[24px] font-bold text-white"
-            style={{ backgroundColor: student.avatarColor }}>
-            {student.name[0]}
+            style={{ backgroundColor: student?.avatarColor ?? selectedChild?.avatarColor ?? '#4fc3a1' }}>
+            {(student?.name ?? selectedChild?.name ?? 'S')[0]}
           </div>
           <div>
-            <div className="text-[20px] font-bold text-white">{student.name}</div>
-            <div className="text-[13px] text-white/60">{student.school} {student.grade}학년</div>
-            <div className="text-[12px] text-[#4fc3a1] mt-0.5">출석번호: {student.attendanceNumber}</div>
+            <div className="text-[20px] font-bold text-white">{student?.name ?? selectedChild?.name ?? ''}</div>
+            <div className="text-[13px] text-white/60">{student?.school} {student?.grade ? `${student.grade}학년` : ''}</div>
+            <div className="text-[12px] text-[#4fc3a1] mt-0.5">{student?.attendanceNumber ? `출석번호: ${student.attendanceNumber}` : ''}</div>
           </div>
         </div>
       </div>
 
+      <MobileContentLoader loading={loading}>
       <div className="px-4 py-4 space-y-3">
         {/* QR 코드 */}
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
@@ -111,7 +101,7 @@ export default function MobileProfilePage() {
             <div className="flex flex-col items-center py-4">
               <div className="w-40 h-40 bg-[#f4f6f8] rounded-[10px] flex flex-col items-center justify-center gap-2 border-2 border-[#e2e8f0]">
                 <QrCode size={64} className="text-[#1a2535]" />
-                <span className="text-[11px] text-[#6b7280]">{student.qrCode}</span>
+                <span className="text-[11px] text-[#6b7280]">{student?.qrCode}</span>
               </div>
               <p className="text-[11.5px] text-[#9ca3af] mt-3 text-center">
                 키오스크에 QR 코드를 스캔하거나<br />출석번호를 입력하세요
@@ -132,7 +122,7 @@ export default function MobileProfilePage() {
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
           <div className="text-[13px] font-semibold text-[#111827] mb-3">연락처</div>
           <div className="space-y-2.5">
-            {student.phone && (
+            {student?.phone && (
               <div className="flex items-center gap-3">
                 <Phone size={14} className="text-[#6b7280]" />
                 <div>
@@ -141,7 +131,7 @@ export default function MobileProfilePage() {
                 </div>
               </div>
             )}
-            {student.parentPhone && (
+            {student?.parentPhone && (
               <div className="flex items-center gap-3">
                 <Phone size={14} className="text-[#6b7280]" />
                 <div>
@@ -154,7 +144,7 @@ export default function MobileProfilePage() {
               <School size={14} className="text-[#6b7280]" />
               <div>
                 <div className="text-[11px] text-[#9ca3af]">학교</div>
-                <div className="text-[12.5px] text-[#111827]">{student.school} {student.grade}학년</div>
+                <div className="text-[12.5px] text-[#111827]">{student?.school} {student?.grade ? `${student.grade}학년` : ''}</div>
               </div>
             </div>
           </div>
@@ -206,6 +196,7 @@ export default function MobileProfilePage() {
           로그아웃
         </button>
       </div>
+      </MobileContentLoader>
       <BottomTabBar />
     </div>
   );

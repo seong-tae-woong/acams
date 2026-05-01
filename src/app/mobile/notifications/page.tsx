@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { ChevronLeft, Bell, CreditCard, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import { useMobileChild } from '@/contexts/MobileChildContext';
@@ -274,28 +274,26 @@ export default function MobileNotificationsPage() {
         </div>
       </div>
 
-      <div className="flex-1 px-4 py-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <LoadingSpinner />
-          </div>
-        ) : error ? (
-          <div className="p-6 text-center text-[13px] text-red-400">{error}</div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Bell size={36} className="text-[#d1d5db]" />
-            <p className="text-[13px] text-[#9ca3af]">
-              {filter === 'all' ? '받은 알림이 없습니다.' : `${FILTER_LABELS[filter]} 알림이 없습니다.`}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((n) => (
-              <NotificationCard key={n.id} notif={n} />
-            ))}
-          </div>
-        )}
-      </div>
+      <MobileContentLoader loading={loading}>
+        <div className="px-4 py-4">
+          {error ? (
+            <div className="p-6 text-center text-[13px] text-red-400">{error}</div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Bell size={36} className="text-[#d1d5db]" />
+              <p className="text-[13px] text-[#9ca3af]">
+                {filter === 'all' ? '받은 알림이 없습니다.' : `${FILTER_LABELS[filter]} 알림이 없습니다.`}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((n) => (
+                <NotificationCard key={n.id} notif={n} />
+              ))}
+            </div>
+          )}
+        </div>
+      </MobileContentLoader>
 
       <BottomTabBar />
     </div>
