@@ -4,6 +4,7 @@ import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE';
 type AttendanceRecord = { id: string; date: string; status: AttendanceStatus; className: string; classId: string };
@@ -20,6 +21,7 @@ const STATUS_STYLE: Record<AttendanceStatus, { bg: string; text: string }> = {
 const DAYS = ['월', '화', '수', '목', '금'];
 
 export default function MobileAttendancePage() {
+  const { selectedChildId } = useMobileChild();
   const today = new Date();
   const [year] = useState(today.getFullYear());
   const [month] = useState(today.getMonth() + 1);
@@ -27,12 +29,14 @@ export default function MobileAttendancePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!selectedChildId) return;
     const m = `${year}-${String(month).padStart(2, '0')}`;
-    fetch(`/api/mobile/attendance?month=${m}`)
+    setLoading(true);
+    fetch(`/api/mobile/attendance?month=${m}&studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => { if (data.records) setRecords(data.records); })
       .finally(() => setLoading(false));
-  }, [year, month]);
+  }, [year, month, selectedChildId]);
 
   const present = records.filter((r) => r.status === 'PRESENT').length;
   const absent  = records.filter((r) => r.status === 'ABSENT').length;

@@ -6,6 +6,7 @@ import { formatKoreanDate } from '@/lib/utils/format';
 import { ChevronLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import Link from 'next/link';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type BillStatus = 'PAID' | 'UNPAID' | 'PARTIAL';
 type BillItem = {
@@ -66,20 +67,23 @@ async function requestTossPayment(billId: string, amount: number, orderName: str
 }
 
 export default function MobilePaymentsPage() {
+  const { selectedChildId } = useMobileChild();
   const [bills, setBills] = useState<BillItem[]>([]);
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/mobile/payments')
+    if (!selectedChildId) return;
+    setLoading(true);
+    fetch(`/api/mobile/payments?studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.bills) setBills(data.bills);
         if (data.receipts) setReceipts(data.receipts);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   const totalAmount = bills.reduce((s, b) => s + b.amount, 0);
   const totalPaid   = bills.reduce((s, b) => s + b.paidAmount, 0);

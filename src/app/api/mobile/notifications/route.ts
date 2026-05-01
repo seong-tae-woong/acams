@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { resolveStudentId } from '@/lib/mobile/resolveStudent';
 
-// GET /api/mobile/notifications
+// GET /api/mobile/notifications?studentId=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   const userId = req.headers.get('x-user-id');
@@ -10,37 +11,20 @@ export async function GET(req: NextRequest) {
   if (!academyId || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (role !== 'student' && role !== 'parent') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
+
+  const requestedStudentId = new URL(req.url).searchParams.get('studentId');
 
   try {
-    let studentIds: string[] = [];
-
-    if (role === 'student') {
-      const s = await prisma.student.findFirst({
-        where: { userId, academyId },
-        select: { id: true },
-      });
-      if (s) studentIds = [s.id];
-    } else if (role === 'parent') {
-      const parent = await prisma.parent.findFirst({
-        where: { userId },
-        include: {
-          children: {
-            include: { student: { select: { id: true } } },
-          },
-        },
-      });
-      studentIds = parent?.children.map((c) => c.student.id) ?? [];
-    } else {
-      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
-    }
-
-    if (studentIds.length === 0) {
+    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
+    if (!studentId) {
       return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    // 모든 자녀가 수신자로 포함된 알림 조회
     const recipients = await prisma.notificationRecipient.findMany({
-      where: { studentId: { in: studentIds } },
+      where: { studentId },
       include: { notification: true },
       orderBy: { notification: { sentAt: 'desc' } },
     });
@@ -53,17 +37,7 @@ export async function GET(req: NextRequest) {
       GENERAL: '일반',
     };
 
-    // 같은 알림이 여러 자녀에게 발송된 경우 중복 제거 (notificationId 기준)
-    // readAt: 자녀 중 하나라도 읽었으면 읽음으로 표시
-    const notifMap = new Map<string, typeof recipients[number]>();
-    for (const r of recipients) {
-      const existing = notifMap.get(r.notificationId);
-      if (!existing || (!existing.readAt && r.readAt)) {
-        notifMap.set(r.notificationId, r);
-      }
-    }
-
-    const result = Array.from(notifMap.values()).map((r) => {
+    const result = recipients.map((r) => {
       const meta = r.notification.metadata as { billIds?: string[] } | null;
       return {
         id: r.notification.id,
@@ -76,7 +50,6 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // 읽음 처리: 모든 자녀의 미읽음 레코드 일괄 업데이트
     const unreadRecipients = recipients.filter((r) => !r.readAt);
     if (unreadRecipients.length > 0) {
       await Promise.all(

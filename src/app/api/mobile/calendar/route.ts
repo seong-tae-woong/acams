@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
+import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
 
 const PRISMA_TO_UI: Record<PrismaType, string> = {
   [PrismaType.ACADEMY_SCHEDULE]: '학원일정',
@@ -8,8 +9,7 @@ const PRISMA_TO_UI: Record<PrismaType, string> = {
   [PrismaType.MAKEUP_SCHEDULE]: '보강일정',
 };
 
-// GET /api/mobile/calendar?year=YYYY&month=MM
-// isPublic=true 이벤트 + 내 반 전용 이벤트 반환
+// GET /api/mobile/calendar?year=YYYY&month=MM&studentId=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   const userId = req.headers.get('x-user-id');
@@ -18,58 +18,26 @@ export async function GET(req: NextRequest) {
   if (!academyId || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (role !== 'student' && role !== 'parent') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const year = parseInt(searchParams.get('year') ?? String(new Date().getFullYear()), 10);
   const month = parseInt(searchParams.get('month') ?? String(new Date().getMonth() + 1), 10);
+  const requestedStudentId = searchParams.get('studentId');
 
   const from = new Date(year, month - 1, 1);
   const to = new Date(year, month, 1);
 
   try {
-    // 수강 중인 반 목록 조회
-    let classIds: string[] = [];
-
-    if (role === 'student') {
-      const student = await prisma.student.findFirst({
-        where: { userId, academyId },
-        select: { id: true },
-      });
-      if (student) {
-        const enrollments = await prisma.classEnrollment.findMany({
-          where: { studentId: student.id, isActive: true },
-          select: { classId: true },
-        });
-        classIds = enrollments.map((e) => e.classId);
-      }
-    } else if (role === 'parent') {
-      const parent = await prisma.parent.findFirst({
-        where: { userId },
-        include: {
-          children: {
-            include: {
-              student: {
-                include: {
-                  classEnrollments: {
-                    where: { isActive: true },
-                    select: { classId: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-      if (parent) {
-        classIds = parent.children.flatMap((c) =>
-          c.student.classEnrollments.map((e) => e.classId)
-        );
-      }
-    } else {
-      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
+    if (!studentId) {
+      return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    // isPublic=true 또는 내 반 전용 이벤트
+    const classIds = await resolveClassIds(studentId);
+
     const events = await prisma.calendarEvent.findMany({
       where: {
         academyId,

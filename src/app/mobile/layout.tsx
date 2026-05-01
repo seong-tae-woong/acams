@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import ToastContainer from '@/components/shared/ToastContainer';
 import SwRegister from '@/components/mobile/SwRegister';
+import MobileProviders from '@/components/mobile/MobileProviders';
 
 export const metadata: Metadata = {
   title: 'AcaMS — 학부모·학생 앱',
@@ -21,7 +22,9 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-screen bg-[#f4f6f8] flex flex-col max-w-[430px] mx-auto relative">
       <SwRegister />
-      {children}
+      <MobileProviders>
+        {children}
+      </MobileProviders>
       <ToastContainer />
     </div>
   );

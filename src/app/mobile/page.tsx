@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft } from 'lucide-react';
+import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X } from 'lucide-react';
 import clsx from 'clsx';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type StudentInfo = { id: string; name: string; avatarColor: string };
 type ClassInfo = {
@@ -27,11 +28,14 @@ function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDat
 function firstDayOfMonth(y: number, m: number) { const d = new Date(y, m, 1).getDay(); return d === 0 ? 6 : d - 1; }
 
 export default function MobileHomePage() {
+  const { role, allChildren, selectedChild, selectedChildId, setSelectedChildId } = useMobileChild();
+
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [unpaid, setUnpaid] = useState<BillInfo[]>([]);
   const [pinned, setPinned] = useState<AnnouncementInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showChildModal, setShowChildModal] = useState(false);
 
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
@@ -41,23 +45,28 @@ export default function MobileHomePage() {
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
+  const sid = selectedChildId ? `&studentId=${selectedChildId}` : '';
+
   useEffect(() => {
+    if (!selectedChildId) return;
+    setLoading(true);
     Promise.all([
-      fetch('/api/mobile/me').then((r) => r.json()),
-      fetch('/api/mobile/payments').then((r) => r.json()),
-      fetch('/api/mobile/announcements').then((r) => r.json()),
+      fetch(`/api/mobile/me?studentId=${selectedChildId}`).then((r) => r.json()),
+      fetch(`/api/mobile/payments?studentId=${selectedChildId}`).then((r) => r.json()),
+      fetch(`/api/mobile/announcements?studentId=${selectedChildId}`).then((r) => r.json()),
     ]).then(([me, pay, ann]) => {
       if (me.student) { setStudent(me.student); setClasses(me.classes ?? []); }
       if (pay.bills) setUnpaid(pay.bills.filter((b: BillInfo) => b.status !== 'PAID'));
       if (ann.announcements) setPinned(ann.announcements.find((a: AnnouncementInfo) => a.pinned) ?? null);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   useEffect(() => {
-    fetch(`/api/mobile/calendar?year=${calYear}&month=${calMonth + 1}`)
+    if (!selectedChildId) return;
+    fetch(`/api/mobile/calendar?year=${calYear}&month=${calMonth + 1}${sid}`)
       .then((r) => r.json())
       .then((data) => { if (data.events) setEvents(data.events); });
-  }, [calYear, calMonth]);
+  }, [calYear, calMonth, selectedChildId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const prevMonth = () => {
     setSelectedDate(null);
@@ -73,7 +82,12 @@ export default function MobileHomePage() {
   const todayDow = new Date().getDay() || 7;
   const todayClasses = classes.filter((c) => c.schedule.some((s) => s.dayOfWeek === todayDow));
 
-  if (loading) {
+  const isParent = role === 'parent';
+  const hasMultipleChildren = allChildren.length > 1;
+  const displayName = selectedChild?.name ?? student?.name ?? '학생';
+  const greeting = isParent ? `${displayName} 부모님` : `${displayName}님`;
+
+  if (loading && !student) {
     return (
       <div className="flex flex-col min-h-screen pb-20 bg-[#f4f6f8]">
         <div className="bg-[#1a2535] px-4 pt-12 pb-6 flex items-center justify-center min-h-[140px]">
@@ -91,16 +105,28 @@ export default function MobileHomePage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="text-[13px] text-[#4fc3a1] font-medium">AcaMS</div>
-            <div className="text-[20px] font-bold text-white mt-0.5">
-              안녕하세요, {student?.name ?? '학생'}님 👋
-            </div>
+            {/* 이름 + 자녀 전환 버튼 */}
+            <button
+              onClick={() => hasMultipleChildren && setShowChildModal(true)}
+              className={clsx(
+                'flex items-center gap-1 mt-0.5',
+                hasMultipleChildren ? 'cursor-pointer' : 'cursor-default',
+              )}
+            >
+              <span className="text-[20px] font-bold text-white">
+                안녕하세요, {greeting} 👋
+              </span>
+              {hasMultipleChildren && (
+                <ChevronDown size={18} className="text-white/70 mt-1" />
+              )}
+            </button>
           </div>
           <Link href="/mobile/profile">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center text-[16px] font-bold text-white"
-              style={{ backgroundColor: student?.avatarColor ?? '#4fc3a1' }}
+              style={{ backgroundColor: selectedChild?.avatarColor ?? student?.avatarColor ?? '#4fc3a1' }}
             >
-              {student?.name?.[0] ?? 'S'}
+              {displayName[0] ?? 'S'}
             </div>
           </Link>
         </div>
@@ -321,6 +347,64 @@ export default function MobileHomePage() {
         </div>
       </div>
       <BottomTabBar />
+
+      {/* 자녀 선택 모달 */}
+      {showChildModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={() => setShowChildModal(false)}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative w-full max-w-[430px] bg-white rounded-t-[20px] pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 핸들 */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 rounded-full bg-[#e2e8f0]" />
+            </div>
+            <div className="flex items-center justify-between px-5 pb-4 border-b border-[#f1f5f9]">
+              <span className="text-[15px] font-bold text-[#111827]">자녀 선택</span>
+              <button onClick={() => setShowChildModal(false)}>
+                <X size={20} className="text-[#6b7280]" />
+              </button>
+            </div>
+            <div className="px-4 pt-3 space-y-2">
+              {allChildren.map((child) => {
+                const isSelected = child.id === selectedChildId;
+                return (
+                  <button
+                    key={child.id}
+                    onClick={() => {
+                      setSelectedChildId(child.id);
+                      setShowChildModal(false);
+                    }}
+                    className={clsx(
+                      'w-full flex items-center gap-3 px-4 py-3.5 rounded-[12px] border transition-colors',
+                      isSelected
+                        ? 'border-[#4fc3a1] bg-[#f0fdf9]'
+                        : 'border-[#e2e8f0] bg-white active:bg-[#f4f6f8]',
+                    )}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-[15px] font-bold text-white shrink-0"
+                      style={{ backgroundColor: child.avatarColor }}
+                    >
+                      {child.name[0]}
+                    </div>
+                    <span className="flex-1 text-left text-[14px] font-medium text-[#111827]">
+                      {child.name}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[12px] font-semibold text-[#4fc3a1]">선택됨</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

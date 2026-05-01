@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { resolveStudentId } from '@/lib/mobile/resolveStudent';
 
-// GET /api/mobile/grades
-// role=student → 본인 성적, role=parent → 자녀 성적
+// GET /api/mobile/grades?studentId=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   const userId = req.headers.get('x-user-id');
@@ -11,41 +11,23 @@ export async function GET(req: NextRequest) {
   if (!academyId || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (role !== 'student' && role !== 'parent') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
+
+  const requestedStudentId = new URL(req.url).searchParams.get('studentId');
 
   try {
-    let studentId: string | null = null;
-    let studentName = '';
-
-    if (role === 'student') {
-      // 학생 본인
-      const student = await prisma.student.findFirst({
-        where: { userId, academyId },
-        select: { id: true, name: true },
-      });
-      if (!student) return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
-      studentId = student.id;
-      studentName = student.name;
-    } else if (role === 'parent') {
-      // 학부모 → 첫 번째 자녀
-      const parent = await prisma.parent.findFirst({
-        where: { userId },
-        include: {
-          children: {
-            include: { student: { select: { id: true, name: true } } },
-            take: 1,
-          },
-        },
-      });
-      if (!parent || parent.children.length === 0) {
-        return NextResponse.json({ error: '자녀 정보를 찾을 수 없습니다.' }, { status: 404 });
-      }
-      studentId = parent.children[0].student.id;
-      studentName = parent.children[0].student.name;
-    } else {
-      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
+    if (!studentId) {
+      return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    // 성적 + 시험 정보 조회
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { name: true },
+    });
+
     const gradeRecords = await prisma.gradeRecord.findMany({
       where: { academyId, studentId },
       include: {
@@ -75,7 +57,7 @@ export async function GET(req: NextRequest) {
       },
     }));
 
-    return NextResponse.json({ studentName, grades });
+    return NextResponse.json({ studentName: student?.name ?? '', grades });
   } catch (err) {
     console.error('[GET /api/mobile/grades]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

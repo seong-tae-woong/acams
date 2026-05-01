@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { resolveStudentId } from '@/lib/mobile/resolveStudent';
 
-// GET /api/mobile/attendance?month=YYYY-MM
+// GET /api/mobile/attendance?month=YYYY-MM&studentId=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   const userId = req.headers.get('x-user-id');
@@ -10,34 +11,16 @@ export async function GET(req: NextRequest) {
   if (!academyId || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (role !== 'student' && role !== 'parent') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
-  const month = searchParams.get('month'); // YYYY-MM
+  const month = searchParams.get('month');
+  const requestedStudentId = searchParams.get('studentId');
 
   try {
-    let studentId: string | null = null;
-
-    if (role === 'student') {
-      const s = await prisma.student.findFirst({
-        where: { userId, academyId },
-        select: { id: true },
-      });
-      studentId = s?.id ?? null;
-    } else if (role === 'parent') {
-      const parent = await prisma.parent.findFirst({
-        where: { userId },
-        include: {
-          children: {
-            include: { student: { select: { id: true } } },
-            take: 1,
-          },
-        },
-      });
-      studentId = parent?.children[0]?.student.id ?? null;
-    } else {
-      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
-    }
-
+    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
     if (!studentId) {
       return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }

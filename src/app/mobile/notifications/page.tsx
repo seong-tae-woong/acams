@@ -5,6 +5,7 @@ import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { ChevronLeft, Bell, CreditCard, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type NotificationType = '공지' | '출결알림' | '수납알림' | '상담알림' | '일반';
 
@@ -213,13 +214,16 @@ function NotificationCard({ notif }: { notif: NotificationItem }) {
 }
 
 export default function MobileNotificationsPage() {
+  const { selectedChildId } = useMobileChild();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
 
   useEffect(() => {
-    fetch('/api/mobile/notifications')
+    if (!selectedChildId) return;
+    setLoading(true);
+    fetch(`/api/mobile/notifications?studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) { setError(data.error); return; }
@@ -227,7 +231,7 @@ export default function MobileNotificationsPage() {
       })
       .catch(() => setError('알림을 불러올 수 없습니다.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
   const filtered = filter === 'all' ? notifications : notifications.filter((n) => n.type === filter);

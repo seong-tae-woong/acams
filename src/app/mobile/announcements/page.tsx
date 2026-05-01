@@ -4,6 +4,7 @@ import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { ChevronLeft, ChevronRight, Pin } from 'lucide-react';
 import Link from 'next/link';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type AnnouncementItem = {
   id: string;
@@ -17,13 +18,16 @@ type AnnouncementItem = {
 };
 
 export default function MobileAnnouncementsPage() {
+  const { selectedChildId } = useMobileChild();
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/mobile/announcements')
+    if (!selectedChildId) return;
+    setLoading(true);
+    fetch(`/api/mobile/announcements?studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) { setError(data.error); return; }
@@ -31,7 +35,7 @@ export default function MobileAnnouncementsPage() {
       })
       .catch(() => setError('데이터를 불러올 수 없습니다.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   const selected = announcements.find((a) => a.id === selectedId);
 

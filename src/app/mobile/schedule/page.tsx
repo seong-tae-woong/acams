@@ -4,6 +4,7 @@ import BottomTabBar from '@/components/mobile/BottomTabBar';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type ClassInfo = {
   id: string; name: string; color: string; subject: string; room: string; teacherName: string;
@@ -15,15 +16,18 @@ const DAYS = [1, 2, 3, 4, 5] as const;
 const HOURS = ['14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
 
 export default function MobileSchedulePage() {
+  const { selectedChildId } = useMobileChild();
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/mobile/me')
+    if (!selectedChildId) return;
+    setLoading(true);
+    fetch(`/api/mobile/me?studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => { if (data.classes) setClasses(data.classes); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   return (
     <div className="flex flex-col pb-20">

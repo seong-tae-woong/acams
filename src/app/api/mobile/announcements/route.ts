@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
 
-// GET /api/mobile/announcements
-// 본인 반(classId) 공지 + 전체 공지(classId=null) 반환
+// GET /api/mobile/announcements?studentId=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   const userId = req.headers.get('x-user-id');
@@ -11,51 +11,20 @@ export async function GET(req: NextRequest) {
   if (!academyId || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (role !== 'student' && role !== 'parent') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
+
+  const requestedStudentId = new URL(req.url).searchParams.get('studentId');
 
   try {
-    // 수강 중인 반 목록 조회
-    let classIds: string[] = [];
-
-    if (role === 'student') {
-      const student = await prisma.student.findFirst({
-        where: { userId, academyId },
-        select: { id: true },
-      });
-      if (student) {
-        const enrollments = await prisma.classEnrollment.findMany({
-          where: { studentId: student.id, isActive: true },
-          select: { classId: true },
-        });
-        classIds = enrollments.map((e) => e.classId);
-      }
-    } else if (role === 'parent') {
-      const parent = await prisma.parent.findFirst({
-        where: { userId },
-        include: {
-          children: {
-            include: {
-              student: {
-                include: {
-                  classEnrollments: {
-                    where: { isActive: true },
-                    select: { classId: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
-      if (parent) {
-        classIds = parent.children.flatMap((c) =>
-          c.student.classEnrollments.map((e) => e.classId)
-        );
-      }
-    } else {
-      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
+    if (!studentId) {
+      return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }
 
-    // classId=null(전체) 또는 내 반에 해당하는 PUBLISHED 공지
+    const classIds = await resolveClassIds(studentId);
+
     const announcements = await prisma.announcement.findMany({
       where: {
         academyId,

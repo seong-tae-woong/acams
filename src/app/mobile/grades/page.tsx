@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type ExamInfo = {
   id: string;
@@ -28,13 +29,16 @@ type GradeItem = {
 };
 
 export default function MobileGradesPage() {
+  const { selectedChildId } = useMobileChild();
   const [studentName, setStudentName] = useState('');
   const [grades, setGrades] = useState<GradeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/mobile/grades')
+    if (!selectedChildId) return;
+    setLoading(true);
+    fetch(`/api/mobile/grades?studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) { setError(data.error); return; }
@@ -43,7 +47,7 @@ export default function MobileGradesPage() {
       })
       .catch(() => setError('데이터를 불러올 수 없습니다.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   const scoredGrades = grades.filter((g) => g.score !== null);
   const avg = scoredGrades.length > 0

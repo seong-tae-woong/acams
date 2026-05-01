@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { formatPhone } from '@/lib/utils/format';
 import { ChevronLeft, QrCode, Phone, School, LogOut } from 'lucide-react';
 import Link from 'next/link';
+import { useMobileChild } from '@/contexts/MobileChildContext';
 
 type StudentInfo = {
   id: string; name: string; school: string; grade: number;
@@ -24,20 +25,23 @@ async function handleLogout() {
 }
 
 export default function MobileProfilePage() {
+  const { selectedChildId } = useMobileChild();
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
 
   useEffect(() => {
-    fetch('/api/mobile/me')
+    if (!selectedChildId) return;
+    setLoading(true);
+    fetch(`/api/mobile/me?studentId=${selectedChildId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.student) setStudent(data.student);
         if (data.classes) setClasses(data.classes);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedChildId]);
 
   if (loading) {
     return (
