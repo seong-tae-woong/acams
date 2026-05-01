@@ -8,7 +8,7 @@ import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
-import { Shield, Plus, KeyRound, X, RefreshCw, Globe, Copy, ExternalLink } from 'lucide-react';
+import { Shield, Plus, KeyRound, X, RefreshCw, Globe, Copy, ExternalLink, QrCode } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [academyName, setAcademyName] = useState('세계로학원');
   const [academyPhone, setAcademyPhone] = useState('02-1234-5678');
   const [savingPerm, setSavingPerm] = useState(false);
+  const [kioskSlug, setKioskSlug] = useState('');
 
   // 강사 추가 모달
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -73,6 +74,9 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchTeachers();
     fetchClasses();
+    fetch('/api/settings/academy')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.slug) setKioskSlug(data.slug); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -425,6 +429,47 @@ export default function SettingsPage() {
 
           {activeTab === 'academy' && (
             <div className="space-y-4 max-w-xl">
+              {/* 키오스크 URL */}
+              <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <QrCode size={14} className="text-[#4fc3a1]" />
+                  <span className="text-[13px] font-semibold text-[#111827]">QR 출석 키오스크 URL</span>
+                </div>
+                <p className="text-[11.5px] text-[#6b7280] mb-3">
+                  학원 입구 태블릿·폰 브라우저에서 아래 URL을 접속하면 QR 출석 키오스크가 시작됩니다.
+                </p>
+                {kioskSlug ? (
+                  <div className="flex items-center gap-2 bg-[#f4f6f8] rounded-[8px] px-3 py-2.5">
+                    <span className="text-[12px] text-[#374151] flex-1 font-mono truncate">
+                      {typeof window !== 'undefined' ? window.location.origin : ''}/kiosk?academy={kioskSlug}
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/kiosk?academy=${kioskSlug}`);
+                        toast('키오스크 URL이 복사되었습니다.', 'success');
+                      }}
+                      className="text-[#9ca3af] hover:text-[#4fc3a1] transition-colors cursor-pointer shrink-0"
+                      title="URL 복사"
+                    >
+                      <Copy size={13} />
+                    </button>
+                    <a
+                      href={`/kiosk?academy=${kioskSlug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#9ca3af] hover:text-[#4fc3a1] transition-colors shrink-0"
+                      title="키오스크 열기"
+                    >
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-[#9ca3af]">
+                    공개 페이지 탭에서 학원 슬러그를 먼저 설정해주세요.
+                  </p>
+                )}
+              </div>
+
               <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
                 <div className="text-[13px] font-semibold text-[#111827] mb-2">학원 기본 정보</div>
                 {[
