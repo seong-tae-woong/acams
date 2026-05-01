@@ -16,6 +16,8 @@ const PUBLIC_PATHS = [
   '/academy',           // 학원 공개 소개 페이지
   '/api/academy',       // 학원 공개 API
   '/api/gallery-proxy', // Private Blob 이미지 프록시
+  '/api/kiosk/session', // 키오스크 QR 토큰 발급 (인증 불필요)
+  '/api/kiosk/recent',  // 키오스크 최근 체크인 조회 (인증 불필요)
 ];
 
 function isPublic(pathname: string) {

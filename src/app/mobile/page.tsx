@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
-import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X } from 'lucide-react';
+import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
 
@@ -287,6 +287,23 @@ export default function MobileHomePage() {
             </div>
           );
         })()}
+
+        {/* 학생 전용: QR 출석 체크 */}
+        {!isParent && (
+          <Link
+            href="/mobile/attendance-check"
+            className="bg-[#4fc3a1] rounded-[12px] p-4 flex items-center gap-3 active:opacity-80"
+          >
+            <div className="w-9 h-9 rounded-[10px] bg-white/20 flex items-center justify-center shrink-0">
+              <QrCode size={20} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <div className="text-[14px] font-bold text-white">출석 체크</div>
+              <div className="text-[11.5px] text-white/80">QR 코드로 출석 확인</div>
+            </div>
+            <ChevronRight size={18} className="text-white/70" />
+          </Link>
+        )}
 
         {/* 바로가기 메뉴 */}
         <div className="grid grid-cols-2 gap-3">
