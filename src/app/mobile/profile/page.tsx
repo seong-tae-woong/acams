@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { formatPhone } from '@/lib/utils/format';
-import { ChevronLeft, QrCode, Phone, School, LogOut } from 'lucide-react';
+import { ChevronLeft, Phone, School, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useMobileChild } from '@/contexts/MobileChildContext';
 
@@ -29,7 +29,6 @@ export default function MobileProfilePage() {
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showQR, setShowQR] = useState(false);
 
   useEffect(() => {
     if (!selectedChildId) return;
@@ -89,35 +88,6 @@ export default function MobileProfilePage() {
 
       <MobileContentLoader loading={loading}>
       <div className="px-4 py-4 space-y-3">
-        {/* QR 코드 */}
-        <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[13px] font-semibold text-[#111827]">출결 QR 코드</span>
-            <button onClick={() => setShowQR(!showQR)} className="text-[12px] text-[#4fc3a1] font-medium cursor-pointer">
-              {showQR ? '숨기기' : '보기'}
-            </button>
-          </div>
-          {showQR ? (
-            <div className="flex flex-col items-center py-4">
-              <div className="w-40 h-40 bg-[#f4f6f8] rounded-[10px] flex flex-col items-center justify-center gap-2 border-2 border-[#e2e8f0]">
-                <QrCode size={64} className="text-[#1a2535]" />
-                <span className="text-[11px] text-[#6b7280]">{student?.qrCode}</span>
-              </div>
-              <p className="text-[11.5px] text-[#9ca3af] mt-3 text-center">
-                키오스크에 QR 코드를 스캔하거나<br />출석번호를 입력하세요
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 bg-[#f4f6f8] rounded-[10px] p-3">
-              <QrCode size={32} className="text-[#4fc3a1]" />
-              <div>
-                <div className="text-[12.5px] font-medium text-[#111827]">QR로 빠른 출결 체크</div>
-                <div className="text-[11.5px] text-[#6b7280]">보기를 눌러 QR 코드를 확인하세요</div>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* 연락처 */}
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
           <div className="text-[13px] font-semibold text-[#111827] mb-3">연락처</div>
