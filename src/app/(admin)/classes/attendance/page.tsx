@@ -7,7 +7,7 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { AttendanceStatus } from '@/lib/types/attendance';
 import { DAY_NAMES } from '@/lib/types/class';
 import clsx from 'clsx';
-import { CheckCheck, XCircle, Save, Bell, CalendarDays } from 'lucide-react';
+import { CheckCheck, XCircle, Save, Bell, CalendarDays, RefreshCw } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import AttendanceCalendarModal from '@/components/admin/AttendanceCalendarModal';
@@ -30,6 +30,29 @@ export default function ClassAttendancePage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [attMap, setAttMap] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);
+  const [loadingAtt, setLoadingAtt] = useState(false);
+
+  const loadAttendance = useCallback(async (classId: string, date: string) => {
+    setLoadingAtt(true);
+    try {
+      const res = await fetch(`/api/attendance?classId=${classId}&date=${date}`);
+      const data = await res.json();
+      if (data.records) {
+        const map: Record<string, AttendanceStatus> = {};
+        data.records.forEach((r: { studentId: string; status: string }) => {
+          map[r.studentId] = r.status as AttendanceStatus;
+        });
+        setAttMap(map);
+        setSaved(false);
+      }
+    } finally {
+      setLoadingAtt(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedClassId && selectedDate) loadAttendance(selectedClassId, selectedDate);
+  }, [selectedClassId, selectedDate, loadAttendance]);
 
   // 출결 현황 팝업
   const [attModalStudentId, setAttModalStudentId] = useState<string | null>(null);
@@ -130,6 +153,9 @@ export default function ClassAttendancePage() {
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => loadAttendance(selectedClassId!, selectedDate)} disabled={loadingAtt}>
+                  <RefreshCw size={13} className={loadingAtt ? 'animate-spin' : ''} /> 새로고침
+                </Button>
                 <Button variant="primary" size="sm" onClick={() => setAll(AttendanceStatus.PRESENT)}>
                   <CheckCheck size={13} /> 전체 출석
                 </Button>
