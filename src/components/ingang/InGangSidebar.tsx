@@ -9,16 +9,7 @@ const NAV = [
     items: [
       { label: '강의 목록',    href: '/ingang/lectures' },
       { label: '강의 등록',    href: '/ingang/lectures/new' },
-      { label: '강의 분류/태그', href: '/ingang/lectures/tags' },
-      { label: '수강 대상 지정', href: '/ingang/lectures/targets' },
-    ],
-  },
-  {
-    group: '시험 관리',
-    items: [
-      { label: '시험 출제',    href: '/ingang/exams' },
-      { label: '이수 조건 설정', href: '/ingang/lectures/targets', tab: 'cond' },
-      { label: '재응시 관리',  href: '/ingang/lectures/targets', tab: 'retry' },
+      { label: '강의 세부사항', href: '/ingang/lectures/targets' },
     ],
   },
   {
@@ -35,7 +26,6 @@ const NAV = [
 
 // Tab-aware pages — active only when no tab present
 const TAB_PAGES = [
-  '/ingang/lectures/targets',
   '/ingang/completion',
   '/ingang/completion/notifications',
 ];

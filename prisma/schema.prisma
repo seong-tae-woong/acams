@@ -60,6 +60,9 @@ model Academy {
   lectureSeries          LectureSeries[]
   customTags             AcademyTag[]
   notificationTemplates  NotificationTemplate[]
+  lectureQuizzes         LectureQuiz[]
+  lectureQuizAttempts    LectureQuizAttempt[]
+  lectureRetryPerms      LectureRetryPermission[]
 
   @@map("academies")
 }
@@ -89,6 +92,7 @@ model User {
   teacherProfile   Teacher?       @relation("TeacherUser")
   parentProfile    Parent?        @relation("ParentUser")
   studentProfile   Student?       @relation("StudentUser")
+  retryPermsGiven  LectureRetryPermission[]
 
   @@unique([academyId, loginId])
   @@map("users")
@@ -134,6 +138,8 @@ model Student {
   bills            Bill[]
   makeupTargets    MakeupClassTarget[]
   consultations    ConsultationRecord[]
+  quizAttempts     LectureQuizAttempt[]
+  retryPerms       LectureRetryPermission[]
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -731,6 +737,7 @@ model Lecture {
   status       LectureStatus @default(DRAFT)
 
   targets      LectureTarget[]
+  quiz         LectureQuiz?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -773,4 +780,85 @@ model AcademyTag {
 
   @@unique([academyId, tagType, label])
   @@map("academy_tags")
+}
+
+// ─────────────────────────────────────────────
+// IN-GANG QUIZ (인강 시험)
+// ─────────────────────────────────────────────
+
+model LectureQuiz {
+  id         String   @id @default(cuid())
+  academyId  String
+  academy    Academy  @relation(fields: [academyId], references: [id])
+  lectureId  String   @unique
+  lecture    Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  passScore  Int      @default(70)
+  maxTries   Int      @default(3)
+  examCond   String   @default("after100") // "after100" | "anytime"
+
+  questions  LectureQuestion[]
+  attempts   LectureQuizAttempt[]
+  retryPerms LectureRetryPermission[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("lecture_quizzes")
+}
+
+model LectureQuestion {
+  id         String   @id @default(cuid())
+  quizId     String
+  quiz       LectureQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  orderIndex Int      @default(0)
+  text       String
+  score      Int      @default(20)
+  options    LectureQuestionOption[]
+
+  @@map("lecture_questions")
+}
+
+model LectureQuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  question   LectureQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  orderIndex Int      @default(0)
+  text       String
+  isCorrect  Boolean  @default(false)
+
+  @@map("lecture_question_options")
+}
+
+model LectureQuizAttempt {
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id])
+  quizId    String
+  quiz      LectureQuiz @relation(fields: [quizId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  score     Float
+  isPassed  Boolean
+
+  createdAt DateTime @default(now())
+
+  @@map("lecture_quiz_attempts")
+}
+
+model LectureRetryPermission {
+  id          String   @id @default(cuid())
+  academyId   String
+  academy     Academy  @relation(fields: [academyId], references: [id])
+  quizId      String
+  quiz        LectureQuiz @relation(fields: [quizId], references: [id])
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  allowedById String
+  allowedBy   User     @relation(fields: [allowedById], references: [id])
+  usedAt      DateTime?
+
+  createdAt   DateTime @default(now())
+
+  @@map("lecture_retry_permissions")
 }
