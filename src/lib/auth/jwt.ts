@@ -5,6 +5,7 @@ export interface JwtPayload {
   role: string;
   academyId: string | null;
   name: string;
+  tokenVersion: number;
 }
 
 const SECRET = process.env.JWT_SECRET!;

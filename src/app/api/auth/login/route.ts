@@ -41,12 +41,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user || !user.isActive) {
-      return NextResponse.json({ error: '아이디를 확인하세요.' }, { status: 401 });
+      return NextResponse.json({ error: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      return NextResponse.json({ error: '비밀번호를 확인하세요.' }, { status: 401 });
+      return NextResponse.json({ error: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
     }
 
     const token = signToken({
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       role: user.role,
       academyId: user.academyId,
       name: user.name,
+      tokenVersion: user.tokenVersion,
     });
 
     await setAuthCookie(token);

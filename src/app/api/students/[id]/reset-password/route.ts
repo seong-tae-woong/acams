@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
+import { sendSms } from '@/lib/sms/aligo';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -40,14 +41,18 @@ export async function POST(
 
     if (target === 'parent') {
       const parentUser = student.parentLinks[0]?.parent?.user;
+      const parentPhone = student.parentLinks[0]?.parent?.phone;
       if (!parentUser) {
         return NextResponse.json({ error: '학부모 계정이 없습니다.' }, { status: 404 });
       }
       await prisma.user.update({
         where: { id: parentUser.id },
-        data: { passwordHash },
+        data: { passwordHash, tokenVersion: { increment: 1 } },
       });
-      return NextResponse.json({ tempPassword, loginId: parentUser.loginId });
+      if (parentPhone) {
+        await sendSms(parentPhone, `[AcaMS] 비밀번호 초기화\nID: ${parentUser.loginId}\n임시PW: ${tempPassword}`);
+      }
+      return NextResponse.json({ loginId: parentUser.loginId });
     } else {
       // student (default)
       if (!student.user) {
@@ -55,9 +60,12 @@ export async function POST(
       }
       await prisma.user.update({
         where: { id: student.user.id },
-        data: { passwordHash },
+        data: { passwordHash, tokenVersion: { increment: 1 } },
       });
-      return NextResponse.json({ tempPassword, loginId: student.user.loginId });
+      if (student.phone) {
+        await sendSms(student.phone, `[AcaMS] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`);
+      }
+      return NextResponse.json({ loginId: student.user.loginId });
     }
   } catch (err) {
     console.error('[POST /api/students/[id]/reset-password]', err);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
+import { sendSms } from '@/lib/sms/aligo';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -242,15 +243,20 @@ export async function POST(req: NextRequest) {
       include: STUDENT_INCLUDE,
     });
 
+    // 비밀번호 SMS 발송 (응답에서 제외)
+    const smsPromises: Promise<void>[] = [];
+    if (studentLoginId && phone) {
+      smsPromises.push(sendSms(phone, `[AcaMS] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`));
+    }
+    if (isNewParent && parentPhone) {
+      smsPromises.push(sendSms(parentPhone, `[AcaMS] 학부모 계정\nID: ${parentPhone}\n임시PW: ${parentTempPassword}`));
+    }
+    await Promise.all(smsPromises);
+
     return NextResponse.json(
       {
         ...mapStudent(created!),
         studentLoginId: studentLoginId ?? null,
-        tempPasswords: {
-          student: studentLoginId ? studentTempPassword : null,
-          // 기존 부모 계정에 연결된 경우 임시 비밀번호 불필요
-          parent: isNewParent && parentPhone ? parentTempPassword : null,
-        },
       },
       { status: 201 }
     );

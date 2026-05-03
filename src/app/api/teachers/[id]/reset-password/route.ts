@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
+import { sendSms } from '@/lib/sms/aligo';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -40,10 +41,14 @@ export async function POST(
 
     await prisma.user.update({
       where: { id: teacher.user.id },
-      data: { passwordHash },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
     });
 
-    return NextResponse.json({ tempPassword, loginId: teacher.user.loginId });
+    if (teacher.phone) {
+      await sendSms(teacher.phone, `[AcaMS] 비밀번호 초기화\nID: ${teacher.user.loginId ?? teacher.email}\n임시PW: ${tempPassword}`);
+    }
+
+    return NextResponse.json({ loginId: teacher.user.loginId });
   } catch (err) {
     console.error('[POST /api/teachers/[id]/reset-password]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

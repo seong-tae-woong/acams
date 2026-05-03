@@ -48,12 +48,12 @@ export async function loginAction(
     }
 
     if (!user || !user.isActive) {
-      return { error: '아이디를 확인하세요.' };
+      return { error: '아이디 또는 비밀번호가 일치하지 않습니다.' };
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      return { error: '비밀번호를 확인하세요.' };
+      return { error: '아이디 또는 비밀번호가 일치하지 않습니다.' };
     }
 
     const token = signToken({
@@ -61,6 +61,7 @@ export async function loginAction(
       role: user.role,
       academyId: user.academyId,
       name: user.name,
+      tokenVersion: user.tokenVersion,
     });
 
     await setAuthCookie(token);

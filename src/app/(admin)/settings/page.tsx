@@ -40,7 +40,7 @@ export default function SettingsPage() {
   // 강사 추가 모달
   const [registerOpen, setRegisterOpen] = useState(false);
   const [regForm, setRegForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
-  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
+  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string } | null>(null);
 
   // 강사 정보 수정 모달
   const [editOpen, setEditOpen] = useState(false);
@@ -50,7 +50,7 @@ export default function SettingsPage() {
   // 비밀번호 초기화
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string } | null>(null);
 
   // 공개 프로필 상태
   const [profileForm, setProfileForm] = useState({
@@ -269,7 +269,7 @@ export default function SettingsPage() {
     if (!regForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
     if (!regForm.email.trim()) { toast('이메일을 입력해주세요.', 'error'); return; }
     try {
-      const { tempPassword } = await addTeacher({
+      await addTeacher({
         name: regForm.name.trim(),
         subject: regForm.subject.trim(),
         phone: regForm.phone.trim(),
@@ -280,7 +280,7 @@ export default function SettingsPage() {
         avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
       });
       setRegisterOpen(false);
-      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim(), tempPassword });
+      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim() });
       setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
     } catch { /* store handles error */ }
   };
@@ -810,10 +810,10 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
-              <span className="font-mono font-bold text-[#4fc3a1] text-[15px] tracking-wider">{resetResult?.tempPassword}</span>
+              <span className="text-[#4fc3a1] font-medium">강사 연락처로 SMS 발송됨</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 강사 연락처로 SMS 발송되었습니다.</p>
         </div>
       </Modal>
 
@@ -907,10 +907,10 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="font-mono font-medium text-[#4fc3a1] text-[14px] tracking-wider">{credentialModal?.tempPassword}</span>
+              <span className="text-[#4fc3a1] font-medium">강사 연락처로 SMS 발송됨</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 강사 연락처로 SMS 발송되었습니다.</p>
         </div>
       </Modal>
     </div>

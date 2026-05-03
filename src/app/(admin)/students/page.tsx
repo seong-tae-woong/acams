@@ -98,9 +98,7 @@ const EMPTY_FORM: StudentForm = {
 interface PostRegisterInfo {
   newStudentId: string;
   studentLoginId: string;
-  studentTempPw: string | null;
   parentLoginId: string;
-  parentTempPw: string | null;
   siblingCandidates: Array<{ id: string; name: string; school: string; grade: number; avatarColor: string }>;
 }
 
@@ -226,7 +224,7 @@ export default function StudentsPage() {
 
   // 비밀번호 초기화
   const [resetTarget, setResetTarget] = useState<'student' | 'parent' | null>(null);
-  const [resetResult, setResetResult] = useState<{ loginId: string | null; tempPassword: string; target: 'student' | 'parent' } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string | null; target: 'student' | 'parent' } | null>(null);
   const [resetting, setResetting] = useState(false);
 
   // 상담 예정 일정
@@ -416,7 +414,7 @@ export default function StudentsPage() {
       .map(({ id, name, school, grade, avatarColor }) => ({ id, name, school, grade, avatarColor }));
 
     try {
-      const { tempPasswords, studentLoginId } = await addStudent({
+      const { studentLoginId } = await addStudent({
         ...registerForm,
         school: `${registerForm.school.trim()}${registerForm.schoolLevel}`,
         grade: Number(registerForm.grade),
@@ -435,9 +433,7 @@ export default function StudentsPage() {
       setPostRegister({
         newStudentId,
         studentLoginId: studentLoginId ?? attendanceNumber,
-        studentTempPw: tempPasswords.student,
         parentLoginId: registerForm.parentPhone,
-        parentTempPw: tempPasswords.parent,
         siblingCandidates,
       });
     } catch {
@@ -500,7 +496,7 @@ export default function StudentsPage() {
         return;
       }
       setResetTarget(null);
-      setResetResult({ loginId: data.loginId, tempPassword: data.tempPassword, target });
+      setResetResult({ loginId: data.loginId, target });
     } catch {
       toast('네트워크 오류가 발생했습니다.', 'error');
     } finally {
@@ -1287,10 +1283,10 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
-              <span className="font-mono font-bold text-[#4fc3a1] text-[15px] tracking-wider">{resetResult?.tempPassword}</span>
+              <span className="text-[#4fc3a1] font-medium">연락처로 SMS 발송됨</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 등록된 연락처로 SMS 발송되었습니다.</p>
         </div>
       </Modal>
 
@@ -1322,7 +1318,7 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="font-mono font-medium text-[#4fc3a1] text-[14px] tracking-wider">{postRegister?.studentTempPw ?? '—'}</span>
+              <span className="text-[#4fc3a1] font-medium">학생 연락처로 SMS 발송됨</span>
             </div>
           </div>
           <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
@@ -1335,10 +1331,10 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="font-mono font-medium text-[#4fc3a1] text-[14px] tracking-wider">{postRegister?.parentTempPw ?? '—'}</span>
+              <span className="text-[#4fc3a1] font-medium">보호자 연락처로 SMS 발송됨</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">이 화면을 닫으면 임시 비밀번호를 다시 확인할 수 없습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 각 연락처로 SMS 발송되었습니다.</p>
           {postRegister?.siblingCandidates.length ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">
               <div className="text-[12.5px] font-semibold text-[#92400e] mb-2">형제/자매 감지</div>

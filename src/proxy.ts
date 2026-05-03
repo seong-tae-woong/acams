@@ -37,7 +37,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { userId?: string; role?: string; academyId?: string | null; name?: string };
+  let payload: { userId?: string; role?: string; academyId?: string | null; name?: string; tokenVersion?: number };
   try {
     const { payload: p } = await jwtVerify(token, SECRET);
     payload = p as typeof payload;
@@ -81,6 +81,7 @@ export async function proxy(req: NextRequest) {
   requestHeaders.set('x-user-role', role);
   requestHeaders.set('x-academy-id', academyId);
   requestHeaders.set('x-user-name', encodeURIComponent(payload.name ?? ''));
+  requestHeaders.set('x-token-version', String(payload.tokenVersion ?? 0));
 
   return NextResponse.next({ request: { headers: requestHeaders } });
 }

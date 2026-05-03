@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import type { TeacherPermissions } from '@/lib/types/teacher';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
+import { sendSms } from '@/lib/sms/aligo';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -97,10 +98,11 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    return NextResponse.json(
-      { ...mapTeacher(teacher), tempPassword },
-      { status: 201 }
-    );
+    if (phone) {
+      await sendSms(phone, `[AcaMS] 강사 계정\nID: ${email}\n임시PW: ${tempPassword}`);
+    }
+
+    return NextResponse.json(mapTeacher(teacher), { status: 201 });
   } catch (err) {
     console.error('[POST /api/teachers]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

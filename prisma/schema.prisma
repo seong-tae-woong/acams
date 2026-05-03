@@ -82,9 +82,10 @@ model User {
   passwordHash String
   name         String
   role         UserRole
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  isActive      Boolean   @default(true)
+  tokenVersion  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   academyId    String?
   academy      Academy?  @relation(fields: [academyId], references: [id])
