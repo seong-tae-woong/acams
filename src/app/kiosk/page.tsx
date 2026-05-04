@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, QrCode, Wifi, WifiOff, Settings } from 'lucide-react';
+import { CheckCircle, QrCode, Wifi, WifiOff, Settings, Hash, X, AlertCircle } from 'lucide-react';
 
 interface CheckIn {
   id: string;
@@ -9,6 +9,8 @@ interface CheckIn {
   checkInTime: string | null;
   status: string;
 }
+
+type ModalStep = 'input' | 'confirm' | 'result';
 
 const DAY_NAMES: Record<number, string> = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일' };
 
@@ -29,6 +31,23 @@ export default function KioskPage() {
   const [recentCheckIns, setRecentCheckIns] = useState<CheckIn[]>([]);
   const [flashCheckIn, setFlashCheckIn] = useState<CheckIn | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  // 출결번호 모달 상태
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalStep, setModalStep] = useState<ModalStep>('input');
+  const [numberInput, setNumberInput] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [confirmedStudent, setConfirmedStudent] = useState<{ studentName: string; studentId: string } | null>(null);
+  const [checkInResult, setCheckInResult] = useState<{
+    studentName: string;
+    className: string;
+    checkInTime: string;
+    status: string;
+    alreadyChecked: boolean;
+  } | null>(null);
+  const numberInputRef = useRef<HTMLInputElement>(null);
 
   // URL 파라미터 또는 localStorage에서 학원 ID 로드
   useEffect(() => {
@@ -125,6 +144,67 @@ export default function KioskPage() {
     seenIdsRef.current.clear();
   };
 
+  const openModal = () => {
+    setModalStep('input');
+    setNumberInput('');
+    setLookupError('');
+    setConfirmedStudent(null);
+    setCheckInResult(null);
+    setModalOpen(true);
+    setTimeout(() => numberInputRef.current?.focus(), 50);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+  };
+
+  const handleLookup = async () => {
+    const num = numberInput.trim();
+    if (!num) return;
+    setLookupLoading(true);
+    setLookupError('');
+    try {
+      const res = await fetch(
+        `/api/kiosk/check-in-by-number?attendanceNumber=${encodeURIComponent(num)}&academy=${encodeURIComponent(academyParam)}`
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setLookupError(data.error ?? '학생을 찾을 수 없습니다.');
+        return;
+      }
+      setConfirmedStudent({ studentName: data.studentName, studentId: data.studentId });
+      setModalStep('confirm');
+    } catch {
+      setLookupError('서버 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const handleConfirmCheckIn = async () => {
+    setConfirmLoading(true);
+    try {
+      const res = await fetch('/api/kiosk/check-in-by-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendanceNumber: numberInput.trim(), academy: academyParam }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLookupError(data.error ?? '출석 체크에 실패했습니다.');
+        setModalStep('input');
+        return;
+      }
+      setCheckInResult(data);
+      setModalStep('result');
+    } catch {
+      setLookupError('서버 오류가 발생했습니다.');
+      setModalStep('input');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
   // ── 설정 화면 ──────────────────────────────────────────────
   if (!academyParam) {
     return (
@@ -169,6 +249,155 @@ export default function KioskPage() {
         </div>
       )}
 
+      {/* 출결번호 입력 모달 */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal} />
+          <div className="relative bg-[#1a2535] rounded-[24px] w-full max-w-sm mx-4 shadow-2xl overflow-hidden">
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Hash size={20} className="text-[#4fc3a1]" />
+                <span className="text-white font-bold text-[18px]">출결번호 직접 입력</span>
+              </div>
+              <button onClick={closeModal} className="text-white/40 hover:text-white/70 cursor-pointer transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 입력 단계 */}
+            {modalStep === 'input' && (
+              <div className="px-6 py-6 space-y-5">
+                <div>
+                  <label className="block text-white/60 text-[13px] mb-2">출결번호를 입력하세요</label>
+                  <input
+                    ref={numberInputRef}
+                    type="text"
+                    value={numberInput}
+                    onChange={(e) => { setNumberInput(e.target.value); setLookupError(''); }}
+                    onKeyDown={(e) => e.key === 'Enter' && !lookupLoading && handleLookup()}
+                    placeholder="예) 2026001"
+                    className="w-full bg-white/10 text-white placeholder-white/30 rounded-[12px] px-4 py-3 text-[20px] font-mono tracking-widest outline-none focus:ring-2 focus:ring-[#4fc3a1] text-center"
+                  />
+                  <p className="text-white/30 text-[12px] mt-2 text-center">
+                    형식: <span className="text-white/50 font-mono">연도(4자리) + 학생번호(3자리)</span>　예) <span className="text-[#4fc3a1] font-mono">2026001</span>
+                  </p>
+                </div>
+
+                {lookupError && (
+                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-[10px] px-4 py-3">
+                    <AlertCircle size={16} className="text-red-400 shrink-0" />
+                    <span className="text-red-400 text-[13px]">{lookupError}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeModal}
+                    className="flex-1 bg-white/10 text-white/70 rounded-[12px] py-3 text-[15px] font-medium cursor-pointer hover:bg-white/15 transition-colors"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleLookup}
+                    disabled={!numberInput.trim() || lookupLoading}
+                    className="flex-1 bg-[#4fc3a1] text-white rounded-[12px] py-3 text-[15px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#3db38f] transition-colors"
+                  >
+                    {lookupLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        조회 중
+                      </span>
+                    ) : '확인'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 확인 단계 */}
+            {modalStep === 'confirm' && confirmedStudent && (
+              <div className="px-6 py-6 space-y-5">
+                <div className="text-center py-4">
+                  <div className="w-16 h-16 bg-[#4fc3a1]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle size={32} className="text-[#4fc3a1]" />
+                  </div>
+                  <p className="text-white text-[20px] font-bold mb-1">
+                    <span className="text-[#4fc3a1]">{confirmedStudent.studentName}</span> 학생
+                  </p>
+                  <p className="text-white/60 text-[15px]">출석 체크하시겠습니까?</p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setModalStep('input'); setLookupError(''); }}
+                    className="flex-1 bg-white/10 text-white/70 rounded-[12px] py-3 text-[15px] font-medium cursor-pointer hover:bg-white/15 transition-colors"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleConfirmCheckIn}
+                    disabled={confirmLoading}
+                    className="flex-1 bg-[#4fc3a1] text-white rounded-[12px] py-3 text-[15px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#3db38f] transition-colors"
+                  >
+                    {confirmLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        처리 중
+                      </span>
+                    ) : '출석'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 결과 단계 */}
+            {modalStep === 'result' && checkInResult && (
+              <div className="px-6 py-6 space-y-5">
+                <div className="text-center py-4">
+                  {checkInResult.alreadyChecked ? (
+                    <>
+                      <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle size={32} className="text-yellow-400" />
+                      </div>
+                      <p className="text-white text-[18px] font-bold mb-1">이미 출석 처리됨</p>
+                      <p className="text-white/60 text-[14px]">
+                        {checkInResult.studentName} · {checkInResult.className}
+                      </p>
+                      <p className="text-white/40 text-[13px] mt-1">{checkInResult.checkInTime} 체크인</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 bg-[#4fc3a1]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle size={32} className="text-[#4fc3a1]" />
+                      </div>
+                      <p className="text-white text-[18px] font-bold mb-1">출석 완료!</p>
+                      <p className="text-white/60 text-[14px]">
+                        {checkInResult.studentName} · {checkInResult.className}
+                      </p>
+                      <div className="flex items-center justify-center gap-2 mt-2">
+                        <span className="text-white/40 text-[13px]">{checkInResult.checkInTime}</span>
+                        {checkInResult.status === 'LATE' && (
+                          <span className="text-[11px] text-yellow-400 font-semibold bg-yellow-400/10 px-2 py-0.5 rounded-full">지각</span>
+                        )}
+                        {checkInResult.status === 'PRESENT' && (
+                          <span className="text-[11px] text-[#4fc3a1] font-semibold bg-[#4fc3a1]/10 px-2 py-0.5 rounded-full">출석</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="w-full bg-[#4fc3a1] text-white rounded-[12px] py-3 text-[15px] font-semibold cursor-pointer hover:bg-[#3db38f] transition-colors"
+                >
+                  확인
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 연결 상태 + 재설정 */}
       <div className="absolute top-4 right-4 flex items-center gap-3">
         {connected ? <Wifi size={16} className="text-[#4fc3a1]" /> : <WifiOff size={16} className="text-red-400" />}
@@ -201,12 +430,21 @@ export default function KioskPage() {
           )}
         </div>
 
-        <div className="text-white/40 text-[13px] mb-8">
+        <div className="text-white/40 text-[13px] mb-5">
           QR 갱신까지{' '}
           <span className="text-[#4fc3a1] font-semibold tabular-nums">
             {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
           </span>
         </div>
+
+        {/* 출결번호 직접 입력 버튼 */}
+        <button
+          onClick={openModal}
+          className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white border border-white/15 rounded-[14px] px-5 py-2.5 text-[14px] font-medium cursor-pointer transition-all mb-6"
+        >
+          <Hash size={15} className="text-[#4fc3a1]" />
+          출결번호 직접 입력
+        </button>
 
         {recentCheckIns.length > 0 && (
           <div className="bg-white/5 rounded-[16px] px-6 py-4 w-[320px]">
