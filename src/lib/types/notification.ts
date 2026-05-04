@@ -12,7 +12,7 @@ export interface Notification {
   sentBy: string; // 발신자 ID (강사/관리자)
   readCount: number;
   totalCount: number;
-  readRecipients: string[]; // 확인한 수신자 ID 배열
+  readRecipients?: string[]; // 확인한 수신자 ID 배열
   billIds?: string[]; // 수납알림 시 연결된 청구서 ID 목록
 }
 
@@ -60,7 +60,7 @@ export interface Announcement {
   className?: string | null; // 반 이름 (읽기용)
 }
 
-export type NotificationCreateInput = Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount' | 'readRecipients'>;
+export type NotificationCreateInput = Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>;
 
 export type ConsultationCreateInput = Omit<ConsultationRecord, 'id'>;
 
