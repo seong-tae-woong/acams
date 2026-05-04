@@ -18,14 +18,19 @@ const TYPE_TO_PRISMA: Record<string, PrismaType> = {
   '일반': PrismaType.GENERAL,
 };
 
-// GET /api/communication/notifications
+// GET /api/communication/notifications?month=YYYY-MM
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const month = new URL(req.url).searchParams.get('month');
+  const monthFilter = month
+    ? { sentAt: { gte: new Date(`${month}-01`), lt: new Date(`${month.slice(0, 4)}-${String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0')}-01`) } }
+    : {};
+
   try {
     const notifications = await prisma.notification.findMany({
-      where: { academyId },
+      where: { academyId, ...monthFilter },
       include: { recipients: true },
       orderBy: { sentAt: 'desc' },
     });

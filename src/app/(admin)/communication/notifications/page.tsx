@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Tabs from '@/components/shared/Tabs';
@@ -8,7 +8,7 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import type { NotificationType, InquiryStatus, PublicInquiry } from '@/lib/types/notification';
 import { INQUIRY_STATUS_LABEL, INQUIRY_STATUS_STYLE } from '@/lib/types/notification';
-import { Send, Plus, Phone, BookOpen, MessageSquare, Save, LayoutTemplate, Users, GraduationCap, School } from 'lucide-react';
+import { Send, Plus, Phone, BookOpen, MessageSquare, Save, LayoutTemplate, Users, GraduationCap, School, ChevronDown, Check } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import NotificationTemplateModal from '@/components/communication/NotificationTemplateModal';
@@ -30,7 +30,9 @@ type RecipientMode = 'all' | 'class' | 'student';
 export default function NotificationsPage() {
   const {
     notifications, inquiries, loading,
+    availableNotifMonths, availableInquiryMonths,
     addNotification, fetchNotifications, fetchInquiries,
+    fetchAvailableNotifMonths, fetchAvailableInquiryMonths,
     updateInquiry, fetchTemplates,
   } = useCommunicationStore();
   const { students, fetchStudents } = useStudentStore();
@@ -38,6 +40,8 @@ export default function NotificationsPage() {
   const [commTab, setCommTab] = useState('notifications');
 
   useEffect(() => {
+    fetchAvailableNotifMonths();
+    fetchAvailableInquiryMonths();
     fetchNotifications();
     fetchInquiries();
     fetchStudents();
@@ -47,7 +51,30 @@ export default function NotificationsPage() {
 
   /* ── 학부모 알림 탭 ── */
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const [notifMonth, setNotifMonth] = useState<string | null>(null);
+  const [notifMonthDropOpen, setNotifMonthDropOpen] = useState(false);
+  const notifMonthDropRef = useRef<HTMLDivElement>(null);
   const [selectedNotifId, setSelectedNotifId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifMonthDropRef.current && !notifMonthDropRef.current.contains(e.target as Node))
+        setNotifMonthDropOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selectNotifMonth = (m: string | null) => {
+    setNotifMonth(m);
+    setNotifMonthDropOpen(false);
+    setSelectedNotifId(null);
+    fetchNotifications(m ?? undefined);
+  };
+
+  const notifMonthLabel = notifMonth
+    ? `${notifMonth.slice(0, 4)}년 ${parseInt(notifMonth.slice(5, 7))}월`
+    : '전체 월';
 
   // 첫 알림 자동 선택
   useEffect(() => {
@@ -103,7 +130,30 @@ export default function NotificationsPage() {
 
   /* ── 문의사항 탭 ── */
   const [inqStatusFilter, setInqStatusFilter] = useState<InquiryStatus | 'all'>('all');
+  const [inqMonth, setInqMonth] = useState<string | null>(null);
+  const [inqMonthDropOpen, setInqMonthDropOpen] = useState(false);
+  const inqMonthDropRef = useRef<HTMLDivElement>(null);
   const [selectedInqId, setSelectedInqId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (inqMonthDropRef.current && !inqMonthDropRef.current.contains(e.target as Node))
+        setInqMonthDropOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selectInqMonth = (m: string | null) => {
+    setInqMonth(m);
+    setInqMonthDropOpen(false);
+    setSelectedInqId(null);
+    fetchInquiries(m ?? undefined);
+  };
+
+  const inqMonthLabel = inqMonth
+    ? `${inqMonth.slice(0, 4)}년 ${parseInt(inqMonth.slice(5, 7))}월`
+    : '전체 월';
   const [editMemo, setEditMemo] = useState('');
   const [editStatus, setEditStatus] = useState<InquiryStatus>('NEW');
   const [savingInq, setSavingInq] = useState(false);
@@ -168,6 +218,31 @@ export default function NotificationsPage() {
                         filter === t ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]')}
                     >{t}</button>
                   ))}
+                </div>
+                {/* 월 필터 */}
+                <div className="px-2 py-1.5 border-b border-[#e2e8f0] relative" ref={notifMonthDropRef}>
+                  <button
+                    type="button"
+                    onClick={() => setNotifMonthDropOpen((v) => !v)}
+                    className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 flex items-center justify-between bg-white hover:bg-[#f9fafb] focus:outline-none cursor-pointer"
+                  >
+                    <span className="text-[#374151]">{notifMonthLabel}</span>
+                    <ChevronDown size={12} className={clsx('text-[#6b7280] transition-transform', notifMonthDropOpen && 'rotate-180')} />
+                  </button>
+                  {notifMonthDropOpen && (
+                    <div className="absolute top-full left-2 right-2 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-20 py-1">
+                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => selectNotifMonth(null)}>
+                        <Check size={12} className={clsx(notifMonth === null ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
+                      </div>
+                      <div className="border-t border-[#f1f5f9] my-1" />
+                      {availableNotifMonths.map((m) => (
+                        <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => selectNotifMonth(m)}>
+                          <Check size={12} className={clsx(notifMonth === m ? 'text-[#4fc3a1]' : 'invisible')} />
+                          {m.slice(0, 4)}년 {parseInt(m.slice(5, 7))}월
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* 목록 */}
@@ -410,6 +485,31 @@ export default function NotificationsPage() {
                       {INQUIRY_STATUS_LABEL[s]}
                     </button>
                   ))}
+                </div>
+                {/* 월 필터 */}
+                <div className="px-2 py-1.5 border-b border-[#e2e8f0] relative" ref={inqMonthDropRef}>
+                  <button
+                    type="button"
+                    onClick={() => setInqMonthDropOpen((v) => !v)}
+                    className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 flex items-center justify-between bg-white hover:bg-[#f9fafb] focus:outline-none cursor-pointer"
+                  >
+                    <span className="text-[#374151]">{inqMonthLabel}</span>
+                    <ChevronDown size={12} className={clsx('text-[#6b7280] transition-transform', inqMonthDropOpen && 'rotate-180')} />
+                  </button>
+                  {inqMonthDropOpen && (
+                    <div className="absolute top-full left-2 right-2 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-20 py-1">
+                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => selectInqMonth(null)}>
+                        <Check size={12} className={clsx(inqMonth === null ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
+                      </div>
+                      <div className="border-t border-[#f1f5f9] my-1" />
+                      {availableInquiryMonths.map((m) => (
+                        <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => selectInqMonth(m)}>
+                          <Check size={12} className={clsx(inqMonth === m ? 'text-[#4fc3a1]' : 'invisible')} />
+                          {m.slice(0, 4)}년 {parseInt(m.slice(5, 7))}월
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="divide-y divide-[#f1f5f9]">

@@ -6,15 +6,23 @@ import { toast } from '@/lib/stores/toastStore';
 
 interface FinanceStore {
   bills: Bill[];
+  paidBillsView: Bill[];
   expenses: Expense[];
   receipts: Receipt[];
   selectedMonth: string;
+  availableMonths: string[];
+  availablePaidMonths: string[];
+  availableReceiptMonths: string[];
   loading: boolean;
   getBillsByStudent: (studentId: string) => Bill[];
   getUnpaidBills: () => Bill[];
   setSelectedMonth: (month: string) => void;
   // Async API actions
+  fetchAvailableMonths: () => Promise<void>;
+  fetchAvailablePaidMonths: () => Promise<void>;
+  fetchAvailableReceiptMonths: () => Promise<void>;
   fetchBills: (month?: string) => Promise<void>;
+  fetchPaidBills: (paidMonth?: string) => Promise<void>;
   fetchExpenses: (month?: string) => Promise<void>;
   fetchReceipts: (month?: string) => Promise<void>;
   payBill: (billId: string, amount: number, method: Bill['method'], paidDate: string) => Promise<void>;
@@ -25,15 +33,52 @@ interface FinanceStore {
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   bills: [],
+  paidBillsView: [],
   expenses: [],
   receipts: [],
   selectedMonth: new Date().toISOString().slice(0, 7), // 'YYYY-MM'
+  availableMonths: [],
+  availablePaidMonths: [],
+  availableReceiptMonths: [],
   loading: false,
 
   getBillsByStudent: (studentId) => get().bills.filter((b) => b.studentId === studentId),
   getUnpaidBills: () => get().bills.filter((b) => b.status !== BillStatus.PAID),
 
   setSelectedMonth: (month) => set({ selectedMonth: month }),
+
+  fetchAvailableMonths: async () => {
+    try {
+      const res = await fetch('/api/finance/bills/months');
+      if (!res.ok) throw new Error('월 목록 조회 실패');
+      const data: string[] = await res.json();
+      set({ availableMonths: data });
+    } catch (err) {
+      console.error('[financeStore.fetchAvailableMonths]', err);
+    }
+  },
+
+  fetchAvailablePaidMonths: async () => {
+    try {
+      const res = await fetch('/api/finance/bills/paid-months');
+      if (!res.ok) throw new Error('수납 월 목록 조회 실패');
+      const data: string[] = await res.json();
+      set({ availablePaidMonths: data });
+    } catch (err) {
+      console.error('[financeStore.fetchAvailablePaidMonths]', err);
+    }
+  },
+
+  fetchAvailableReceiptMonths: async () => {
+    try {
+      const res = await fetch('/api/finance/receipts/months');
+      if (!res.ok) throw new Error('영수증 월 목록 조회 실패');
+      const data: string[] = await res.json();
+      set({ availableReceiptMonths: data });
+    } catch (err) {
+      console.error('[financeStore.fetchAvailableReceiptMonths]', err);
+    }
+  },
 
   fetchBills: async (month) => {
     set({ loading: true });
@@ -46,6 +91,22 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     } catch (err) {
       console.error('[financeStore.fetchBills]', err);
       toast('청구서를 불러오는 데 실패했습니다.', 'error');
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  fetchPaidBills: async (paidMonth) => {
+    set({ loading: true });
+    try {
+      const m = paidMonth ?? new Date().toISOString().slice(0, 7);
+      const res = await fetch(`/api/finance/bills?paidMonth=${m}`);
+      if (!res.ok) throw new Error('수납 내역 조회 실패');
+      const data: Bill[] = await res.json();
+      set({ paidBillsView: data });
+    } catch (err) {
+      console.error('[financeStore.fetchPaidBills]', err);
+      toast('수납 내역을 불러오는 데 실패했습니다.', 'error');
     } finally {
       set({ loading: false });
     }

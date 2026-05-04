@@ -98,12 +98,21 @@ const FINANCE_TABS = [
 ];
 
 export default function BillingPage() {
-  const { bills, loading, payBill, adjustBill, getBillsByStudent, fetchBills } = useFinanceStore();
+  const {
+    bills, paidBillsView, loading,
+    payBill, adjustBill, getBillsByStudent,
+    fetchBills, fetchPaidBills,
+    fetchAvailableMonths, fetchAvailablePaidMonths,
+    availableMonths, availablePaidMonths,
+  } = useFinanceStore();
   const { classes, fetchClasses } = useClassStore();
   const { addNotification } = useCommunicationStore();
 
   useEffect(() => {
+    fetchAvailableMonths();
+    fetchAvailablePaidMonths();
     fetchBills();
+    fetchPaidBills();
     fetchClasses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -166,13 +175,12 @@ export default function BillingPage() {
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
 
   // ── 청구 탭 계산 ──────────────────────────────────────
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    bills.forEach((b) => months.add(b.month));
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
-  }, [bills]);
-
-  const toggleMonth = (m: string) => setFilterMonths((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
+  const toggleMonth = (m: string) => {
+    const next = filterMonths.includes(m) ? filterMonths.filter((x) => x !== m) : [...filterMonths, m];
+    setFilterMonths(next);
+    if (next.length === 1) fetchBills(next[0]);
+    else fetchBills(); // 전체 월 or 복수 선택 시 전체 조회
+  };
 
   const monthLabel = filterMonths.length === 0 ? '전체 월'
     : filterMonths.length === 1 ? formatMonth(filterMonths[0])
@@ -192,18 +200,17 @@ export default function BillingPage() {
   const unpaidBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID);
 
   // ── 수납 내역 탭 계산 ─────────────────────────────────
-  const payAvailMonths = useMemo(() => {
-    const months = new Set<string>();
-    bills.forEach((b) => b.paidDate && months.add(b.paidDate.slice(0, 7)));
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
-  }, [bills]);
-
-  const togglePayMonth = (m: string) => setPayFilterMonths2((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]);
+  const togglePayMonth = (m: string) => {
+    const next = payFilterMonths2.includes(m) ? payFilterMonths2.filter((x) => x !== m) : [...payFilterMonths2, m];
+    setPayFilterMonths2(next);
+    if (next.length === 1) fetchPaidBills(next[0]);
+    else fetchPaidBills();
+  };
   const payMonthLabel2 = payFilterMonths2.length === 0 ? '전체 월'
     : payFilterMonths2.length === 1 ? formatMonth(payFilterMonths2[0])
     : `${formatMonth([...payFilterMonths2].sort().reverse()[0])} 외 ${payFilterMonths2.length - 1}개`;
 
-  const paidBills = bills.filter((b) => {
+  const paidBills = paidBillsView.filter((b) => {
     if (b.status === BillStatus.UNPAID || !b.paidDate) return false;
     if (payFilterMonths2.length > 0 && !payFilterMonths2.includes(b.paidDate.slice(0, 7))) return false;
     return true;
@@ -564,7 +571,7 @@ export default function BillingPage() {
                         <Check size={12} className={clsx(payFilterMonths2.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                       </div>
                       <div className="border-t border-[#f1f5f9] my-1" />
-                      {payAvailMonths.map((m) => (
+                      {availablePaidMonths.map((m) => (
                         <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => togglePayMonth(m)}>
                           <Check size={12} className={clsx(payFilterMonths2.includes(m) ? 'text-[#4fc3a1]' : 'invisible')} />{formatMonth(m)}
                         </div>

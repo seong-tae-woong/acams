@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
-// GET /api/communication/inquiries — 원장/강사용 상담 신청 목록
+// GET /api/communication/inquiries?month=YYYY-MM — 원장/강사용 상담 신청 목록
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const month = new URL(req.url).searchParams.get('month');
+  const monthFilter = month
+    ? { createdAt: { gte: new Date(`${month}-01`), lt: new Date(`${month.slice(0, 4)}-${String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0')}-01`) } }
+    : {};
+
   try {
     const inquiries = await prisma.publicInquiry.findMany({
-      where: { academyId },
+      where: { academyId, ...monthFilter },
       orderBy: { createdAt: 'desc' },
     });
 

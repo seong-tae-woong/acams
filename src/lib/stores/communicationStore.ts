@@ -9,13 +9,17 @@ interface CommunicationStore {
   announcements: Announcement[];
   inquiries:     PublicInquiry[];
   templates:     NotificationTemplate[];
+  availableNotifMonths:   string[];
+  availableInquiryMonths: string[];
   loading: boolean;
 
-  fetchNotifications: () => Promise<void>;
+  fetchNotifications: (month?: string) => Promise<void>;
   fetchConsultations: (studentId?: string) => Promise<void>;
   fetchAnnouncements: () => Promise<void>;
-  fetchInquiries:     () => Promise<void>;
+  fetchInquiries:     (month?: string) => Promise<void>;
   fetchTemplates:     () => Promise<void>;
+  fetchAvailableNotifMonths:   () => Promise<void>;
+  fetchAvailableInquiryMonths: () => Promise<void>;
 
   getConsultationsByStudent: (studentId: string) => ConsultationRecord[];
 
@@ -34,12 +38,35 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
   announcements: [],
   inquiries:     [],
   templates:     [],
+  availableNotifMonths:   [],
+  availableInquiryMonths: [],
   loading: false,
 
-  fetchNotifications: async () => {
+  fetchAvailableNotifMonths: async () => {
+    try {
+      const res = await fetch('/api/communication/notifications/months');
+      if (!res.ok) throw new Error();
+      set({ availableNotifMonths: await res.json() });
+    } catch (err) {
+      console.error('[communicationStore.fetchAvailableNotifMonths]', err);
+    }
+  },
+
+  fetchAvailableInquiryMonths: async () => {
+    try {
+      const res = await fetch('/api/communication/inquiries/months');
+      if (!res.ok) throw new Error();
+      set({ availableInquiryMonths: await res.json() });
+    } catch (err) {
+      console.error('[communicationStore.fetchAvailableInquiryMonths]', err);
+    }
+  },
+
+  fetchNotifications: async (month) => {
     set({ loading: true });
     try {
-      const res = await fetch('/api/communication/notifications');
+      const url = month ? `/api/communication/notifications?month=${month}` : '/api/communication/notifications';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('알림 목록 조회 실패');
       const data: Notification[] = await res.json();
       set({ notifications: data });
@@ -78,9 +105,10 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
     }
   },
 
-  fetchInquiries: async () => {
+  fetchInquiries: async (month) => {
     try {
-      const res = await fetch('/api/communication/inquiries');
+      const url = month ? `/api/communication/inquiries?month=${month}` : '/api/communication/inquiries';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('문의사항 조회 실패');
       const data: PublicInquiry[] = await res.json();
       set({ inquiries: data });

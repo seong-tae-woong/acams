@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import {
   Users, BookOpen, Wallet, BarChart2,
-  Settings, UserCheck, Calendar, Bell, TrendingUp, ClipboardList,
+  Settings, UserCheck, Calendar, Bell, TrendingUp, ClipboardList, CalendarPlus,
 } from 'lucide-react';
 
 interface NavItem {
@@ -30,6 +30,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/classes', label: '반 편성 및 시간표', icon: BookOpen },
       { href: '/classes/attendance', label: '출결 체크', icon: UserCheck },
+      { href: '/classes/makeup', label: '보강 수업 등록', icon: CalendarPlus },
       { href: '/students/grades', label: '성적/시험 관리', icon: ClipboardList },
     ],
   },

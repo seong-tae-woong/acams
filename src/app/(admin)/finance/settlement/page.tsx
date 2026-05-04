@@ -34,21 +34,23 @@ const SETTLEMENT_TABS = [
 ];
 
 export default function SettlementPage() {
-  const { bills, loading, expenses, receipts, fetchBills, fetchExpenses, fetchReceipts } = useFinanceStore();
+  const {
+    bills, loading, expenses, receipts,
+    fetchBills, fetchExpenses, fetchReceipts,
+    fetchAvailableMonths, fetchAvailableReceiptMonths,
+    availableMonths, availableReceiptMonths,
+  } = useFinanceStore();
   const [settlementTab, setSettlementTab] = useState('settlement');
 
   useEffect(() => {
+    fetchAvailableMonths();
+    fetchAvailableReceiptMonths();
     fetchBills();
     fetchExpenses();
     fetchReceipts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── 정산 탭 ── */
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    bills.forEach((b) => months.add(b.month));
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
-  }, [bills]);
 
   const [selectedMonth, setSelectedMonth] = useState(
     availableMonths.includes(currentMonth) ? currentMonth : (availableMonths[0] ?? currentMonth)
@@ -108,16 +110,11 @@ export default function SettlementPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const rcptAvailableMonths = useMemo(() => {
-    const months = new Set<string>();
-    receipts.forEach((r) => months.add(r.issuedDate.slice(0, 7)));
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
-  }, [receipts]);
-
   const toggleRcptMonth = (m: string) => {
-    setRcptFilterMonths((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
-    );
+    const next = rcptFilterMonths.includes(m) ? rcptFilterMonths.filter((x) => x !== m) : [...rcptFilterMonths, m];
+    setRcptFilterMonths(next);
+    if (next.length === 1) fetchReceipts(next[0]);
+    else fetchReceipts();
   };
 
   const rcptMonthLabel =
@@ -346,7 +343,7 @@ export default function SettlementPage() {
                           전체 월
                         </div>
                         <div className="border-t border-[#f1f5f9] my-1" />
-                        {rcptAvailableMonths.map((m) => (
+                        {availableReceiptMonths.map((m) => (
                           <div
                             key={m}
                             className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]"

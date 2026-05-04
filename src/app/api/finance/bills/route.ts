@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month');
+  const paidMonth = searchParams.get('paidMonth');
   const studentId = searchParams.get('studentId');
   const statusStr = searchParams.get('status');
 
@@ -58,11 +59,21 @@ export async function GET(req: NextRequest) {
     '완납': PrismaBS.PAID, '미납': PrismaBS.UNPAID, '부분납': PrismaBS.PARTIAL,
   };
 
+  const paidMonthFilter = paidMonth
+    ? {
+        paidDate: {
+          gte: new Date(`${paidMonth}-01`),
+          lt: new Date(`${paidMonth.slice(0, 4)}-${String(parseInt(paidMonth.slice(5, 7)) + 1).padStart(2, '0')}-01`),
+        },
+      }
+    : {};
+
   try {
     const bills = await prisma.bill.findMany({
       where: {
         academyId,
         ...(month ? { month } : {}),
+        ...paidMonthFilter,
         ...(studentId ? { studentId } : {}),
         ...(statusStr && STATUS_MAP[statusStr] ? { status: STATUS_MAP[statusStr] } : {}),
       },
