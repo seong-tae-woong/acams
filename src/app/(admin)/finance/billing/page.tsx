@@ -435,7 +435,7 @@ export default function BillingPage() {
                   </button>
                   {monthDropOpen && (
                     <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setFilterMonths([])}>
+                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => { setFilterMonths([]); fetchBills(); }}>
                         <Check size={12} className={clsx(filterMonths.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                       </div>
                       <div className="border-t border-[#f1f5f9] my-1" />
@@ -567,7 +567,7 @@ export default function BillingPage() {
                   </button>
                   {payMonthDropOpen2 && (
                     <div className="absolute top-full right-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setPayFilterMonths2([])}>
+                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => { setPayFilterMonths2([]); fetchPaidBills(); }}>
                         <Check size={12} className={clsx(payFilterMonths2.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                       </div>
                       <div className="border-t border-[#f1f5f9] my-1" />

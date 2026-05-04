@@ -83,8 +83,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   fetchBills: async (month) => {
     set({ loading: true });
     try {
-      const m = month ?? get().selectedMonth;
-      const res = await fetch(`/api/finance/bills?month=${m}`);
+      const res = await fetch(month ? `/api/finance/bills?month=${month}` : '/api/finance/bills');
       if (!res.ok) throw new Error('청구서 조회 실패');
       const data: Bill[] = await res.json();
       set({ bills: data });
@@ -99,8 +98,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
   fetchPaidBills: async (paidMonth) => {
     set({ loading: true });
     try {
-      const m = paidMonth ?? new Date().toISOString().slice(0, 7);
-      const res = await fetch(`/api/finance/bills?paidMonth=${m}`);
+      const res = await fetch(paidMonth ? `/api/finance/bills?paidMonth=${paidMonth}` : '/api/finance/bills');
       if (!res.ok) throw new Error('수납 내역 조회 실패');
       const data: Bill[] = await res.json();
       set({ paidBillsView: data });
