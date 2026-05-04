@@ -60,7 +60,7 @@ export interface Announcement {
   className?: string | null; // 반 이름 (읽기용)
 }
 
-export type NotificationCreateInput = Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>;
+export type NotificationCreateInput = Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount' | 'readRecipients'>;
 
 export type ConsultationCreateInput = Omit<ConsultationRecord, 'id'>;
 

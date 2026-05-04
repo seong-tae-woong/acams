@@ -4,31 +4,31 @@ export const mockNotifications: Notification[] = [
   {
     id: 'n1', type: '출결알림', title: '결석 안내',
     content: '[세계로학원] 안녕하세요. 오늘 수업에 김도윤 학생이 결석하였습니다.',
-    recipients: ['s1'], sentAt: '2026-04-17T16:30:00', sentBy: 'admin', readCount: 1, totalCount: 1,
+    recipients: ['s1'], sentAt: '2026-04-17T16:30:00', sentBy: 'admin', readCount: 1, totalCount: 1, readRecipients: ['s1'],
   },
   {
     id: 'n2', type: '수납알림', title: '4월 수강료 청구 안내',
     content: '[세계로학원] 4월 수강료 280,000원이 청구되었습니다. 납부 기한: 4월 10일',
     recipients: ['s1', 's2', 's4', 's5', 's6', 's8', 's9', 's10', 's11', 's12', 's13', 's14', 's17', 's18', 's19', 's20'],
-    sentAt: '2026-04-02T09:00:00', sentBy: 'admin', readCount: 14, totalCount: 16,
+    sentAt: '2026-04-02T09:00:00', sentBy: 'admin', readCount: 14, totalCount: 16, readRecipients: [],
   },
   {
     id: 'n3', type: '일반', title: '4월 중간평가 성적 등록',
     content: '[세계로학원] 4월 중간평가 성적이 등록되었습니다. 앱에서 확인하세요.',
     recipients: ['s1', 's11', 's14', 's4', 's5', 's10'],
-    sentAt: '2026-04-16T18:00:00', sentBy: 't2', readCount: 5, totalCount: 6,
+    sentAt: '2026-04-16T18:00:00', sentBy: 't2', readCount: 5, totalCount: 6, readRecipients: [],
   },
   {
     id: 'n4', type: '수납알림', title: '4월 수강료 미납 안내',
     content: '[세계로학원] 4월 수강료가 아직 납부되지 않았습니다. 빠른 납부 부탁드립니다.',
     recipients: ['s14', 's12', 's8', 's17', 's18'],
-    sentAt: '2026-04-14T10:00:00', sentBy: 'admin', readCount: 3, totalCount: 5,
+    sentAt: '2026-04-14T10:00:00', sentBy: 'admin', readCount: 3, totalCount: 5, readRecipients: [],
   },
   {
     id: 'n5', type: '공지', title: '4월 휴원 안내',
     content: '[세계로학원] 4월 30일(목)은 근로자의 날 대체 휴무로 수업이 없습니다.',
     recipients: ['s1', 's2', 's4', 's5', 's6', 's8', 's9', 's10', 's11', 's12', 's13', 's14', 's17', 's18', 's19', 's20'],
-    sentAt: '2026-04-10T10:00:00', sentBy: 'admin', readCount: 15, totalCount: 16,
+    sentAt: '2026-04-10T10:00:00', sentBy: 'admin', readCount: 15, totalCount: 16, readRecipients: [],
   },
 ];
 

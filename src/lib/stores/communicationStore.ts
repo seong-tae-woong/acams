@@ -23,7 +23,7 @@ interface CommunicationStore {
 
   getConsultationsByStudent: (studentId: string) => ConsultationRecord[];
 
-  addNotification:    (n: Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>) => Promise<void>;
+  addNotification:    (n: Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount' | 'readRecipients'>) => Promise<void>;
   addConsultation:    (c: Omit<ConsultationRecord, 'id'>) => Promise<void>;
   addAnnouncement:    (a: Omit<Announcement, 'id' | 'createdAt' | 'publishedAt' | 'readCount' | 'totalCount'>) => Promise<void>;
   publishAnnouncement:(id: string) => Promise<void>;
