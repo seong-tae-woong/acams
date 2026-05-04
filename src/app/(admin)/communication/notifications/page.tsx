@@ -27,6 +27,8 @@ const INQ_STATUS_OPTIONS: InquiryStatus[] = ['NEW', 'READ', 'REPLIED'];
 
 type RecipientMode = 'all' | 'class' | 'student';
 
+const currentMonth = new Date().toISOString().slice(0, 7);
+
 export default function NotificationsPage() {
   const {
     notifications, inquiries, loading,
@@ -42,8 +44,8 @@ export default function NotificationsPage() {
   useEffect(() => {
     fetchAvailableNotifMonths();
     fetchAvailableInquiryMonths();
-    fetchNotifications();
-    fetchInquiries();
+    fetchNotifications(currentMonth);
+    fetchInquiries(currentMonth);
     fetchStudents();
     fetchClasses();
     fetchTemplates();
@@ -51,7 +53,7 @@ export default function NotificationsPage() {
 
   /* ── 학부모 알림 탭 ── */
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
-  const [notifMonth, setNotifMonth] = useState<string | null>(null);
+  const [notifMonth, setNotifMonth] = useState<string | null>(currentMonth);
   const [notifMonthDropOpen, setNotifMonthDropOpen] = useState(false);
   const notifMonthDropRef = useRef<HTMLDivElement>(null);
   const [selectedNotifId, setSelectedNotifId] = useState<string | null>(null);
@@ -130,7 +132,7 @@ export default function NotificationsPage() {
 
   /* ── 문의사항 탭 ── */
   const [inqStatusFilter, setInqStatusFilter] = useState<InquiryStatus | 'all'>('all');
-  const [inqMonth, setInqMonth] = useState<string | null>(null);
+  const [inqMonth, setInqMonth] = useState<string | null>(currentMonth);
   const [inqMonthDropOpen, setInqMonthDropOpen] = useState(false);
   const inqMonthDropRef = useRef<HTMLDivElement>(null);
   const [selectedInqId, setSelectedInqId] = useState<string | null>(null);
