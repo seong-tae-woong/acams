@@ -416,7 +416,7 @@ export default function BillingPage() {
                 </div>
               ))}
             </div>
-            <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+            <div className="bg-white rounded-[10px] border border-[#e2e8f0]">
               <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-3 flex-wrap">
                 <input type="text" placeholder="학생 이름 검색" value={search} onChange={(e) => setSearch(e.target.value)} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-1.5 w-40 focus:outline-none focus:border-[#4fc3a1]" />
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as BillStatus | 'all')} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer">

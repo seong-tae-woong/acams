@@ -7,9 +7,13 @@ export async function GET(req: NextRequest) {
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const month = new URL(req.url).searchParams.get('month');
-  const monthFilter = month
-    ? { createdAt: { gte: new Date(`${month}-01`), lt: new Date(`${month.slice(0, 4)}-${String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0')}-01`) } }
-    : {};
+  const monthFilter = (() => {
+    if (!month) return {};
+    const [y, mo] = month.split('-').map(Number);
+    const ny = mo === 12 ? y + 1 : y;
+    const nm = mo === 12 ? 1 : mo + 1;
+    return { createdAt: { gte: new Date(`${month}-01T00:00:00+09:00`), lt: new Date(`${ny}-${String(nm).padStart(2, '0')}-01T00:00:00+09:00`) } };
+  })();
 
   try {
     const inquiries = await prisma.publicInquiry.findMany({

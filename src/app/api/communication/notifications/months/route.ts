@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
       select: { sentAt: true },
       orderBy: { sentAt: 'desc' },
     });
-    const months = [...new Set(rows.map((r) => r.sentAt.toISOString().slice(0, 7)))].sort((a, b) => b.localeCompare(a));
+    const toKSTMonth = (d: Date) => new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
+    const months = [...new Set(rows.map((r) => toKSTMonth(r.sentAt)))].sort((a, b) => b.localeCompare(a));
     return NextResponse.json(months);
   } catch (err) {
     console.error('[GET /api/communication/notifications/months]', err);

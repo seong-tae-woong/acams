@@ -324,11 +324,20 @@ export default function NotificationsPage() {
                           <div>
                             <div className="text-[11.5px] text-[#6b7280] mb-2">수신 대상 ({recipientStudents.length}명)</div>
                             <div className="flex flex-wrap gap-1.5">
-                              {recipientStudents.map((s) => (
-                                <span key={s.id} className="px-2 py-0.5 bg-[#f4f6f8] rounded-[6px] text-[11.5px] text-[#374151]">
-                                  {s.name}
-                                </span>
-                              ))}
+                              {recipientStudents.map((s) => {
+                                const read = selectedNotif.readRecipients?.includes(s.id);
+                                return (
+                                  <span key={s.id}
+                                    className={`flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-[11.5px] ${read ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#f4f6f8] text-[#374151]'}`}>
+                                    {read && (
+                                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 6l3 3 5-5" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                      </svg>
+                                    )}
+                                    {s.name}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
