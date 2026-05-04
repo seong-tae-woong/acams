@@ -376,16 +376,16 @@ export default function StudentsPage() {
     });
   };
 
-  const handleSiblingsSave = () => {
+  const handleSiblingsSave = async () => {
     if (!selected) return;
-    syncSiblings(selected.id, [...siblingChecked]);
+    await syncSiblings(selected.id, [...siblingChecked]);
     setSiblingOpen(false);
     toast('형제/자매 정보가 저장되었습니다.', 'success');
   };
 
-  const removeSibling = (siblingId: string) => {
+  const removeSibling = async (siblingId: string) => {
     if (!selected) return;
-    syncSiblings(selected.id, selected.siblingIds.filter((id) => id !== siblingId));
+    await syncSiblings(selected.id, selected.siblingIds.filter((id) => id !== siblingId));
   };
 
   const siblingCandidateList = selected

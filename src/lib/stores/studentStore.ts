@@ -24,9 +24,8 @@ interface StudentStore {
   changeStatus: (id: string, status: StudentStatus) => Promise<void>;
   addStudentToClass: (studentId: string, classId: string) => Promise<void>;
   removeStudentFromClass: (studentId: string, classId: string) => Promise<void>;
-  // TODO: API 미구현 — 새로고침 시 리셋됨
-  addSiblingLink: (studentAId: string, studentBId: string) => void;
-  syncSiblings: (studentId: string, newSiblingIds: string[]) => void;
+  addSiblingLink: (studentAId: string, studentBId: string) => Promise<void>;
+  syncSiblings: (studentId: string, newSiblingIds: string[]) => Promise<void>;
 }
 
 export const useStudentStore = create<StudentStore>((set, get) => ({
@@ -129,8 +128,18 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     await get().updateStudent(studentId, { classes: newClasses });
   },
 
-  // TODO: 형제/자매 API 미구현 — 다음 버전에서 API화
-  addSiblingLink: (studentAId, studentBId) => {
+  addSiblingLink: async (studentAId, studentBId) => {
+    const current = get().students.find((s) => s.id === studentAId)?.siblingIds ?? [];
+    const newSiblingIds = [...new Set([...current, studentBId])];
+    try {
+      await fetch(`/api/students/${studentAId}/siblings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siblingIds: newSiblingIds }),
+      });
+    } catch (err) {
+      console.error('[studentStore.addSiblingLink]', err);
+    }
     set((state) => ({
       students: state.students.map((s) => {
         if (s.id === studentAId && !s.siblingIds.includes(studentBId))
@@ -142,10 +151,22 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     }));
   },
 
-  syncSiblings: (studentId, newSiblingIds) => {
+  syncSiblings: async (studentId, newSiblingIds) => {
     const current = get().students.find((s) => s.id === studentId)?.siblingIds ?? [];
     const toRemove = current.filter((id) => !newSiblingIds.includes(id));
     const toAdd = newSiblingIds.filter((id) => !current.includes(id));
+    try {
+      const res = await fetch(`/api/students/${studentId}/siblings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siblingIds: newSiblingIds }),
+      });
+      if (!res.ok) throw new Error('형제/자매 저장 실패');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '형제/자매 저장에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
     set((state) => ({
       students: state.students.map((s) => {
         if (s.id === studentId) return { ...s, siblingIds: newSiblingIds };
