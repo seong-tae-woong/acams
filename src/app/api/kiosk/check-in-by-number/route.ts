@@ -78,6 +78,8 @@ export async function POST(req: NextRequest) {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const checkInTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+  // 출석 체크 가능 시간: 수업 시작 30분 전 ~ 시작 후 30분
+  // 출석: 시작 30분 전 ~ 시작 후 10분 / 지각: 시작 후 10분 ~ 30분
   const todayOptions = student.classEnrollments
     .filter((e) => e.class?.isActive)
     .flatMap((e) =>
@@ -91,12 +93,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '오늘 수업이 없습니다.' }, { status: 400 });
   }
 
-  const activeOption =
-    todayOptions.find(({ schedule }) => {
-      const [h, m] = schedule.startTime.split(':').map(Number);
-      const startMin = h * 60 + m;
-      return nowMinutes >= startMin - 30 && nowMinutes <= startMin + 90;
-    }) ?? todayOptions[0];
+  const activeOption = todayOptions.find(({ schedule }) => {
+    const [h, m] = schedule.startTime.split(':').map(Number);
+    const startMin = h * 60 + m;
+    return nowMinutes >= startMin - 30 && nowMinutes <= startMin + 30;
+  });
+
+  if (!activeOption) {
+    return NextResponse.json({ error: '현재 출석 체크 가능한 수업이 없습니다.\n(수업 시작 30분 전 ~ 시작 후 30분 이내만 가능)' }, { status: 400 });
+  }
 
   const dateObj = new Date(todayStr);
 

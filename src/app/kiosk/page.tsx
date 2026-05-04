@@ -440,11 +440,20 @@ export default function KioskPage() {
         {/* 출결번호 직접 입력 버튼 */}
         <button
           onClick={openModal}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white border border-white/15 rounded-[14px] px-5 py-2.5 text-[14px] font-medium cursor-pointer transition-all mb-6"
+          className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white border border-white/15 rounded-[14px] px-5 py-2.5 text-[14px] font-medium cursor-pointer transition-all mb-3"
         >
           <Hash size={15} className="text-[#4fc3a1]" />
           출결번호 직접 입력
         </button>
+
+        {/* 출결 기준 안내 */}
+        <div className="text-white/25 text-[11px] text-center leading-relaxed mb-6">
+          수업 시작 30분 전 ~ 시작 후 10분 <span className="text-[#4fc3a1]/50">출석</span>
+          {'  ·  '}
+          시작 후 10분 ~ 30분 <span className="text-yellow-400/50">지각</span>
+          {'  ·  '}
+          그 외 체크 불가
+        </div>
 
         {recentCheckIns.length > 0 && (
           <div className="bg-white/5 rounded-[16px] px-6 py-4 w-[320px]">
