@@ -9,17 +9,15 @@ export interface ClassSchedule {
   endTime: string;   // "HH:MM"
 }
 
-export type FeeType = 'monthly' | 'weekly' | 'per-lesson';
+export type FeeType = 'monthly' | 'per-lesson';
 
 export const FEE_TYPE_LABELS: Record<FeeType, string> = {
   monthly: '원/월',
-  weekly: '원/주',
   'per-lesson': '원/수업',
 };
 
 export const FEE_TYPE_NAMES: Record<FeeType, string> = {
   monthly: '월 단위',
-  weekly: '주 단위',
   'per-lesson': '수업 단위',
 };
 

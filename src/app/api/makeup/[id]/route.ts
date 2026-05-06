@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { recalculateBillByContext } from '@/lib/utils/billing';
 
 const MAKEUP_INCLUDE = {
   originalClass: { select: { name: true } },
@@ -74,8 +75,18 @@ export async function PATCH(
 
     const updated = await prisma.makeupClass.findUnique({
       where: { id },
-      include: MAKEUP_INCLUDE,
+      include: { ...MAKEUP_INCLUDE, targets: { select: { studentId: true } } },
     });
+
+    // attendanceChecked 변경 시 → 원본 수업 월의 per-lesson 청구서 재계산
+    if (attendanceChecked !== undefined && updated) {
+      const month = updated.originalDate.toISOString().slice(0, 7);
+      await Promise.allSettled(
+        updated.targets.map((t) =>
+          recalculateBillByContext(t.studentId, updated.originalClassId, month)
+        )
+      );
+    }
 
     return NextResponse.json(mapMakeup(updated!));
   } catch (err) {

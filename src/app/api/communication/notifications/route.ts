@@ -77,23 +77,52 @@ export async function POST(req: NextRequest) {
     const recipientIds: string[] = Array.isArray(recipients) ? recipients : [];
 
     // 수납알림에 billIds가 있으면 metadata에 저장
-    const metadata = Array.isArray(billIds) && billIds.length > 0
-      ? { billIds }
-      : undefined;
+    const validBillIds = Array.isArray(billIds) && billIds.length > 0 ? (billIds as string[]) : [];
+    const metadata = validBillIds.length > 0 ? { billIds: validBillIds } : undefined;
 
-    const notification = await prisma.notification.create({
-      data: {
-        academyId,
-        type: prismaType,
-        title,
-        content,
-        metadata,
-        sentById: userId,
-        recipients: {
-          create: recipientIds.map((studentId) => ({ studentId })),
+    // 수납알림의 billIds가 실제로 수신자(학생)의 청구서인지 검증 — 타 학생 청구서 혼입 방지
+    if (prismaType === PrismaType.PAYMENT_ALERT && validBillIds.length > 0) {
+      const bills = await prisma.bill.findMany({
+        where: { id: { in: validBillIds }, academyId },
+        select: { studentId: true },
+      });
+      if (bills.length !== validBillIds.length) {
+        return NextResponse.json({ error: '존재하지 않는 청구서가 포함되어 있습니다.' }, { status: 400 });
+      }
+      const recipientSet = new Set(recipientIds);
+      const allBelongToRecipients = bills.every((b) => recipientSet.has(b.studentId));
+      if (!allBelongToRecipients) {
+        return NextResponse.json({ error: '수신자의 청구서가 아닌 항목이 포함되어 있습니다.' }, { status: 400 });
+      }
+    }
+
+    const now = new Date();
+
+    const notification = await prisma.$transaction(async (tx) => {
+      const notif = await tx.notification.create({
+        data: {
+          academyId,
+          type: prismaType,
+          title,
+          content,
+          metadata,
+          sentById: userId,
+          recipients: {
+            create: recipientIds.map((studentId) => ({ studentId })),
+          },
         },
-      },
-      include: { recipients: true },
+        include: { recipients: true },
+      });
+
+      // 수납알림 발송 시 해당 청구서에 발송 시각 기록
+      if (prismaType === PrismaType.PAYMENT_ALERT && validBillIds.length > 0) {
+        await tx.bill.updateMany({
+          where: { id: { in: validBillIds }, academyId },
+          data: { notifiedAt: now },
+        });
+      }
+
+      return notif;
     });
 
     const meta = notification.metadata as { billIds?: string[] } | null;

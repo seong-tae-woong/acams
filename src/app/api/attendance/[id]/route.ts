@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
+import { recalculateBillByContext } from '@/lib/utils/billing';
 
 const STATUS_TO_PRISMA: Record<string, PrismaStatus> = {
   '출석': PrismaStatus.PRESENT,
@@ -50,6 +51,10 @@ export async function PATCH(
         checkedBy: { select: { id: true } },
       },
     });
+
+    // per-lesson 청구서 재계산
+    const month = updated.date.toISOString().slice(0, 7);
+    recalculateBillByContext(updated.studentId, updated.classId, month).catch(console.error);
 
     return NextResponse.json({
       id: updated.id,

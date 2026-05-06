@@ -26,9 +26,14 @@ interface FinanceStore {
   fetchExpenses: (month?: string) => Promise<void>;
   fetchReceipts: (month?: string) => Promise<void>;
   payBill: (billId: string, amount: number, method: Bill['method'], paidDate: string) => Promise<void>;
+  createBill: (input: { studentId: string; classId: string; month: string; dueDate: string; memo?: string; amount?: number }) => Promise<void>;
+  generateBills: (month: string, dueDate?: string) => Promise<{ created: number; refreshed: number }>;
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
   // adjustBill 은 DB 스키마에 adjustAmount/adjustMemo 없어 로컬만
   adjustBill: (billId: string, adjustAmount: number, adjustMemo: string) => void;
+  cancelBill: (billId: string, cancelReason?: string) => Promise<{ cancelledBillIds: string[] }>;
+  previewRebill: (billIds: string[]) => Promise<{ billId: string; studentName: string; className: string; month: string; calculatedAmount: number; feeType: string }[]>;
+  rebill: (items: { billId: string; amount: number; dueDate: string }[], sendNotification?: boolean) => Promise<{ created: number }>;
 }
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
@@ -167,6 +172,46 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     }
   },
 
+  createBill: async (input) => {
+    try {
+      const res = await fetch('/api/finance/bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '청구서 등록 실패');
+      }
+      const bill: Bill = await res.json();
+      set((state) => ({ bills: [...state.bills, bill] }));
+      toast('청구서가 등록되었습니다.', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '청구서 등록에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  generateBills: async (month, dueDate) => {
+    try {
+      const res = await fetch('/api/finance/bills/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month, ...(dueDate ? { dueDate } : {}) }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '청구서 생성 실패');
+      }
+      return await res.json();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '청구서 생성에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
   addExpense: async (input) => {
     try {
       const res = await fetch('/api/finance/expenses', {
@@ -183,6 +228,63 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       toast('지출이 등록되었습니다.', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '지출 등록에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  cancelBill: async (billId, cancelReason = '원장 취소') => {
+    try {
+      const res = await fetch(`/api/finance/bills/${billId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelReason }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '취소 처리 실패');
+      }
+      const data: { cancelledBillIds: string[] } = await res.json();
+      // 취소된 청구서들을 스토어에서 갱신 (다음 fetch 시 반영됨)
+      toast('청구서가 취소되었습니다.', 'success');
+      return data;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '청구서 취소에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  previewRebill: async (billIds) => {
+    const items = billIds.map((billId) => ({ billId, amount: 0, dueDate: '' }));
+    const res = await fetch('/api/finance/bills/rebill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, preview: true }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error ?? '금액 계산 실패');
+    }
+    return res.json();
+  },
+
+  rebill: async (items, sendNotification = false) => {
+    try {
+      const res = await fetch('/api/finance/bills/rebill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, sendNotification }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '재청구 실패');
+      }
+      const data: { created: number } = await res.json();
+      toast(`재청구 ${data.created}건이 생성되었습니다.`, 'success');
+      return data;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '재청구에 실패했습니다.';
       toast(msg, 'error');
       throw err;
     }

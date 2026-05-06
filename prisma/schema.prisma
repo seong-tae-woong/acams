@@ -225,6 +225,7 @@ model Class {
   color       String  @default("#4fc3a1")
   room        String  @default("")
   fee         Int     @default(0)
+  feeType     String  @default("monthly")  // "monthly" | "weekly" | "per-lesson"
   maxStudents Int     @default(10)
   description String  @default("")
   isActive    Boolean @default(true)
@@ -405,6 +406,7 @@ enum BillStatus {
   PAID
   UNPAID
   PARTIAL
+  CANCELLED
 }
 
 enum PaymentMethod {
@@ -423,21 +425,34 @@ model Bill {
   classId    String
   class      Class         @relation(fields: [classId], references: [id])
 
-  month      String
-  amount     Int
-  paidAmount Int           @default(0)
-  status     BillStatus    @default(UNPAID)
-  dueDate    DateTime
-  paidDate   DateTime?
-  method     PaymentMethod?
-  memo       String        @default("")
+  month          String
+  amount         Int
+  paidAmount     Int           @default(0)
+  status         BillStatus    @default(UNPAID)
+  dueDate        DateTime
+  paidDate       DateTime?
+  method         PaymentMethod?
+  memo           String        @default("")
+  scheduledCount Int?          // per-lesson: 해당 월 배정 수업 횟수
+  absentCount    Int?          // per-lesson: 결석 횟수
+  makeupCount    Int?          // per-lesson: 보강으로 복원된 횟수
+  notifiedAt     DateTime?     // 학부모에게 청구서 알림 발송 시각
+
+  cancelledAt    DateTime?     // 취소 시각 (CANCELLED 상태 시 기록)
+  cancelReason   String?       // 취소 사유
+  paymentOrderId String?       // 결제된 토스 PaymentOrder ID (취소 시 원본 주문 추적)
+
+  // 재청구 링크 — 취소된 청구서에서 새로 생성된 청구서를 추적
+  rebillOfId     String?
+  rebillOf       Bill?         @relation("BillRebill", fields: [rebillOfId], references: [id])
+  rebills        Bill[]        @relation("BillRebill")
 
   receipts   Receipt[]
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([studentId, classId, month])
+  @@index([studentId, classId, month])
   @@map("bills")
 }
 
@@ -467,6 +482,8 @@ model Receipt {
   issuedDate DateTime
   method     PaymentMethod
   memo       String        @default("")
+  paidBy     String        @default("")  // 수납 처리자 userId (관리자 수동 처리 시 기록, 토스 자동결제 시 빈 문자열)
+  cancelledAt DateTime?                  // 영수증 취소 시각 (청구서 취소 시 함께 기록)
 
   createdAt  DateTime @default(now())
 
@@ -508,7 +525,7 @@ model PaymentOrder {
   studentId  String
   billIds    Json      // string[] — 결제 대상 청구서 ID 목록
   amount     Int
-  status     String    @default("PENDING") // PENDING | PAID | FAILED
+  status     String    @default("PENDING") // PENDING | PROCESSING | PAID | FAILED
   paymentKey String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt

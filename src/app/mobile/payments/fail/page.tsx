@@ -20,7 +20,7 @@ function FailContent() {
         )}
       </div>
       <div className="flex flex-col gap-2 w-full max-w-xs">
-        <Link href="/mobile/notifications">
+        <Link href="/mobile/payments">
           <button
             className="w-full py-3 rounded-[10px] text-[14px] font-semibold text-white cursor-pointer"
             style={{ backgroundColor: '#4fc3a1' }}

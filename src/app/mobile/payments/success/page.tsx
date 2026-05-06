@@ -29,10 +29,13 @@ function SuccessContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentKey, orderId, amount }),
     })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json();
         if (data.success) {
           setMethod(data.method ?? '');
+          setStatus('success');
+        } else if (r.status === 409) {
+          // 웹훅이 먼저 처리했거나 이미 완료된 결제 — 성공으로 처리
           setStatus('success');
         } else {
           setErrorMsg(data.error ?? '결제 승인에 실패했습니다.');

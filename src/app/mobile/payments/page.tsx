@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { formatKoreanDate } from '@/lib/utils/format';
-import { ChevronLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, CheckCircle, AlertCircle, Loader2, CreditCard, Building2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import Link from 'next/link';
 import { useMobileChild } from '@/contexts/MobileChildContext';
+import clsx from 'clsx';
 
 type BillStatus = 'PAID' | 'UNPAID' | 'PARTIAL';
+type PayMethod  = 'CARD' | 'TRANSFER';
+
 type BillItem = {
   id: string;
   className: string;
@@ -27,7 +30,13 @@ const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string
   PARTIAL: { label: '부분납', bg: '#FEF3C7', text: '#92400E', icon: AlertCircle },
 };
 
-async function requestTossPayment(billId: string, amount: number, orderName: string) {
+async function requestTossPayment(
+  billId: string,
+  amount: number,
+  orderName: string,
+  method: PayMethod,
+  studentId: string | null,
+) {
   // 1. 학원별 Client Key 조회
   const keyRes = await fetch('/api/mobile/payments/toss-client-key');
   if (!keyRes.ok) {
@@ -40,7 +49,7 @@ async function requestTossPayment(billId: string, amount: number, orderName: str
   const orderRes = await fetch('/api/mobile/payments/order', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ billIds: [billId], amount }),
+    body: JSON.stringify({ billIds: [billId], amount, studentId }),
   });
 
   if (!orderRes.ok) {
@@ -55,23 +64,30 @@ async function requestTossPayment(billId: string, amount: number, orderName: str
   const tossPayments = await loadTossPayments(clientKey);
   const payment = tossPayments.payment({ customerKey: ANONYMOUS });
 
-  // 4. 결제 요청
-  await payment.requestPayment({
-    method: 'CARD',
-    amount: { currency: 'KRW', value: amount },
+  const baseParams = {
+    amount: { currency: 'KRW' as const, value: amount },
     orderId,
     orderName,
     successUrl: `${window.location.origin}/mobile/payments/success`,
     failUrl: `${window.location.origin}/mobile/payments/fail`,
-  });
+  };
+
+  // 4. 결제 요청 — 카드 vs 계좌이체 분기
+  if (method === 'TRANSFER') {
+    await payment.requestPayment({ method: 'TRANSFER', ...baseParams });
+  } else {
+    await payment.requestPayment({ method: 'CARD', ...baseParams });
+  }
 }
 
 export default function MobilePaymentsPage() {
   const { selectedChildId } = useMobileChild();
-  const [bills, setBills] = useState<BillItem[]>([]);
+  const [bills, setBills]     = useState<BillItem[]>([]);
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
+  // 청구서별 결제 수단 (기본: 카드)
+  const [payMethods, setPayMethods] = useState<Record<string, PayMethod>>({});
 
   useEffect(() => {
     if (!selectedChildId) return;
@@ -88,15 +104,16 @@ export default function MobilePaymentsPage() {
   const totalAmount = bills.reduce((s, b) => s + b.amount, 0);
   const totalPaid   = bills.reduce((s, b) => s + b.paidAmount, 0);
 
+  const getPayMethod = (billId: string): PayMethod => payMethods[billId] ?? 'CARD';
+  const setPayMethod = (billId: string, m: PayMethod) =>
+    setPayMethods((prev) => ({ ...prev, [billId]: m }));
+
   const handlePay = async (bill: BillItem) => {
     const remaining = bill.amount - bill.paidAmount;
+    const method    = getPayMethod(bill.id);
     setPayingId(bill.id);
     try {
-      await requestTossPayment(
-        bill.id,
-        remaining,
-        `${bill.className} 수강료`,
-      );
+      await requestTossPayment(bill.id, remaining, `${bill.className} 수강료`, method, selectedChildId);
       // 결제 성공 시 successUrl로 리다이렉트됨
     } catch (err) {
       const msg = err instanceof Error ? err.message : '결제 중 오류가 발생했습니다.';
@@ -136,10 +153,11 @@ export default function MobilePaymentsPage() {
               {bills.length === 0 ? (
                 <div className="p-6 text-center text-[13px] text-[#9ca3af]">청구 내역 없음</div>
               ) : bills.map((b) => {
-                const ss = STATUS_STYLE[b.status];
-                const Icon = ss.icon;
+                const ss        = STATUS_STYLE[b.status];
+                const Icon      = ss.icon;
                 const remaining = b.amount - b.paidAmount;
-                const isPaying = payingId === b.id;
+                const isPaying  = payingId === b.id;
+                const method    = getPayMethod(b.id);
 
                 return (
                   <div key={b.id} className="px-4 py-4">
@@ -160,20 +178,49 @@ export default function MobilePaymentsPage() {
                       </span>
                     </div>
                     {b.status !== 'PAID' && (
-                      <button
-                        disabled={isPaying || payingId !== null}
-                        onClick={() => handlePay(b)}
-                        className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:opacity-80"
-                        style={{ backgroundColor: '#4fc3a1' }}
-                      >
-                        {isPaying ? (
-                          <><Loader2 size={14} className="animate-spin" /> 결제 준비 중...</>
-                        ) : b.status === 'PARTIAL' ? (
-                          `잔여 ${remaining.toLocaleString()}원 납부하기`
-                        ) : (
-                          `${b.amount.toLocaleString()}원 납부하기`
-                        )}
-                      </button>
+                      <>
+                        {/* 결제 수단 선택 */}
+                        <div className="flex gap-2 mb-2.5">
+                          <button
+                            onClick={() => setPayMethod(b.id, 'CARD')}
+                            disabled={isPaying}
+                            className={clsx(
+                              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[8px] text-[12px] font-medium border transition-colors cursor-pointer',
+                              method === 'CARD'
+                                ? 'bg-[#1a2535] text-white border-[#1a2535]'
+                                : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f9fafb]',
+                            )}
+                          >
+                            <CreditCard size={13} /> 카드
+                          </button>
+                          <button
+                            onClick={() => setPayMethod(b.id, 'TRANSFER')}
+                            disabled={isPaying}
+                            className={clsx(
+                              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[8px] text-[12px] font-medium border transition-colors cursor-pointer',
+                              method === 'TRANSFER'
+                                ? 'bg-[#1a2535] text-white border-[#1a2535]'
+                                : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f9fafb]',
+                            )}
+                          >
+                            <Building2 size={13} /> 계좌이체
+                          </button>
+                        </div>
+                        <button
+                          disabled={isPaying || payingId !== null}
+                          onClick={() => handlePay(b)}
+                          className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:opacity-80"
+                          style={{ backgroundColor: '#4fc3a1' }}
+                        >
+                          {isPaying ? (
+                            <><Loader2 size={14} className="animate-spin" /> 결제 준비 중...</>
+                          ) : b.status === 'PARTIAL' ? (
+                            `잔여 ${remaining.toLocaleString()}원 납부하기`
+                          ) : (
+                            `${b.amount.toLocaleString()}원 납부하기`
+                          )}
+                        </button>
+                      </>
                     )}
                     {b.memo && <div className="mt-1 text-[11px] text-[#9ca3af]">{b.memo}</div>}
                   </div>

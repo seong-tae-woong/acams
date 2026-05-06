@@ -99,6 +99,7 @@ export default function SettlementPage() {
   const [rcptFilterMonths, setRcptFilterMonths] = useState<string[]>([currentMonth]);
   const [rcptMonthDropOpen, setRcptMonthDropOpen] = useState(false);
   const rcptMonthDropRef = useRef<HTMLDivElement>(null);
+  const [rcptCancelFilter, setRcptCancelFilter] = useState<'all' | 'normal' | 'cancelled'>('all');
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -127,6 +128,8 @@ export default function SettlementPage() {
   const filteredReceipts = receipts.filter((r) => {
     if (rcptFilterMonths.length > 0 && !rcptFilterMonths.includes(r.issuedDate.slice(0, 7))) return false;
     if (rcptSearch && !r.studentName.includes(rcptSearch)) return false;
+    if (rcptCancelFilter === 'normal' && r.cancelledAt) return false;
+    if (rcptCancelFilter === 'cancelled' && !r.cancelledAt) return false;
     return true;
   });
 
@@ -356,6 +359,24 @@ export default function SettlementPage() {
                       </div>
                     )}
                   </div>
+                  {/* 취소 필터 */}
+                  <div className="flex gap-1.5">
+                    {(['all', 'normal', 'cancelled'] as const).map((mode) => {
+                      const labels = { all: '전체', normal: '정상', cancelled: '취소됨' };
+                      return (
+                        <button
+                          key={mode}
+                          onClick={() => setRcptCancelFilter(mode)}
+                          className={clsx(
+                            'px-2.5 py-1 rounded-[6px] text-[11.5px] font-medium transition-colors cursor-pointer',
+                            rcptCancelFilter === mode ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]',
+                          )}
+                        >
+                          {labels[mode]}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <span className="text-[12px] text-[#6b7280] ml-auto">{filteredReceipts.length}건</span>
                 </div>
                 <table className="w-full text-[12.5px]">
@@ -378,11 +399,14 @@ export default function SettlementPage() {
                     ) : (
                       filteredReceipts.map((r) => {
                         const ms = RECEIPT_METHOD_STYLE[r.method] ?? { bg: '#f1f5f9', text: '#6b7280' };
+                        const isCancelled = !!r.cancelledAt;
                         return (
-                          <tr key={r.id} className="hover:bg-[#f9fafb]">
+                          <tr key={r.id} className={clsx('hover:bg-[#f9fafb]', isCancelled && 'opacity-60 line-through-partial')}>
                             <td className="px-4 py-3 text-[#9ca3af] font-mono text-[11.5px]">{r.id.toUpperCase()}</td>
                             <td className="px-4 py-3 font-medium text-[#111827]">{r.studentName}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-[#111827]">{r.amount.toLocaleString()}원</td>
+                            <td className={clsx('px-4 py-3 text-right font-semibold', isCancelled ? 'text-[#9ca3af] line-through' : 'text-[#111827]')}>
+                              {r.amount.toLocaleString()}원
+                            </td>
                             <td className="px-4 py-3 text-center">
                               <span
                                 className="px-2.5 py-0.5 rounded-[20px] text-[11px] font-medium"
@@ -392,11 +416,16 @@ export default function SettlementPage() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-center text-[#374151]">{formatKoreanDate(r.issuedDate)}</td>
-                            <td className="px-4 py-3 text-[#6b7280]">{r.memo || '-'}</td>
+                            <td className="px-4 py-3 text-[#6b7280]">
+                              {isCancelled && <span className="inline-block mr-1.5 px-1.5 py-0.5 bg-[#F1F5F9] text-[#6b7280] rounded-[4px] text-[10.5px] font-medium">취소됨</span>}
+                              {r.memo || '-'}
+                            </td>
                             <td className="px-4 py-3 text-center">
-                              <Button variant="default" size="sm" onClick={() => toast(`영수증 ${r.id.toUpperCase()} 출력 중...`, 'info')}>
-                                <Printer size={12} /> 출력
-                              </Button>
+                              {!isCancelled && (
+                                <Button variant="default" size="sm" onClick={() => toast(`영수증 ${r.id.toUpperCase()} 출력 중...`, 'info')}>
+                                  <Printer size={12} /> 출력
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         );

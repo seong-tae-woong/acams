@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { resolveStudentId } from '@/lib/mobile/resolveStudent';
 
 // POST /api/mobile/payments/order
 // 결제 주문 생성 — orderId(= PaymentOrder.id)를 토스페이먼츠에 전달하기 위해 사용
@@ -13,35 +14,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 학생 ID 확인
-    let studentId: string | null = null;
-
-    if (role === 'student') {
-      const s = await prisma.student.findFirst({
-        where: { userId, academyId },
-        select: { id: true },
-      });
-      studentId = s?.id ?? null;
-    } else if (role === 'parent') {
-      const parent = await prisma.parent.findFirst({
-        where: { userId },
-        include: {
-          children: {
-            include: { student: { select: { id: true } } },
-            take: 1,
-          },
-        },
-      });
-      studentId = parent?.children[0]?.student.id ?? null;
-    } else {
+    if (role !== 'student' && role !== 'parent') {
       return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
     }
 
+    const { billIds, amount, studentId: requestedStudentId } = await req.json();
+
+    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
     if (!studentId) {
       return NextResponse.json({ error: '학생 정보를 찾을 수 없습니다.' }, { status: 404 });
     }
-
-    const { billIds, amount } = await req.json();
 
     if (!Array.isArray(billIds) || billIds.length === 0) {
       return NextResponse.json({ error: 'billIds는 필수입니다.' }, { status: 400 });
@@ -68,6 +50,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '이미 완납된 청구서가 포함되어 있습니다.' }, { status: 400 });
     }
 
+    // 잔여 금액이 0인 청구서 차단 (부분납 상태이지만 이미 전액 납부된 경우 등)
+    const zeroRemaining = bills.filter((b) => b.amount - b.paidAmount <= 0);
+    if (zeroRemaining.length > 0) {
+      return NextResponse.json({ error: '결제할 잔여 금액이 없는 청구서가 포함되어 있습니다.' }, { status: 400 });
+    }
+
     // 실제 납부해야 할 총액 계산 (기납부액 제외)
     const expectedTotal = bills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
     if (amount !== expectedTotal) {
@@ -76,6 +64,17 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    // 30분 이상 지난 PENDING 주문 정리 (미결제 방치 주문 누적 방지)
+    await prisma.paymentOrder.updateMany({
+      where: {
+        academyId,
+        studentId,
+        status: 'PENDING',
+        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      data: { status: 'FAILED' },
+    });
 
     // PaymentOrder 생성 — id 가 토스 orderId로 사용됨
     const order = await prisma.paymentOrder.create({

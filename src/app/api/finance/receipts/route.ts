@@ -17,6 +17,7 @@ const METHOD_TO_PRISMA: Record<string, PrismaPM> = {
 function mapReceipt(r: {
   id: string; billId: string; studentId: string;
   amount: number; issuedDate: Date; method: PrismaPM; memo: string;
+  cancelledAt: Date | null;
   bill: { student: { name: string } };
 }) {
   return {
@@ -28,6 +29,7 @@ function mapReceipt(r: {
     issuedDate: r.issuedDate.toISOString().slice(0, 10),
     method: METHOD_TO_UI[r.method],
     memo: r.memo,
+    cancelledAt: r.cancelledAt?.toISOString() ?? null,
   };
 }
 

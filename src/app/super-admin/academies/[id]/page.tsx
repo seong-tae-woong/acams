@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, BookOpen, ToggleLeft, ToggleRight, KeyRound, Save, CreditCard, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, ToggleLeft, ToggleRight, KeyRound, Save, CreditCard, CheckCircle2, AlertCircle, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import Button from '@/components/shared/Button';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
@@ -69,6 +69,18 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
   const [tossForm, setTossForm] = useState({ clientKey: '', secretKey: '' });
   const [tossShowSecret, setTossShowSecret] = useState(false);
   const [tossSaving, setTossSaving] = useState(false);
+  const [webhookCopied, setWebhookCopied] = useState(false);
+
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/webhooks/toss?academyId=${id}`
+    : `/api/webhooks/toss?academyId=${id}`;
+
+  const handleCopyWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl).then(() => {
+      setWebhookCopied(true);
+      setTimeout(() => setWebhookCopied(false), 2000);
+    });
+  };
 
   useEffect(() => {
     Promise.all([
@@ -359,6 +371,29 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
         )}
+
+        {/* 웹훅 URL */}
+        <div className="space-y-1.5">
+          <label className="block text-[12px] text-[#6b7280]">
+            웹훅 URL
+            <span className="ml-1.5 text-[11px] text-[#9ca3af]">— 토스 대시보드 → 웹훅 설정에 등록</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              className="flex-1 text-[12px] font-mono bg-[#f8fafc] border border-[#e2e8f0] rounded-[10px] px-3 py-2 text-[#374151] select-all"
+              value={webhookUrl}
+            />
+            <button
+              type="button"
+              onClick={handleCopyWebhook}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] border border-[#e2e8f0] text-[12px] text-[#6b7280] hover:border-[#4fc3a1] hover:text-[#4fc3a1] transition-colors shrink-0"
+            >
+              {webhookCopied ? <Check size={13} className="text-[#4fc3a1]" /> : <Copy size={13} />}
+              {webhookCopied ? '복사됨' : '복사'}
+            </button>
+          </div>
+        </div>
 
         {/* 키 등록/교체 폼 */}
         <div className="space-y-3">

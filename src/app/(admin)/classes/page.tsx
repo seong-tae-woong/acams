@@ -15,7 +15,7 @@ import { Plus, ChevronLeft, ChevronRight, X, BookOpen, Minus, Pencil, Phone, Mai
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
-const FEE_TYPES: FeeType[] = ['monthly', 'weekly', 'per-lesson'];
+const FEE_TYPES: FeeType[] = ['monthly', 'per-lesson'];
 const PRESET_COLORS = ['#4fc3a1', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981', '#f97316', '#ec4899'];
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 

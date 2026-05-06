@@ -13,7 +13,7 @@ const CLASS_INCLUDE = {
 
 function mapClass(c: {
   id: string; name: string; subject: string; level: string;
-  color: string; room: string; fee: number; maxStudents: number;
+  color: string; room: string; fee: number; feeType: string; maxStudents: number;
   description: string;
   teachers: { teacherId: string; teacher: { id: string; name: string } }[];
   enrollments: { studentId: string }[];
@@ -38,7 +38,7 @@ function mapClass(c: {
     color: c.color,
     room: c.room,
     fee: c.fee,
-    feeType: 'monthly' as const,
+    feeType: c.feeType as 'monthly' | 'weekly' | 'per-lesson',
     description: c.description,
   };
 }
@@ -60,7 +60,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, subject, level, teacherId, maxStudents, schedule, color, room, fee, description } = body;
+    const { name, subject, level, teacherId, maxStudents, schedule, color, room, fee, feeType, description } = body;
 
     await prisma.$transaction(async (tx) => {
       await tx.class.update({
@@ -72,6 +72,7 @@ export async function PATCH(
           ...(color !== undefined && { color }),
           ...(room !== undefined && { room }),
           ...(fee !== undefined && { fee }),
+          ...(feeType !== undefined && { feeType }),
           ...(maxStudents !== undefined && { maxStudents }),
           ...(description !== undefined && { description }),
         },

@@ -94,7 +94,15 @@ export async function POST(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const checkedById = req.headers.get('x-user-id') ?? null;
+  const userId = req.headers.get('x-user-id');
+  const userRole = req.headers.get('x-user-role');
+
+  // checkedById is Teacher.id — only set when a teacher is checking in
+  let checkedById: string | null = null;
+  if (userId && userRole === 'teacher') {
+    const teacher = await prisma.teacher.findFirst({ where: { userId }, select: { id: true } });
+    checkedById = teacher?.id ?? null;
+  }
 
   try {
     const body = await req.json();
@@ -106,7 +114,8 @@ export async function POST(req: NextRequest) {
 
     const dateObj = new Date(date);
 
-    const upserted = await Promise.all(
+    // 출결 일괄 upsert — 모든 레코드를 커밋한 뒤 청구서 재계산하도록 트랜잭션으로 묶음
+    const upserted = await prisma.$transaction(
       records.map((r: {
         studentId: string;
         status: string;

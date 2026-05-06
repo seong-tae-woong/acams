@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const [bills, receipts] = await Promise.all([
       prisma.bill.findMany({
-        where: { studentId },
+        where: { studentId, academyId },
         include: { class: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
       }),

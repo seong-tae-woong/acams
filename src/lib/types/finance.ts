@@ -6,6 +6,7 @@ export enum BillStatus {
   PAID = '완납',
   UNPAID = '미납',
   PARTIAL = '부분납',
+  CANCELLED = '취소됨',
 }
 
 export interface Bill {
@@ -24,6 +25,15 @@ export interface Bill {
   memo: string;
   adjustAmount?: number; // 조정 차감 금액 (수업 결석 등)
   adjustMemo?: string;   // 조정 사유
+  feeType?: string;         // "monthly" | "per-lesson"
+  scheduledCount?: number | null; // per-lesson: 배정 수업 횟수
+  absentCount?: number | null;    // per-lesson: 결석 횟수
+  makeupCount?: number | null;    // per-lesson: 보강으로 복원된 횟수
+  notifiedAt?: string | null;     // 청구서 발송 시각 (null = 미발송)
+  cancelledAt?: string | null;    // 취소 시각 (null = 취소 안됨)
+  cancelReason?: string | null;   // 취소 사유
+  paymentOrderId?: string | null; // 결제 주문 ID
+  rebillOfId?: string | null;     // 재청구 시 원본 취소 청구서 ID
 }
 
 export interface Expense {
@@ -44,6 +54,7 @@ export interface Receipt {
   issuedDate: string; // ISO date string
   method: PaymentMethod;
   memo: string;
+  cancelledAt?: string | null; // 취소 시각
 }
 
 export type BillCreateInput = Omit<Bill, 'id' | 'status' | 'paidAmount' | 'paidDate' | 'method'>;
