@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, BookOpen, ToggleLeft, ToggleRight, KeyRound, Save, CreditCard, CheckCircle2, AlertCircle, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, ToggleLeft, ToggleRight, KeyRound, Save, CreditCard, CheckCircle2, AlertCircle, Eye, EyeOff, Copy, Check, Mail, Trash2, UserPlus, X } from 'lucide-react';
 import Button from '@/components/shared/Button';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
@@ -63,6 +63,14 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
 
   // 비밀번호 초기화
   const [pwState, setPwState] = useState<Record<string, { open: boolean; value: string; loading: boolean }>>({});
+
+  // 이메일(로그인 ID) 수정
+  const [emailState, setEmailState] = useState<Record<string, { open: boolean; value: string; loading: boolean }>>({});
+
+  // 원장 계정 추가
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', email: '', password: '' });
+  const [addLoading, setAddLoading] = useState(false);
 
   // 토스 키 관리
   const [tossKey, setTossKey] = useState<TossKeyStatus | null>(null);
@@ -179,6 +187,96 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
       toast('네트워크 오류가 발생했습니다.', 'error');
     } finally {
       setPwState((s) => ({ ...s, [user.id]: { ...s[user.id], loading: false } }));
+    }
+  };
+
+  // 이메일(로그인 ID) 변경
+  const handleUpdateEmail = async (user: AcademyUser) => {
+    const next = (emailState[user.id]?.value ?? '').trim();
+    if (!next) { toast('이메일을 입력해주세요.', 'error'); return; }
+    setEmailState((s) => ({ ...s, [user.id]: { ...s[user.id], loading: true } }));
+    try {
+      const res = await fetch(`/api/super-admin/academies/${id}/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error ?? '이메일 변경에 실패했습니다.', 'error'); return; }
+      setAcademy((prev) => prev ? {
+        ...prev,
+        users: prev.users.map((u) => u.id === user.id ? { ...u, email: data.email } : u),
+      } : prev);
+      setEmailState((s) => ({ ...s, [user.id]: { open: false, value: '', loading: false } }));
+      toast(`${user.name} 이메일이 변경되었습니다.`, 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      setEmailState((s) => ({ ...s, [user.id]: { ...s[user.id], loading: false } }));
+    }
+  };
+
+  // 계정 삭제
+  const handleDeleteUser = async (user: AcademyUser) => {
+    if (!confirm(`${user.name} (${user.email}) 계정을 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) return;
+    try {
+      const res = await fetch(`/api/super-admin/academies/${id}/users/${user.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error ?? '계정 삭제에 실패했습니다.', 'error'); return; }
+      setAcademy((prev) => prev ? {
+        ...prev,
+        users: prev.users.filter((u) => u.id !== user.id),
+      } : prev);
+      toast(`${user.name} 계정이 삭제되었습니다.`, 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  // 원장 계정 추가
+  const handleAddDirector = async () => {
+    if (!addForm.name.trim() || !addForm.email.trim() || !addForm.password) {
+      toast('이름, 이메일, 비밀번호를 모두 입력해주세요.', 'error');
+      return;
+    }
+    if (addForm.password.length < 8) {
+      toast('비밀번호는 8자 이상이어야 합니다.', 'error');
+      return;
+    }
+    setAddLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/academies/${id}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: addForm.name.trim(),
+          email: addForm.email.trim(),
+          password: addForm.password,
+          role: 'director',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error ?? '계정 추가에 실패했습니다.', 'error'); return; }
+      setAcademy((prev) => prev ? {
+        ...prev,
+        users: [...prev.users, {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          isActive: data.isActive,
+          createdAt: data.createdAt,
+        }],
+      } : prev);
+      setAddForm({ name: '', email: '', password: '' });
+      setAddOpen(false);
+      toast(`${data.name} 원장 계정이 추가되었습니다.`, 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -443,7 +541,55 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
 
       {/* 섹션 C: 계정 관리 */}
       <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-5 space-y-4">
-        <h2 className="text-[13px] font-semibold text-[#374151]">계정 관리</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold text-[#374151]">계정 관리</h2>
+          <button
+            onClick={() => {
+              setAddOpen((v) => !v);
+              setAddForm({ name: '', email: '', password: '' });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-medium bg-[#1a2535] text-white hover:bg-[#0f1722] transition-colors"
+          >
+            {addOpen ? <X size={13} /> : <UserPlus size={13} />}
+            {addOpen ? '취소' : '원장 계정 추가'}
+          </button>
+        </div>
+
+        {/* 원장 계정 추가 폼 */}
+        {addOpen && (
+          <div className="border border-[#e2e8f0] rounded-[10px] bg-[#f9fafb] p-4 space-y-3">
+            <p className="text-[12px] font-medium text-[#374151]">새 원장 계정</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={fieldCls + ' bg-white'}
+                value={addForm.name}
+                onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="이름"
+              />
+              <input
+                type="email"
+                className={fieldCls + ' bg-white'}
+                value={addForm.email}
+                onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="이메일"
+                autoComplete="off"
+              />
+            </div>
+            <input
+              type="password"
+              className={fieldCls + ' bg-white'}
+              value={addForm.password}
+              onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))}
+              placeholder="초기 비밀번호 (8자 이상)"
+              autoComplete="new-password"
+            />
+            <div className="flex justify-end">
+              <Button variant="dark" size="sm" onClick={handleAddDirector}>
+                {addLoading ? '추가 중...' : '원장 추가'}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {academy.users.length === 0 ? (
           <p className="text-[12.5px] text-[#9ca3af] py-4 text-center">등록된 계정이 없습니다.</p>
@@ -451,6 +597,8 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
           <div className="space-y-2">
             {academy.users.map((user) => {
               const pw = pwState[user.id] ?? { open: false, value: '', loading: false };
+              const em = emailState[user.id] ?? { open: false, value: '', loading: false };
+              const isDirector = user.role === 'director';
               return (
                 <div key={user.id} className="border border-[#e2e8f0] rounded-[10px] overflow-hidden">
                   {/* 계정 행 */}
@@ -471,7 +619,22 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
                       <div className="text-[11.5px] text-[#9ca3af] mt-0.5">{user.email}</div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* 이메일(ID) 변경 — 원장만 */}
+                      {isDirector && (
+                        <button
+                          onClick={() => setEmailState((s) => ({
+                            ...s,
+                            [user.id]: { open: !em.open, value: user.email, loading: false },
+                          }))}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-[7px] text-[11.5px] text-[#6b7280] border border-[#e2e8f0] hover:border-[#4fc3a1] hover:text-[#4fc3a1] transition-colors"
+                          title="이메일(ID) 변경"
+                        >
+                          <Mail size={11} />
+                          ID 변경
+                        </button>
+                      )}
+
                       {/* 비밀번호 초기화 버튼 */}
                       <button
                         onClick={() => setPwState((s) => ({
@@ -497,8 +660,50 @@ export default function AcademyDetailPage({ params }: { params: Promise<{ id: st
                         {user.isActive ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
                         {user.isActive ? '비활성화' : '활성화'}
                       </button>
+
+                      {/* 삭제 — 원장만 */}
+                      {isDirector && (
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-[7px] text-[11.5px] text-[#991b1b] border border-[#FECACA] bg-[#FEF2F2] hover:bg-[#FEE2E2] transition-colors"
+                          title="계정 삭제"
+                        >
+                          <Trash2 size={11} />
+                          삭제
+                        </button>
+                      )}
                     </div>
                   </div>
+
+                  {/* 이메일(ID) 변경 인라인 폼 */}
+                  {em.open && (
+                    <div className="border-t border-[#e2e8f0] bg-[#f9fafb] px-4 py-3 flex items-center gap-2">
+                      <input
+                        type="email"
+                        className="flex-1 text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1] focus:ring-1 focus:ring-[#4fc3a1]/20"
+                        placeholder="새 이메일(로그인 ID)"
+                        value={em.value}
+                        onChange={(e) => setEmailState((s) => ({
+                          ...s,
+                          [user.id]: { ...s[user.id], value: e.target.value },
+                        }))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateEmail(user)}
+                      />
+                      <Button
+                        variant="dark"
+                        size="sm"
+                        onClick={() => handleUpdateEmail(user)}
+                      >
+                        {em.loading ? '처리 중...' : '변경'}
+                      </Button>
+                      <button
+                        onClick={() => setEmailState((s) => ({ ...s, [user.id]: { open: false, value: '', loading: false } }))}
+                        className="text-[12px] text-[#9ca3af] hover:text-[#374151] px-1"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  )}
 
                   {/* 비밀번호 초기화 인라인 폼 */}
                   {pw.open && (

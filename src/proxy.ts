@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { isRateLimited, getRemainingSeconds } from '@/lib/auth/rateLimit';
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+
+// 글로벌 IP 제한 — 정상 사용자(분당 ~50회) 대비 충분히 여유 있는 임계값
+const GLOBAL_API_LIMIT = 600;          // 분당 600회 (초당 10회 평균)
+const GLOBAL_API_WINDOW_MS = 60 * 1000;
 
 // 인증 없이 접근 가능한 경로
 const PUBLIC_PATHS = [
   '/login',
+  '/change-password',
   '/api/auth/login',
+  '/api/auth/change-password',
   '/kiosk',
   '/_next',
   '/favicon.ico',
@@ -27,6 +34,18 @@ function isPublic(pathname: string) {
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // 글로벌 IP rate limit — /api/* 모든 요청에 적용 (정적 자산은 matcher에서 제외됨)
+  if (pathname.startsWith('/api/')) {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (isRateLimited(`global:${ip}`, GLOBAL_API_LIMIT, GLOBAL_API_WINDOW_MS)) {
+      const secs = getRemainingSeconds(`global:${ip}`);
+      return new NextResponse(
+        JSON.stringify({ error: `요청이 너무 많습니다. ${secs}초 후 다시 시도해주세요.` }),
+        { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(secs) } },
+      );
+    }
+  }
+
   if (isPublic(pathname)) {
     return NextResponse.next();
   }
@@ -37,7 +56,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { userId?: string; role?: string; academyId?: string | null; name?: string; tokenVersion?: number };
+  let payload: { userId?: string; role?: string; academyId?: string | null; name?: string; tokenVersion?: number; mustChangePassword?: boolean };
   try {
     const { payload: p } = await jwtVerify(token, SECRET);
     payload = p as typeof payload;
@@ -51,6 +70,11 @@ export async function proxy(req: NextRequest) {
   const role = payload.role ?? '';
   const academyId = payload.academyId ?? '';
   const userId = payload.userId ?? '';
+
+  // 비밀번호 강제 변경 — /change-password 외 모든 경로 차단
+  if (payload.mustChangePassword && !pathname.startsWith('/change-password')) {
+    return NextResponse.redirect(new URL('/change-password', req.url));
+  }
 
   // 역할별 접근 제어
   if (pathname.startsWith('/super-admin') && role !== 'super_admin') {

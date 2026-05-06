@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
+import { validateSession } from '@/lib/auth/validateSession';
 
 const METHOD_TO_PRISMA: Record<string, PrismaPM> = {
   '카드': PrismaPM.CARD,
@@ -33,6 +34,9 @@ export async function POST(
   const academyId = req.headers.get('x-academy-id');
   const userId    = req.headers.get('x-user-id') ?? '';
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const sessionError = await validateSession(req);
+  if (sessionError) return sessionError;
 
   const { id } = await ctx.params;
 

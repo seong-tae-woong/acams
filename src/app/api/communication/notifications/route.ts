@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { NotificationType as PrismaType } from '@/generated/prisma/client';
 
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (err) {
-    console.error('[GET /api/communication/notifications]', err);
+    console.error('[GET /api/communication/notifications]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       billIds: meta?.billIds ?? [],
     }, { status: 201 });
   } catch (err) {
-    console.error('[POST /api/communication/notifications]', err);
+    console.error('[POST /api/communication/notifications]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

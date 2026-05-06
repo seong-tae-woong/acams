@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 function mapConsultation(c: {
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(consultations.map(mapConsultation));
   } catch (err) {
-    console.error('[GET /api/communication/consultations]', err);
+    console.error('[GET /api/communication/consultations]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(mapConsultation(record), { status: 201 });
   } catch (err) {
-    console.error('[POST /api/communication/consultations]', err);
+    console.error('[POST /api/communication/consultations]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

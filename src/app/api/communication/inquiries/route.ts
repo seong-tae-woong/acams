@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 // GET /api/communication/inquiries?month=YYYY-MM — 원장/강사용 상담 신청 목록
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       })),
     );
   } catch (err) {
-    console.error('[GET /api/communication/inquiries]', err);
+    console.error('[GET /api/communication/inquiries]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

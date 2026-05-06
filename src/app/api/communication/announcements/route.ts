@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AnnouncementStatus as PrismaStatus } from '@/generated/prisma/client';
+import { validateSession } from '@/lib/auth/validateSession';
 
 const STATUS_TO_UI: Record<PrismaStatus, '임시저장' | '게시됨'> = {
   DRAFT: '임시저장',
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(announcements.map(mapAnnouncement));
   } catch (err) {
-    console.error('[GET /api/communication/announcements]', err);
+    console.error('[GET /api/communication/announcements]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -58,6 +59,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const sessionError = await validateSession(req);
+  if (sessionError) return sessionError;
 
   const userId = req.headers.get('x-user-id') ?? '';
 
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(mapAnnouncement(announcement), { status: 201 });
   } catch (err) {
-    console.error('[POST /api/communication/announcements]', err);
+    console.error('[POST /api/communication/announcements]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

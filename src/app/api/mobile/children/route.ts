@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 // GET /api/mobile/children
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   } catch (err) {
-    console.error('[GET /api/mobile/children]', err);
+    console.error('[GET /api/mobile/children]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

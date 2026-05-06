@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { verifyKioskToken } from '@/lib/kiosk/token';
+import { isRateLimited, getRemainingSeconds, getClientIp } from '@/lib/auth/rateLimit';
 
 export async function POST(req: NextRequest) {
+  // IP 기반 rate limit — QR 토큰 brute-force 방지
+  const ip = getClientIp(req);
+  if (isRateLimited(`kiosk-checkin:${ip}`, 30, 60 * 1000)) {
+    const secs = getRemainingSeconds(`kiosk-checkin:${ip}`);
+    return NextResponse.json(
+      { error: `요청이 너무 많습니다. ${secs}초 후 다시 시도해주세요.` },
+      { status: 429, headers: { 'Retry-After': String(secs) } },
+    );
+  }
+
   const userId = req.headers.get('x-user-id');
   const role = req.headers.get('x-user-role');
 

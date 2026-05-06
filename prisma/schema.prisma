@@ -82,10 +82,14 @@ model User {
   passwordHash String
   name         String
   role         UserRole
-  isActive      Boolean   @default(true)
-  tokenVersion  Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  isActive           Boolean   @default(true)
+  tokenVersion       Int       @default(0)
+  loginAttempts      Int       @default(0)
+  lockedUntil        DateTime?
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   academyId    String?
   academy      Academy?  @relation(fields: [academyId], references: [id])
@@ -97,6 +101,30 @@ model User {
 
   @@unique([academyId, loginId])
   @@map("users")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  role      String?
+  academyId String?
+  action    String
+  target    String?
+  detail    Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_history")
 }
 
 // ─────────────────────────────────────────────

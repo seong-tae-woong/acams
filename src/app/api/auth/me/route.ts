@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { getAuthToken } from '@/lib/auth/cookies';
 import { verifyToken } from '@/lib/auth/jwt';
 import { prisma } from '@/lib/db/prisma';
@@ -26,6 +26,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // tokenVersion 불일치 → 비밀번호 변경/로그아웃으로 무효화된 토큰
+    if (user.tokenVersion !== payload.tokenVersion) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json({
       id: user.id,
       name: user.name,
@@ -34,7 +39,7 @@ export async function GET() {
       academyName: user.academy?.name ?? null,
     });
   } catch (err) {
-    console.error('[me]', err);
+    console.error('[me]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

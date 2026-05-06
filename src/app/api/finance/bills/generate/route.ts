@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS } from '@/generated/prisma/client';
 import { calcInitialPerLessonAmount } from '@/lib/utils/billing';
+import { validateSession } from '@/lib/auth/validateSession';
 
 // POST /api/finance/bills/generate
 // body: { month: "YYYY-MM", dueDate?: "YYYY-MM-DD" }
@@ -9,6 +10,9 @@ import { calcInitialPerLessonAmount } from '@/lib/utils/billing';
 export async function POST(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const sessionError = await validateSession(req);
+  if (sessionError) return sessionError;
 
   try {
     const body = await req.json();
@@ -83,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ created, refreshed });
   } catch (err) {
-    console.error('[POST /api/finance/bills/generate]', err);
+    console.error('[POST /api/finance/bills/generate]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

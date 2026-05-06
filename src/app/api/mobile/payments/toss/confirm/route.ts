@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
 import { decryptTossKey } from '@/lib/crypto/tossKey';
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     claimedOrderId = undefined; // 정상 완료
     return NextResponse.json({ success: true, method: tossData.method, approvedAt: tossData.approvedAt });
   } catch (err) {
-    console.error('[POST /api/mobile/payments/toss/confirm]', err);
+    console.error('[POST /api/mobile/payments/toss/confirm]', err instanceof Error ? err.message : String(err));
     // Toss 승인 후 DB 업데이트 실패 시 PROCESSING → PENDING으로 복구 (웹훅이 최종 처리)
     if (claimedOrderId) {
       await prisma.paymentOrder.updateMany({

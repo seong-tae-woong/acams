@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
 
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ announcements: result });
   } catch (err) {
-    console.error('[GET /api/mobile/announcements]', err);
+    console.error('[GET /api/mobile/announcements]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

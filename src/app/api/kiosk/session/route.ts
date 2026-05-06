@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { createKioskToken } from '@/lib/kiosk/token';
+import { isRateLimited, getRemainingSeconds, getClientIp } from '@/lib/auth/rateLimit';
 import QRCode from 'qrcode';
 
 export async function GET(req: NextRequest) {
+  // IP 기반 rate limit — academyId 열거 공격 방지
+  const ip = getClientIp(req);
+  if (isRateLimited(`kiosk-session:${ip}`, 30, 60 * 1000)) {
+    const secs = getRemainingSeconds(`kiosk-session:${ip}`);
+    return NextResponse.json(
+      { error: `요청이 너무 많습니다. ${secs}초 후 다시 시도해주세요.` },
+      { status: 429, headers: { 'Retry-After': String(secs) } },
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const param = searchParams.get('academyId') ?? searchParams.get('academy');
 

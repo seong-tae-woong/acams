@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
 
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(records.map(mapRecord));
   } catch (err) {
-    console.error('[GET /api/attendance]', err);
+    console.error('[GET /api/attendance]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(upserted.map(mapRecord));
   } catch (err) {
-    console.error('[POST /api/attendance]', err);
+    console.error('[POST /api/attendance]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

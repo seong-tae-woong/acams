@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 const VALID_TYPES = ['subject', 'level', 'grade'] as const;
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(tags);
   } catch (err) {
-    console.error('[GET /api/lectures/tags]', err);
+    console.error('[GET /api/lectures/tags]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: '이미 존재하는 태그입니다.' }, { status: 409 });
     }
-    console.error('[POST /api/lectures/tags]', err);
+    console.error('[POST /api/lectures/tags]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

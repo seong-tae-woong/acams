@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 
@@ -52,6 +52,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 학원명 중복 확인
+    const existingName = await prisma.academy.findFirst({ where: { name: academyName } });
+    if (existingName) {
+      return NextResponse.json({ error: '이미 사용 중인 학원명입니다.' }, { status: 409 });
+    }
+
     // 슬러그 중복 확인
     const existing = await prisma.academy.findUnique({ where: { slug } });
     if (existing) {
@@ -90,7 +96,7 @@ export async function POST(req: NextRequest) {
       directorId: result.director.id,
     }, { status: 201 });
   } catch (err) {
-    console.error('[super-admin/academies POST]', err);
+    console.error('[super-admin/academies POST]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

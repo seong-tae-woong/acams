@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { PaymentMethod as PrismaPM } from '@/generated/prisma/client';
 
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(receipts.map(mapReceipt));
   } catch (err) {
-    console.error('[GET /api/finance/receipts]', err);
+    console.error('[GET /api/finance/receipts]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(mapReceipt(receipt), { status: 201 });
   } catch (err) {
-    console.error('[POST /api/finance/receipts]', err);
+    console.error('[POST /api/finance/receipts]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import type { TeacherPermissions } from '@/lib/types/teacher';
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(teachers.map(mapTeacher));
   } catch (err) {
-    console.error('[GET /api/teachers]', err);
+    console.error('[GET /api/teachers]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(mapTeacher(teacher), { status: 201 });
   } catch (err) {
-    console.error('[POST /api/teachers]', err);
+    console.error('[POST /api/teachers]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

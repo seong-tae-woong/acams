@@ -6,6 +6,7 @@ export interface JwtPayload {
   academyId: string | null;
   name: string;
   tokenVersion: number;
+  mustChangePassword: boolean;
 }
 
 const SECRET = process.env.JWT_SECRET!;

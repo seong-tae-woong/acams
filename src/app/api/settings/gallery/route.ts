@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { put, del } from '@vercel/blob';
 import { prisma } from '@/lib/db/prisma';
 
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: toProxyUrl(blob.url) });
   } catch (err) {
-    console.error('[POST /api/settings/gallery]', err);
+    console.error('[POST /api/settings/gallery]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '업로드에 실패했습니다.' }, { status: 500 });
   }
 }
@@ -101,7 +101,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /api/settings/gallery]', err);
+    console.error('[DELETE /api/settings/gallery]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '삭제에 실패했습니다.' }, { status: 500 });
   }
 }

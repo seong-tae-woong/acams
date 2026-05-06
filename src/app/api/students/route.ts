@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(students.map(mapStudent));
   } catch (err) {
-    console.error('[GET /api/students]', err);
+    console.error('[GET /api/students]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error('[POST /api/students]', err);
+    console.error('[POST /api/students]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

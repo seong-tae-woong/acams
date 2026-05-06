@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS } from '@/generated/prisma/client';
 import { calcPerLessonAmount } from '@/lib/utils/billing';
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ created: createdBills.length, billIds: createdBills });
   } catch (err) {
-    console.error('[POST /api/finance/bills/rebill]', err);
+    console.error('[POST /api/finance/bills/rebill]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

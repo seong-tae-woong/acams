@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 // GET /api/finance/bills/months
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(rows.map((r) => r.month));
   } catch (err) {
-    console.error('[GET /api/finance/bills/months]', err);
+    console.error('[GET /api/finance/bills/months]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

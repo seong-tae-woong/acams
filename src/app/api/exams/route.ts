@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 // GET /api/exams?classId=xxx — 반별 시험 목록
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (err) {
-    console.error('[GET /api/exams]', err);
+    console.error('[GET /api/exams]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       description: exam.description,
     }, { status: 201 });
   } catch (err) {
-    console.error('[POST /api/exams]', err);
+    console.error('[POST /api/exams]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

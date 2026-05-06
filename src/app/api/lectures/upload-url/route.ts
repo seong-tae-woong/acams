@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 
 // POST /api/lectures/upload-url
 // Cloudflare Stream direct creator upload URL 발급
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       uid: data.result.uid,
     });
   } catch (err) {
-    console.error('[POST /api/lectures/upload-url]', err);
+    console.error('[POST /api/lectures/upload-url]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

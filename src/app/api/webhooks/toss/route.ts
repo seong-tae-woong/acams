@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     console.info('[Toss webhook] 수납 처리 완료:', orderId);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[POST /api/webhooks/toss]', err);
+    console.error('[POST /api/webhooks/toss]', err instanceof Error ? err.message : String(err));
     // 500을 반환하면 Toss가 재전송함 (의도적)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

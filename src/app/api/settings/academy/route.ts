@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 function toProxyUrl(blobUrl: string): string {
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       galleryImages: ((academy.galleryImages as string[] | null) ?? []).map(toProxyUrl),
     });
   } catch (err) {
-    console.error('[GET /api/settings/academy]', err);
+    console.error('[GET /api/settings/academy]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
@@ -87,7 +87,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true, slug: updated.slug, profileEnabled: updated.profileEnabled });
   } catch (err) {
-    console.error('[PATCH /api/settings/academy]', err);
+    console.error('[PATCH /api/settings/academy]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
