@@ -7,9 +7,9 @@ import { decryptTossKey } from '@/lib/crypto/tossKey';
  * POST /api/finance/bills/[id]/cancel
  * 원장 전용 — 완납된 청구서를 취소 처리
  *
- * - 토스 결제(paymentOrderId 존재 + CARD/TRANSFER): 동일 PaymentOrder의 청구서 전체를 취소
- *   (토스는 주문 단위로 원 결제를 취소해야 하므로 분리 취소 불가)
- * - 현금 수납 등(paymentOrderId 없음): 해당 청구서만 취소
+ * - 토스 결제(paymentOrderId + paymentKey 존재): Toss 취소 API 호출 후 동일 주문 전체 DB 취소
+ * - 토스 결제(paymentOrderId 있지만 paymentKey 없음): DB만 전체 취소 (고착 주문 복구)
+ * - 현금/수동 수납(paymentOrderId 없음): 해당 청구서만 취소
  * - 취소 시 연결된 영수증 모두 cancelledAt 기록
  */
 export async function POST(
@@ -31,11 +31,7 @@ export async function POST(
   try {
     const bill = await prisma.bill.findUnique({
       where: { id },
-      select: {
-        id: true, academyId: true, status: true,
-        paymentOrderId: true, method: true,
-        amount: true,
-      },
+      select: { id: true, academyId: true, status: true, paymentOrderId: true },
     });
 
     if (!bill) return NextResponse.json({ error: '청구서를 찾을 수 없습니다.' }, { status: 404 });
@@ -46,15 +42,19 @@ export async function POST(
 
     const now = new Date();
 
-    // ── 토스 결제 취소 (CARD/TRANSFER + paymentOrderId 있음) ───────────────
+    // ── 토스 결제 취소 (paymentOrderId 있음) ──────────────────────────────
     if (bill.paymentOrderId) {
       const order = await prisma.paymentOrder.findUnique({
         where: { id: bill.paymentOrderId },
-        select: { id: true, paymentKey: true, amount: true, billIds: true, academyId: true },
+        select: { id: true, paymentKey: true, billIds: true, academyId: true },
       });
 
-      if (order && order.paymentKey && order.academyId === academyId) {
-        // 학원 Secret Key 조회
+      if (!order || order.academyId !== academyId) {
+        return NextResponse.json({ error: '결제 주문을 찾을 수 없습니다.' }, { status: 404 });
+      }
+
+      // paymentKey가 있으면 Toss 취소 API 호출 (없으면 DB만 처리 — 고착 주문 복구)
+      if (order.paymentKey) {
         const academy = await prisma.academy.findUnique({
           where: { id: academyId },
           select: { tossSecretKeyEnc: true },
@@ -87,33 +87,32 @@ export async function POST(
               { status: 400 },
             );
           }
+          // NOTE: Toss 취소 성공 후 DB 실패 시 불일치가 발생할 수 있음.
+          // 이 경우 관리자가 수동으로 DB를 CANCELLED로 업데이트해야 함.
+          // (토스 취소는 이미 완료된 상태)
         }
-
-        // PaymentOrder 내 모든 청구서 취소
-        const billIds = order.billIds as string[];
-        await prisma.$transaction(async (tx) => {
-          for (const billId of billIds) {
-            await tx.bill.updateMany({
-              where: { id: billId, academyId },
-              data: {
-                status: PrismaBS.CANCELLED,
-                cancelledAt: now,
-                cancelReason: reason,
-              },
-            });
-            await tx.receipt.updateMany({
-              where: { billId },
-              data: { cancelledAt: now },
-            });
-          }
-          await tx.paymentOrder.update({
-            where: { id: order.id },
-            data: { status: 'CANCELLED' },
-          });
-        });
-
-        return NextResponse.json({ ok: true, cancelledBillIds: billIds });
       }
+
+      // PaymentOrder 내 모든 청구서 DB 취소 (paymentKey 유무와 무관)
+      const billIds = order.billIds as string[];
+      await prisma.$transaction(async (tx) => {
+        for (const billId of billIds) {
+          await tx.bill.updateMany({
+            where: { id: billId, academyId, status: PrismaBS.PAID },
+            data: { status: PrismaBS.CANCELLED, cancelledAt: now, cancelReason: reason },
+          });
+          await tx.receipt.updateMany({
+            where: { billId },
+            data: { cancelledAt: now },
+          });
+        }
+        await tx.paymentOrder.update({
+          where: { id: order.id },
+          data: { status: 'CANCELLED' },
+        });
+      });
+
+      return NextResponse.json({ ok: true, cancelledBillIds: billIds });
     }
 
     // ── 현금/수동 수납 취소 (paymentOrderId 없음) ─────────────────────────

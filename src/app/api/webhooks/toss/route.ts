@@ -121,7 +121,8 @@ export async function POST(req: NextRequest) {
       console.error('[Toss webhook] 학원 불일치:', orderId, academyId);
       return NextResponse.json({ error: 'Academy mismatch' }, { status: 403 });
     }
-    if (order.status === 'PAID') {
+    if (order.status === 'PAID' || order.status === 'CANCELLED') {
+      // CANCELLED: 원장이 이미 취소 처리한 주문 — 덮어쓰기 방지
       return NextResponse.json({ ok: true });
     }
     if (order.status === 'PROCESSING') {

@@ -25,12 +25,16 @@ export async function GET(req: NextRequest) {
 
     const [bills, receipts] = await Promise.all([
       prisma.bill.findMany({
-        where: { studentId, academyId },
+        where: {
+          studentId,
+          academyId,
+          status: { not: 'CANCELLED' }, // 취소된 청구서는 모바일에 미노출
+        },
         include: { class: { select: { name: true } } },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.receipt.findMany({
-        where: { studentId },
+        where: { studentId, cancelledAt: null }, // 취소된 영수증 미노출
         orderBy: { issuedDate: 'desc' },
       }),
     ]);

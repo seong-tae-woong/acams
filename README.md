@@ -505,6 +505,85 @@ AcademyTag          학원별 커스텀 태그 (tagType: subject|level|grade)
 
 ---
 
+## 토스페이먼츠 학원 등록 절차 (운영 가이드)
+
+새 학원이 토스페이먼츠 결제를 사용하려면 아래 3단계를 완료해야 합니다.
+
+---
+
+### 1단계 — 토스페이먼츠 상점 계정 발급 (학원 자체 진행)
+
+1. [토스페이먼츠 홈페이지](https://www.tosspayments.com) → **사업자 가입**
+2. 사업자등록증, 계좌 정보 제출 후 심사 (영업일 1~3일)
+3. 심사 통과 시 **대시보드** 발급
+4. 대시보드 → **개발 연동** → API 키 메뉴에서 아래 2가지 키 복사:
+   - **Client Key** (`test_ck_...` 또는 `live_ck_...`)
+   - **Secret Key** (`test_sk_...` 또는 `live_sk_...`)
+   > ⚠️ `test_` 키로 먼저 테스트 후 운영 전환 시 `live_` 키로 교체
+
+---
+
+### 2단계 — 슈퍼어드민 페이지에서 키 등록
+
+1. 슈퍼어드민 계정으로 로그인 → `/super-admin` 이동
+2. 해당 학원 상세 클릭
+3. **토스페이먼츠 결제 키** 섹션에서:
+   - **Client Key** 입력 (예: `live_ck_xxxxxxxx`)
+   - **Secret Key** 입력 (예: `live_sk_xxxxxxxx`)
+   - **저장** 클릭
+   > Secret Key는 AES-256-GCM으로 암호화되어 DB에 저장됩니다. 원문은 저장되지 않습니다.
+
+4. **웹훅 URL** 항목에 자동 생성된 URL을 복사합니다:
+   ```
+   https://acams-jmi3.vercel.app/api/webhooks/toss?academyId=<학원ID>
+   ```
+
+---
+
+### 3단계 — 토스페이먼츠 대시보드에서 웹훅 URL 등록
+
+> 웹훅은 **학부모가 결제 직후 브라우저를 닫거나 네트워크가 끊겨도** 서버가 결제 완료를 수신하기 위해 필수입니다.
+
+1. 토스페이먼츠 대시보드 → **개발 연동** → **웹훅**
+2. **웹훅 추가** 클릭
+3. 위에서 복사한 URL 붙여넣기
+4. 이벤트: **`PAYMENT_STATUS_CHANGED`** 체크
+5. **저장**
+
+> **학원마다 academyId가 다르므로 URL이 다릅니다.** 학원별로 각각 등록해야 합니다.
+
+---
+
+### 등록 완료 확인
+
+- 슈퍼어드민 학원 상세 페이지에서 "키 등록됨 (YYYY-MM-DD)" 표시 확인
+- 모바일 앱 → 수납 탭 → 미납 청구서 → 결제하기 버튼이 활성화되면 정상
+
+---
+
+### 키 환경 주의사항
+
+| 키 접두사 | 환경 | 실제 결제 여부 |
+|-----------|------|---------------|
+| `test_ck_` / `test_sk_` | 테스트 | ❌ 결제 미발생 (카드 테스트 번호 사용) |
+| `live_ck_` / `live_sk_` | 운영 | ✅ 실제 결제 발생 |
+
+> Client Key (`test_ck_` / `live_ck_`)와 Secret Key (`test_sk_` / `live_sk_`)는 반드시 **같은 환경**의 키 쌍을 사용해야 합니다. API가 불일치를 감지하면 저장을 거부합니다.
+
+---
+
+### 관련 환경 변수 (서버 전역)
+
+```env
+# .env.local (Vercel 환경 변수 설정)
+TOSS_ENCRYPT_KEY=<32바이트 hex — Secret Key 암호화용>
+```
+
+> `TOSS_ENCRYPT_KEY`는 슈퍼어드민이 학원 Secret Key를 저장할 때 AES 암호화에 사용합니다.
+> Vercel 프로젝트 설정 → Environment Variables에 이미 등록되어 있어야 합니다.
+
+---
+
 ## 결제 플로우 (토스페이먼츠)
 
 ```
@@ -514,6 +593,22 @@ AcademyTag          학원별 커스텀 태그 (tagType: subject|level|grade)
   ↓ 토스 SDK requestPayment()
   ↓ 결제 완료 → /mobile/payments/success?paymentKey=&orderId=&amount=
   ↓ POST /api/mobile/payments/toss/confirm (Toss API 승인 → Bill PAID, Receipt 생성)
+```
+
+### 취소/재청구 플로우
+
+```
+관리자 → 청구/수납 탭 → 완납 청구서 행 → [취소] 버튼
+  ↓ POST /api/finance/bills/[id]/cancel
+  ↓ 토스 결제건(paymentOrderId 있음): Toss 취소 API 호출 → 동일 주문 청구서 전체 CANCELLED
+  ↓ 수동 수납건(paymentOrderId 없음): 해당 청구서만 CANCELLED
+  ↓ 연결된 영수증 모두 cancelledAt 기록
+
+취소됨 청구서 선택 → [재청구] 버튼 → 재청구 모달
+  ↓ 실출결 기준 자동 계산액 표시 (원장 수정 가능)
+  ↓ POST /api/finance/bills/rebill
+  ↓ 새 UNPAID 청구서 생성 (rebillOfId → 원본 취소 청구서 연결)
+  ↓ sendNotification=true 시 학부모 앱에 "해당 월 결제 취소 후 재청구" 알림 발송
 ```
 
 ---
