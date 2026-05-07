@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
@@ -217,21 +217,59 @@ export default function MobileNotificationsPage() {
   const { selectedChildId } = useMobileChild();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  // 자녀 변경 시 초기화 + 1페이지 로드 (이때 서버에서 미읽음 일괄 read 처리됨)
   useEffect(() => {
     if (!selectedChildId) return;
     setLoading(true);
-    fetch(`/api/mobile/notifications?studentId=${selectedChildId}`)
+    setNotifications([]);
+    setPage(1);
+    setHasMore(false);
+    setError('');
+    fetch(`/api/mobile/notifications?studentId=${selectedChildId}&page=1`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) { setError(data.error); return; }
         setNotifications(data.notifications ?? []);
+        setHasMore(Boolean(data.hasMore));
       })
       .catch(() => setError('알림을 불러올 수 없습니다.'))
       .finally(() => setLoading(false));
   }, [selectedChildId]);
+
+  const loadMore = useCallback(() => {
+    if (!selectedChildId || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const next = page + 1;
+    fetch(`/api/mobile/notifications?studentId=${selectedChildId}&page=${next}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) return;
+        setNotifications((prev) => [...prev, ...(data.notifications ?? [])]);
+        setHasMore(Boolean(data.hasMore));
+        setPage(next);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [selectedChildId, page, hasMore, loadingMore]);
+
+  // IntersectionObserver로 sentinel이 화면에 들어오면 다음 페이지 로드
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: '120px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loadMore]);
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
   const filtered = filter === 'all' ? notifications : notifications.filter((n) => n.type === filter);
@@ -290,6 +328,12 @@ export default function MobileNotificationsPage() {
               {filtered.map((n) => (
                 <NotificationCard key={n.id} notif={n} />
               ))}
+              {/* 무한 스크롤 sentinel */}
+              {hasMore && (
+                <div ref={sentinelRef} className="flex justify-center py-4">
+                  {loadingMore && <Loader2 size={18} className="animate-spin text-[#9ca3af]" />}
+                </div>
+              )}
             </div>
           )}
         </div>

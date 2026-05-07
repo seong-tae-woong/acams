@@ -1,30 +1,41 @@
 import type { Exam, GradeRecord } from '@/lib/types/grade';
 
+const NULL_CATEGORIES = {
+  category1Id: null, category1Name: null,
+  category2Id: null, category2Name: null,
+  category3Id: null, category3Name: null,
+} as const;
+
 export const mockExams: Exam[] = [
   {
     id: 'e1', name: '3월 월례테스트', subject: '수학',
     classId: 'c1', className: '초등수학 기초반',
     date: '2026-03-28', totalScore: 100, description: '3월 학습 내용 종합',
+    ...NULL_CATEGORIES,
   },
   {
     id: 'e2', name: '4월 중간평가', subject: '수학',
     classId: 'c1', className: '초등수학 기초반',
     date: '2026-04-16', totalScore: 100, description: '4월 중간 평가',
+    ...NULL_CATEGORIES,
   },
   {
     id: 'e3', name: '3월 월례테스트', subject: '수학',
     classId: 'c2', className: '초등수학 심화반',
     date: '2026-03-27', totalScore: 100, description: '3월 학습 내용 종합',
+    ...NULL_CATEGORIES,
   },
   {
     id: 'e4', name: 'Phonics Quiz #3', subject: '영어',
     classId: 'c3', className: '영어 파닉스반',
     date: '2026-04-10', totalScore: 50, description: 'Unit 3~5 파닉스',
+    ...NULL_CATEGORIES,
   },
   {
     id: 'e5', name: 'Mid-term Test', subject: '영어',
     classId: 'c4', className: '영어 중급반',
     date: '2026-04-14', totalScore: 100, description: '중간고사 대비',
+    ...NULL_CATEGORIES,
   },
 ];
 

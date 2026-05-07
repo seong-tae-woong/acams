@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
-import { Bell, ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode } from 'lucide-react';
+import { ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
 
@@ -141,20 +141,6 @@ export default function MobileHomePage() {
 
       <MobileContentLoader loading={loading}>
       <div className="px-4 py-4 space-y-3">
-        {/* 미납 알림 */}
-        {unpaid.length > 0 && (
-          <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-[12px] p-3.5 flex items-center gap-3">
-            <Bell size={16} className="text-[#991B1B] shrink-0" />
-            <div className="flex-1">
-              <div className="text-[12.5px] font-semibold text-[#991B1B]">미납 수강료 안내</div>
-              <div className="text-[11.5px] text-[#991B1B]/80">
-                {unpaid.map((b) => `${b.className} ${(b.amount - b.paidAmount).toLocaleString()}원`).join(' · ')}
-              </div>
-            </div>
-            <Link href="/mobile/payments"><ChevronRight size={16} className="text-[#991B1B]" /></Link>
-          </div>
-        )}
-
         {/* 핀 공지 */}
         {pinned && (
           <div className="bg-[#E1F5EE] border border-[#4fc3a1]/30 rounded-[12px] p-3.5">
