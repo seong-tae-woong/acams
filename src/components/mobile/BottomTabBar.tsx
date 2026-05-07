@@ -40,7 +40,10 @@ export default function BottomTabBar() {
   }, [pathname, role, selectedChildId]);
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-[#e2e8f0] flex z-50">
+    <nav
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-[#e2e8f0] flex z-50"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
+    >
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || (href !== '/mobile' && pathname.startsWith(href));
         const showBadge = href === NOTIFICATIONS_HREF && unread > 0;

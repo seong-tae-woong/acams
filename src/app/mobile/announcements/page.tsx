@@ -42,7 +42,7 @@ export default function MobileAnnouncementsPage() {
   // 상세 보기
   if (selected) {
     return (
-      <div className="flex flex-col pb-20 min-h-screen">
+      <div className="flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom))] min-h-screen">
         <div className="bg-[#1a2535] px-4 pt-12 pb-4">
           <button
             onClick={() => setSelectedId(null)}
@@ -82,7 +82,7 @@ export default function MobileAnnouncementsPage() {
 
   // 목록
   return (
-    <div className="flex flex-col pb-20">
+    <div className="flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom))]">
       <div className="bg-[#1a2535] px-4 pt-12 pb-5">
         <div className="flex items-center gap-3">
           <Link href="/mobile"><ChevronLeft size={20} className="text-white" /></Link>

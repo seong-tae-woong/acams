@@ -1,22 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { toast } from '@/lib/stores/toastStore';
+import { enablePushSubscription, disablePushSubscription } from '@/lib/push/clientSubscribe';
 
 type State = 'unsupported' | 'denied' | 'off' | 'on' | 'loading';
 
-function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = atob(base64);
-  const buf = new ArrayBuffer(raw.length);
-  const arr = new Uint8Array(buf);
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-  return buf;
-}
-
 export default function PushNotificationToggle() {
   const [state, setState] = useState<State>('loading');
-  // iOS는 PWA(홈 화면 추가) 모드에서만 푸시 가능, 그 외 플랫폼은 일반 브라우저에서도 가능
   const [iosNeedsInstall, setIosNeedsInstall] = useState(false);
 
   useEffect(() => {
@@ -42,62 +32,26 @@ export default function PushNotificationToggle() {
   }, []);
 
   const enable = async () => {
-    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!publicKey) {
-      toast('서버에 푸시 키가 설정되지 않았습니다.', 'error');
-      return;
-    }
     setState('loading');
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') {
-        setState(perm === 'denied' ? 'denied' : 'off');
-        if (perm === 'denied') toast('알림 권한이 차단되었습니다. 브라우저/시스템 설정에서 허용해 주세요.', 'error');
-        return;
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToArrayBuffer(publicKey),
-      });
-      const json = sub.toJSON();
-      const res = await fetch('/api/mobile/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: json.endpoint,
-          keys: json.keys,
-          userAgent: navigator.userAgent,
-        }),
-      });
-      if (!res.ok) {
-        await sub.unsubscribe().catch(() => {});
-        throw new Error('서버 등록에 실패했습니다.');
-      }
+    const result = await enablePushSubscription();
+    if (result.ok) {
       setState('on');
       toast('휴대폰 알림이 켜졌습니다.', 'success');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '알림 설정 중 오류가 발생했습니다.';
-      toast(msg, 'error');
-      setState('off');
+      return;
+    }
+    switch (result.reason) {
+      case 'no-key': toast('서버에 푸시 키가 설정되지 않았습니다.', 'error'); setState('off'); break;
+      case 'denied': toast('알림 권한이 차단되었습니다. 시스템 설정에서 허용해 주세요.', 'error'); setState('denied'); break;
+      case 'unsupported': setState('unsupported'); break;
+      case 'server-error': toast('서버 등록에 실패했습니다.', 'error'); setState('off'); break;
+      default: toast('알림 설정 중 오류가 발생했습니다.', 'error'); setState('off');
     }
   };
 
   const disable = async () => {
     setState('loading');
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetch(`/api/mobile/push/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`, {
-          method: 'DELETE',
-        }).catch(() => {});
-        await sub.unsubscribe().catch(() => {});
-      }
-      setState('off');
-    } catch {
-      setState('on');
-    }
+    await disablePushSubscription();
+    setState('off');
   };
 
   const isOn = state === 'on';

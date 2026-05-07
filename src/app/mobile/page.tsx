@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
+import PushPermissionBanner from '@/components/mobile/PushPermissionBanner';
 import { ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
@@ -88,7 +89,7 @@ export default function MobileHomePage() {
   const greeting = isParent ? `${displayName} 부모님` : `${displayName}님`;
 
   return (
-    <div className="flex flex-col pb-20">
+    <div className="flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom))]">
       {/* 헤더 */}
       <div className="bg-[#1a2535] px-4 pt-12 pb-6">
         <div className="flex items-center justify-between mb-4">
@@ -141,6 +142,9 @@ export default function MobileHomePage() {
 
       <MobileContentLoader loading={loading}>
       <div className="px-4 py-4 space-y-3">
+        {/* 푸시 알림 권한 안내 (한 번도 응답 안 한 PWA 사용자에게만) */}
+        <PushPermissionBanner />
+
         {/* 핀 공지 */}
         {pinned && (
           <div className="bg-[#E1F5EE] border border-[#4fc3a1]/30 rounded-[12px] p-3.5">

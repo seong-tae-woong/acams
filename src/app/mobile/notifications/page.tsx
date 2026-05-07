@@ -280,7 +280,7 @@ export default function MobileNotificationsPage() {
   };
 
   return (
-    <div className="flex flex-col pb-20 min-h-screen">
+    <div className="flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom))] min-h-screen">
       {/* 헤더 */}
       <div className="bg-[#1a2535] px-4 pt-12 pb-4">
         <div className="flex items-center gap-3 mb-1">

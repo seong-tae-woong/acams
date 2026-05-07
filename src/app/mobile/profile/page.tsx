@@ -45,7 +45,7 @@ export default function MobileProfilePage() {
 
   if (!loading && !student) {
     return (
-      <div className="flex flex-col min-h-screen pb-20">
+      <div className="flex flex-col min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <div className="bg-[#1a2535] px-4 pt-12 pb-6 min-h-[160px] flex items-center">
           <span className="text-[17px] font-bold text-white">내 정보</span>
         </div>
@@ -67,7 +67,7 @@ export default function MobileProfilePage() {
   }
 
   return (
-    <div className="flex flex-col pb-20">
+    <div className="flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom))]">
       {/* 헤더 */}
       <div className="bg-[#1a2535] px-4 pt-12 pb-6">
         <div className="flex items-center gap-3 mb-4">
