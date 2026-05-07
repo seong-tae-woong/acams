@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
-import { sendSms } from '@/lib/sms/aligo';
+import { sendSms } from '@/lib/sms/solapi';
 import { writeAuditLog } from '@/lib/auth/auditLog';
 import { validateSession } from '@/lib/auth/validateSession';
 

@@ -1,13 +1,14 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import type { TeacherPermissions } from '@/lib/types/teacher';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
-import { sendSms } from '@/lib/sms/aligo';
+import { sendSms } from '@/lib/sms/solapi';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return Array.from({ length: 8 }, () => chars[randomInt(chars.length)]).join('');
 }
 
 const TEACHER_INCLUDE = {

@@ -1,12 +1,13 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
-import { sendSms } from '@/lib/sms/aligo';
+import { sendSms } from '@/lib/sms/solapi';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return Array.from({ length: 8 }, () => chars[randomInt(chars.length)]).join('');
 }
 
 // UI 문자열 ↔ Prisma enum 변환
