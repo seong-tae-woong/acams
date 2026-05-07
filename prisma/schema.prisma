@@ -100,9 +100,24 @@ model User {
   parentProfile    Parent?        @relation("ParentUser")
   studentProfile   Student?       @relation("StudentUser")
   retryPermsGiven  LectureRetryPermission[]
+  pushSubscriptions PushSubscription[]
 
   @@unique([academyId, loginId])
   @@map("users")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model AuditLog {

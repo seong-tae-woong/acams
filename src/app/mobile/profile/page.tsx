@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
+import PushNotificationToggle from '@/components/mobile/PushNotificationToggle';
 import { formatPhone } from '@/lib/utils/format';
 import { ChevronLeft, Phone, School, LogOut } from 'lucide-react';
 import Link from 'next/link';
@@ -139,24 +140,7 @@ export default function MobileProfilePage() {
         </div>
 
         {/* 알림 설정 */}
-        <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
-          <div className="text-[13px] font-semibold text-[#111827] mb-3">알림 설정</div>
-          {[
-            { label: '출결 알림', sub: '결석/지각 시 알림 수신' },
-            { label: '성적 알림', sub: '시험 성적 등록 시 알림' },
-            { label: '공지 알림', sub: '새 공지사항 알림' },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-[#f1f5f9] last:border-0">
-              <div>
-                <div className="text-[12.5px] font-medium text-[#111827]">{item.label}</div>
-                <div className="text-[11px] text-[#9ca3af]">{item.sub}</div>
-              </div>
-              <div className="w-9 h-5 rounded-full bg-[#4fc3a1] relative cursor-pointer">
-                <div className="absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] left-[19px]" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <PushNotificationToggle />
         {/* 로그아웃 */}
         <button
           onClick={handleLogout}

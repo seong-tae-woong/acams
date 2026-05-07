@@ -1,5 +1,5 @@
-// AcaMS Service Worker — 오프라인 fallback + 정적 자산 캐싱
-const CACHE_NAME = 'acams-v3'; // 버전 업 → 구버전 캐시 강제 제거
+// AcaMS Service Worker — 오프라인 fallback + 정적 자산 캐싱 + Web Push
+const CACHE_NAME = 'acams-v4'; // 버전 업 → 구버전 캐시 강제 제거
 
 // 설치: 정적 자산만 캐싱 (/mobile은 인증 필요하므로 제외)
 self.addEventListener('install', (event) => {
@@ -44,4 +44,40 @@ self.addEventListener('fetch', (event) => {
         caches.match(event.request).then((cached) => cached ?? new Response('오프라인 상태입니다.', { status: 503 }))
       )
   );
+});
+
+// Web Push 수신 — 서버에서 webpush.sendNotification 호출 시 트리거
+self.addEventListener('push', (event) => {
+  let payload = { title: 'AcaMS', body: '새 알림이 도착했습니다.', url: '/mobile/notifications' };
+  if (event.data) {
+    try { payload = { ...payload, ...event.data.json() }; } catch { /* keep defaults */ }
+  }
+  const options = {
+    body: payload.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: payload.tag,
+    data: { url: payload.url ?? '/mobile/notifications' },
+  };
+  event.waitUntil(self.registration.showNotification(payload.title, options));
+});
+
+// 알림 클릭 — 해당 url을 열거나 이미 열린 탭에 포커스
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/mobile/notifications';
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of clientsList) {
+      try {
+        const url = new URL(c.url);
+        if (url.pathname.startsWith('/mobile')) {
+          await c.focus();
+          if ('navigate' in c) await c.navigate(targetUrl);
+          return;
+        }
+      } catch { /* skip */ }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
+  })());
 });

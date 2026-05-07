@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { sendPushToClass } from '@/lib/push/sendPush';
 
 // GET /api/exams?classId=xxx — 반별 시험 목록
 export async function GET(req: NextRequest) {
@@ -110,6 +111,13 @@ export async function POST(req: NextRequest) {
         category2: { select: { id: true, name: true } },
         category3: { select: { id: true, name: true } },
       },
+    });
+
+    void sendPushToClass(exam.classId, {
+      title: `${exam.class.name} 시험 등록`,
+      body: `${exam.name} (${exam.date.toISOString().slice(0, 10)})`,
+      url: '/mobile/grades',
+      tag: `exam-${exam.id}`,
     });
 
     return NextResponse.json({

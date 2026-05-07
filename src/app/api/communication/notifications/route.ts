@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { NotificationType as PrismaType } from '@/generated/prisma/client';
+import { sendPushToStudents } from '@/lib/push/sendPush';
 
 const TYPE_TO_UI: Record<PrismaType, string> = {
   ANNOUNCEMENT: '공지',
@@ -126,6 +127,13 @@ export async function POST(req: NextRequest) {
     });
 
     const meta = notification.metadata as { billIds?: string[] } | null;
+
+    void sendPushToStudents(recipientIds, {
+      title: notification.title,
+      body: notification.content.split('\n').filter(Boolean)[0]?.slice(0, 120) ?? '',
+      url: '/mobile/notifications',
+      tag: `notification-${notification.id}`,
+    });
 
     return NextResponse.json({
       id: notification.id,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { sendPushToClass } from '@/lib/push/sendPush';
 
 // GET /api/assignments?classId=xxx — 반별 과제 목록
 export async function GET(req: NextRequest) {
@@ -57,6 +58,15 @@ export async function POST(req: NextRequest) {
         memo: memo ?? '',
       },
       include: { class: { select: { name: true, subject: true } } },
+    });
+
+    void sendPushToClass(created.classId, {
+      title: `${created.class.name} 숙제 등록`,
+      body: created.memo
+        ? `${created.memo.slice(0, 60)} (~${created.dueDate.toISOString().slice(0, 10)})`
+        : `납기일 ${created.dueDate.toISOString().slice(0, 10)}`,
+      url: '/mobile/schedule',
+      tag: `assignment-${created.id}`,
     });
 
     return NextResponse.json({
