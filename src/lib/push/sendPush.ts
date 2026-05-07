@@ -70,6 +70,7 @@ export async function sendPushToStudents(studentIds: string[], payload: PushPayl
               await webpush.sendNotification(
                 { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
                 body,
+                { urgency: 'high', TTL: 86400 }, // iOS PWA가 즉시 표시하도록 high 명시, 24h 보존
               );
             } catch (err: unknown) {
               const e = err as { statusCode?: number };
