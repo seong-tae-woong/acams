@@ -18,9 +18,12 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  // 학부모가 자녀 여러 명일 때 푸시를 누르면 해당 자녀로 자동 전환
+  studentId?: string;
 };
 
-// 학생 ID 목록 → 해당 학생의 user + 학생의 모든 학부모 user → 모든 PushSubscription에 푸시 발송
+// 학생 ID 목록 → 학생별로 1:1 푸시 발송 (제목에 [학생이름] 자동 prefix)
+// 학생 본인 user + 학생의 모든 학부모 user의 모든 PushSubscription에 발송
 // 실패한 구독(410/404)은 자동 정리
 export async function sendPushToStudents(studentIds: string[], payload: PushPayload): Promise<void> {
   if (studentIds.length === 0) return;
@@ -30,46 +33,54 @@ export async function sendPushToStudents(studentIds: string[], payload: PushPayl
   }
 
   try {
-    // 학생 본인 user
+    // 학생별 이름·본인 userId·학부모 userId 모음
     const students = await prisma.student.findMany({
       where: { id: { in: studentIds } },
-      select: { userId: true },
+      select: {
+        id: true,
+        name: true,
+        userId: true,
+        parentLinks: { select: { parent: { select: { userId: true } } } },
+      },
     });
-    const studentUserIds = students.map((s) => s.userId).filter((v): v is string => v !== null);
 
-    // 학생의 학부모 user
-    const parentLinks = await prisma.studentParent.findMany({
-      where: { studentId: { in: studentIds } },
-      select: { parent: { select: { userId: true } } },
-    });
-    const parentUserIds = parentLinks.map((l) => l.parent.userId).filter((v): v is string => v !== null);
-
-    const userIds = Array.from(new Set([...studentUserIds, ...parentUserIds]));
-    if (userIds.length === 0) return;
-
-    const subs = await prisma.pushSubscription.findMany({
-      where: { userId: { in: userIds } },
-    });
-    if (subs.length === 0) return;
-
-    const body = JSON.stringify(payload);
     const expiredEndpoints: string[] = [];
 
-    await Promise.allSettled(
-      subs.map(async (s) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            body,
-          );
-        } catch (err: unknown) {
-          const e = err as { statusCode?: number };
-          if (e.statusCode === 404 || e.statusCode === 410) {
-            expiredEndpoints.push(s.endpoint);
-          } else {
-            console.warn('[sendPush] error:', err);
-          }
-        }
+    await Promise.all(
+      students.map(async (s) => {
+        const userIds = [
+          s.userId,
+          ...s.parentLinks.map((l) => l.parent.userId),
+        ].filter((v): v is string => v !== null);
+        if (userIds.length === 0) return;
+
+        const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
+        if (subs.length === 0) return;
+
+        const perStudentPayload: PushPayload = {
+          ...payload,
+          title: `[${s.name}] ${payload.title}`,
+          studentId: s.id,
+        };
+        const body = JSON.stringify(perStudentPayload);
+
+        await Promise.allSettled(
+          subs.map(async (sub) => {
+            try {
+              await webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                body,
+              );
+            } catch (err: unknown) {
+              const e = err as { statusCode?: number };
+              if (e.statusCode === 404 || e.statusCode === 410) {
+                expiredEndpoints.push(sub.endpoint);
+              } else {
+                console.warn('[sendPush] error:', err);
+              }
+            }
+          }),
+        );
       }),
     );
 

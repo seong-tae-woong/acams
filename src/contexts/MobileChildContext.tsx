@@ -38,11 +38,22 @@ export function MobileChildProvider({ children }: { children: ReactNode }) {
         const list = data.children ?? [];
         if (list.length > 0) {
           setAllChildren(list);
-          const saved = typeof window !== 'undefined'
-            ? localStorage.getItem('acams_selected_child')
-            : null;
-          const valid = list.find((c) => c.id === saved);
-          setSelectedChildIdState(valid ? saved! : list[0].id);
+          // URL ?student=<id> 우선 (푸시 알림 클릭으로 진입한 경우) → localStorage → 첫 자녀
+          let chosen: string | null = null;
+          if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            const fromUrl = url.searchParams.get('student');
+            if (fromUrl && list.find((c) => c.id === fromUrl)) {
+              chosen = fromUrl;
+              localStorage.setItem('acams_selected_child', fromUrl);
+              url.searchParams.delete('student');
+              window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
+            } else {
+              const saved = localStorage.getItem('acams_selected_child');
+              if (saved && list.find((c) => c.id === saved)) chosen = saved;
+            }
+          }
+          setSelectedChildIdState(chosen ?? list[0].id);
         }
       })
       .catch(() => {});

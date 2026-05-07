@@ -48,16 +48,21 @@ self.addEventListener('fetch', (event) => {
 
 // Web Push 수신 — 서버에서 webpush.sendNotification 호출 시 트리거
 self.addEventListener('push', (event) => {
-  let payload = { title: 'AcaMS', body: '새 알림이 도착했습니다.', url: '/mobile/notifications' };
+  let payload = { title: 'AcaMS', body: '새 알림이 도착했습니다.', url: '/mobile/notifications', studentId: null };
   if (event.data) {
     try { payload = { ...payload, ...event.data.json() }; } catch { /* keep defaults */ }
   }
+  // payload.studentId가 있으면 url에 ?student=<id> 부여 → 앱 진입 시 해당 자녀로 자동 전환
+  const baseUrl = payload.url || '/mobile/notifications';
+  const targetUrl = payload.studentId
+    ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'student=' + encodeURIComponent(payload.studentId)
+    : baseUrl;
   const options = {
     body: payload.body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: payload.tag,
-    data: { url: payload.url ?? '/mobile/notifications' },
+    data: { url: targetUrl },
   };
   event.waitUntil(self.registration.showNotification(payload.title, options));
 });

@@ -18,24 +18,26 @@ const NOTIFICATIONS_HREF = '/mobile/notifications';
 
 export default function BottomTabBar() {
   const pathname = usePathname();
-  const { selectedChildId } = useMobileChild();
+  const { role, selectedChildId } = useMobileChild();
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    if (!selectedChildId) {
-      setUnread(0);
-      return;
-    }
-    // 알림 탭에 들어오면 즉시 0으로 표시 (서버는 첫 페이지 진입 시 일괄 read 처리됨)
+    if (!role) { setUnread(0); return; }
+    // 알림 탭 진입 시 즉시 0 표시 (서버는 첫 페이지 GET 시 선택 자녀의 미읽음을 일괄 read 처리;
+    // 다른 자녀 미읽음이 남아 있으면 탭을 떠난 뒤 재fetch에서 다시 노출됨)
     if (pathname === NOTIFICATIONS_HREF) {
       setUnread(0);
       return;
     }
-    fetch(`/api/mobile/notifications/unread-count?studentId=${selectedChildId}`)
+    // 학부모: 자녀 전체 합산 (studentId 미지정), 학생: 본인
+    const url = role === 'parent'
+      ? '/api/mobile/notifications/unread-count'
+      : `/api/mobile/notifications/unread-count${selectedChildId ? `?studentId=${selectedChildId}` : ''}`;
+    fetch(url)
       .then((r) => r.json())
       .then((data) => setUnread(typeof data.count === 'number' ? data.count : 0))
       .catch(() => setUnread(0));
-  }, [pathname, selectedChildId]);
+  }, [pathname, role, selectedChildId]);
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-[#e2e8f0] flex z-50">
