@@ -88,6 +88,7 @@ export default function TeachersPage() {
   const handleRegister = async () => {
     if (!regForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
     if (!regForm.email.trim()) { toast('이메일을 입력해주세요.', 'error'); return; }
+    if (regForm.phone.includes('-')) { toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error'); return; }
     try {
       await addTeacher({
         name: regForm.name.trim(),
@@ -137,6 +138,7 @@ export default function TeachersPage() {
   const handleEdit = () => {
     if (!selected) return;
     if (!editForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
+    if (editForm.phone.includes('-')) { toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error'); return; }
     updateTeacher(selected.id, {
       name: editForm.name.trim(),
       subject: editForm.subject.trim(),
@@ -302,7 +304,10 @@ export default function TeachersPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11.5px] text-[#6b7280] block mb-1">연락처</label>
-              <input className={fieldCls} value={regForm.phone} onChange={(e) => setRegForm((f) => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000" />
+              <input className={fieldCls} value={regForm.phone} onChange={(e) => setRegForm((f) => ({ ...f, phone: e.target.value }))} placeholder="01000000000" />
+              {regForm.phone.includes('-') && (
+                <p className="text-[10.5px] text-[#991b1b] mt-1">'-' 없이 숫자만 입력해주세요.</p>
+              )}
             </div>
             <div>
               <label className="text-[11.5px] text-[#6b7280] block mb-1">이메일</label>
@@ -399,7 +404,10 @@ export default function TeachersPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11.5px] text-[#6b7280] block mb-1">연락처</label>
-              <input className={fieldCls} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+              <input className={fieldCls} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} placeholder="01000000000" />
+              {editForm.phone.includes('-') && (
+                <p className="text-[10.5px] text-[#991b1b] mt-1">'-' 없이 숫자만 입력해주세요.</p>
+              )}
             </div>
             <div>
               <label className="text-[11.5px] text-[#6b7280] block mb-1">이메일</label>

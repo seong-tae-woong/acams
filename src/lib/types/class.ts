@@ -21,6 +21,15 @@ export const FEE_TYPE_NAMES: Record<FeeType, string> = {
   'per-lesson': '수업 단위',
 };
 
+export type CurriculumPalette = 'red' | 'orange' | 'green' | 'custom';
+
+export const CURRICULUM_PALETTES: Record<CurriculumPalette, { label: string; colors: string[] }> = {
+  red: { label: '빨강 → 분홍', colors: ['#ef4444', '#f43f5e', '#ec4899', '#f472b6', '#fb7185', '#fda4af', '#f87171', '#e11d48'] },
+  orange: { label: '주황 → 노랑', colors: ['#f97316', '#fb923c', '#fdba74', '#fbbf24', '#fcd34d', '#facc15', '#eab308', '#f59e0b'] },
+  green: { label: '초록 → 연두', colors: ['#10b981', '#22c55e', '#34d399', '#4ade80', '#84cc16', '#a3e635', '#16a34a', '#65a30d'] },
+  custom: { label: '직접 지정', colors: ['#4fc3a1'] },
+};
+
 export interface ClassInfo {
   id: string;
   name: string;
@@ -37,6 +46,7 @@ export interface ClassInfo {
   fee: number;     // 수강료 (원)
   feeType: FeeType; // 수강료 단위
   description: string;
+  curriculumPalette?: CurriculumPalette;
 }
 
 export interface ScheduleSlot {

@@ -81,6 +81,7 @@ export async function GET(
         fee: academy.showFees ? c.fee : null,
         color: c.color,
         schedule: formatSchedule(c.schedules),
+        description: c.description ?? '',
       })),
       announcements: announcements.map((a) => ({
         id: a.id,

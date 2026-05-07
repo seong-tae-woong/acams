@@ -63,6 +63,8 @@ model Academy {
   lectureQuizzes         LectureQuiz[]
   lectureQuizAttempts    LectureQuizAttempt[]
   lectureRetryPerms      LectureRetryPermission[]
+  examCategories         ExamCategory[]
+  assignments            Assignment[]
 
   @@map("academies")
 }
@@ -257,6 +259,7 @@ model Class {
   maxStudents Int     @default(10)
   description String  @default("")
   isActive    Boolean @default(true)
+  curriculumPalette String @default("green")  // "red" | "orange" | "green" | "custom"
 
   teachers    ClassTeacher[]
   enrollments ClassEnrollment[]
@@ -270,6 +273,7 @@ model Class {
   announcements   Announcement[]
   calendarEvents  CalendarEvent[]
   lectureTargets  LectureTarget[]
+  assignments     Assignment[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -401,11 +405,42 @@ model Exam {
   totalScore  Int     @default(100)
   description String  @default("")
 
+  // 카테고리 (1은 필수, 2/3은 옵션) — 기존 데이터 호환을 위해 모두 nullable
+  category1Id String?
+  category1   ExamCategory? @relation("ExamCategory1", fields: [category1Id], references: [id])
+  category2Id String?
+  category2   ExamCategory? @relation("ExamCategory2", fields: [category2Id], references: [id])
+  category3Id String?
+  category3   ExamCategory? @relation("ExamCategory3", fields: [category3Id], references: [id])
+
   gradeRecords GradeRecord[]
 
   createdAt   DateTime @default(now())
 
   @@map("exams")
+}
+
+model ExamCategory {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  name      String
+  level     Int     // 1, 2, 3
+
+  parentId  String?
+  parent    ExamCategory?  @relation("ExamCategoryHierarchy", fields: [parentId], references: [id])
+  children  ExamCategory[] @relation("ExamCategoryHierarchy")
+
+  examsAsCategory1 Exam[] @relation("ExamCategory1")
+  examsAsCategory2 Exam[] @relation("ExamCategory2")
+  examsAsCategory3 Exam[] @relation("ExamCategory3")
+
+  createdAt DateTime @default(now())
+
+  @@index([academyId, level])
+  @@index([parentId])
+  @@map("exam_categories")
 }
 
 model GradeRecord {
@@ -424,6 +459,30 @@ model GradeRecord {
 
   @@unique([examId, studentId])
   @@map("grade_records")
+}
+
+// ─────────────────────────────────────────────
+// ASSIGNMENTS
+// ─────────────────────────────────────────────
+
+model Assignment {
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id])
+
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id])
+
+  date      DateTime  // 과제 출제일 (반 시간표 날짜 가능)
+  dueDate   DateTime  // 납기일
+  memo      String   @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([academyId, classId])
+  @@index([dueDate])
+  @@map("assignments")
 }
 
 // ─────────────────────────────────────────────
@@ -707,14 +766,23 @@ model Textbook {
   @@map("textbooks")
 }
 
+enum CurriculumUnitType {
+  MONTH
+  WEEK
+  SESSION
+}
+
 model CurriculumRow {
-  id        String  @id @default(cuid())
+  id        String             @id @default(cuid())
   academyId String
   classId   String
-  week      Int
+  unitType  CurriculumUnitType @default(WEEK)
+  startWeek Int                @default(1)
+  endWeek   Int                @default(1)
   topic     String
-  detail    String  @default("")
-  done      Boolean @default(false)
+  detail    String             @default("")
+  color     String?            // 사용자 직접 지정 색 (null이면 팔레트 자동 부여)
+  done      Boolean            @default(false)
 
   academy   Academy @relation(fields: [academyId], references: [id])
   class     Class   @relation(fields: [classId], references: [id])
@@ -722,7 +790,6 @@ model CurriculumRow {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([classId, week])
   @@map("curriculum_rows")
 }
 

@@ -1,10 +1,11 @@
 'use client';
 import { create } from 'zustand';
-import type { Exam, GradeRecord } from '@/lib/types/grade';
+import type { Exam, ExamCategory, GradeRecord } from '@/lib/types/grade';
 
 interface GradeStore {
   exams: Exam[];
   grades: GradeRecord[];
+  categories: ExamCategory[];
   selectedExamId: string | null;
   loading: boolean;
 
@@ -18,14 +19,21 @@ interface GradeStore {
   fetchExams: (classId?: string) => Promise<void>;
   fetchGrades: (examId: string) => Promise<void>;
   addExam: (exam: Omit<Exam, 'id'>) => Promise<string>;
+  updateExam: (id: string, updates: Partial<Omit<Exam, 'id' | 'classId' | 'className' | 'subject'>>) => Promise<void>;
   deleteExam: (id: string) => Promise<void>;
   saveGrades: (grades: Omit<GradeRecord, 'id'>[]) => Promise<void>;
   updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>) => Promise<void>;
+
+  // 카테고리
+  fetchCategories: () => Promise<void>;
+  addCategory: (input: { name: string; level: 1 | 2 | 3; parentId: string | null }) => Promise<ExamCategory>;
+  deleteCategory: (id: string) => Promise<void>;
 }
 
 export const useGradeStore = create<GradeStore>((set, get) => ({
   exams: [],
   grades: [],
+  categories: [],
   selectedExamId: null,
   loading: false,
 
@@ -80,6 +88,20 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
     return exam.id;
   },
 
+  updateExam: async (id, updates) => {
+    const res = await fetch(`/api/exams/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error ?? '시험 수정 실패');
+    }
+    const exam: Exam = await res.json();
+    set((state) => ({ exams: state.exams.map((e) => (e.id === id ? exam : e)) }));
+  },
+
   deleteExam: async (id) => {
     const res = await fetch(`/api/exams/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('시험 삭제 실패');
@@ -118,6 +140,44 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
       const grade = get().grades.find((g) => g.id === id);
       if (grade) await get().fetchGrades(grade.examId);
       throw new Error('성적 수정 실패');
+    }
+  },
+
+  fetchCategories: async () => {
+    const res = await fetch('/api/exam-categories');
+    if (!res.ok) throw new Error('카테고리 조회 실패');
+    const data: ExamCategory[] = await res.json();
+    set({ categories: data });
+  },
+
+  addCategory: async (input) => {
+    const res = await fetch('/api/exam-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error ?? '카테고리 등록 실패');
+    }
+    const cat: ExamCategory = await res.json();
+    set((state) => ({ categories: [...state.categories, cat] }));
+    return cat;
+  },
+
+  deleteCategory: async (id) => {
+    const res = await fetch(`/api/exam-categories/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error ?? '카테고리 삭제 실패');
+    }
+    // 자식까지 서버에서 함께 지웠으므로 다시 가져옴
+    await get().fetchCategories();
+    // 카테고리 삭제 시 해당 카테고리를 쓰던 시험은 슬롯이 null이 되었으니 시험도 다시 조회
+    const exams = get().exams;
+    const classIds = Array.from(new Set(exams.map((e) => e.classId)));
+    if (classIds.length === 1) {
+      await get().fetchExams(classIds[0]);
     }
   },
 }));

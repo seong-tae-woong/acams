@@ -142,7 +142,10 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
       {/* 학생 연락처 */}
       <div>
         <label className="text-[11.5px] text-[#6b7280] block mb-1">학생 연락처 *</label>
-        <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000" className={fieldClass} />
+        <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="01000000000" className={fieldClass} />
+        {form.phone.includes('-') && (
+          <p className="text-[10.5px] text-[#991b1b] mt-1">'-' 없이 숫자만 입력해주세요.</p>
+        )}
       </div>
       {/* 보호자 이름 */}
       <div>
@@ -152,7 +155,10 @@ function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: 
       {/* 보호자 연락처 */}
       <div>
         <label className="text-[11.5px] text-[#6b7280] block mb-1">보호자 연락처 *</label>
-        <input type="tel" value={form.parentPhone} onChange={(e) => setForm({ ...form, parentPhone: e.target.value })} placeholder="010-0000-0000" className={fieldClass} />
+        <input type="tel" value={form.parentPhone} onChange={(e) => setForm({ ...form, parentPhone: e.target.value })} placeholder="01000000000" className={fieldClass} />
+        {form.parentPhone.includes('-') && (
+          <p className="text-[10.5px] text-[#991b1b] mt-1">'-' 없이 숫자만 입력해주세요.</p>
+        )}
       </div>
       <div>
         <label className="text-[11.5px] text-[#6b7280] block mb-1">상태</label>
@@ -404,6 +410,9 @@ export default function StudentsPage() {
     if (!registerForm.name || !registerForm.phone || !registerForm.parentPhone) {
       toast('필수 항목을 입력해주세요.', 'error'); return;
     }
+    if (registerForm.phone.includes('-') || registerForm.parentPhone.includes('-')) {
+      toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error'); return;
+    }
 
     const year = new Date().getFullYear();
     const yearCount = students.filter((s) => s.attendanceNumber.startsWith(String(year))).length;
@@ -452,6 +461,9 @@ export default function StudentsPage() {
 
   const handleEdit = () => {
     if (!selected) return;
+    if (editForm.phone.includes('-') || editForm.parentPhone.includes('-')) {
+      toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error'); return;
+    }
     updateStudent(selected.id, {
       ...editForm,
       school: `${editForm.school.trim()}${editForm.schoolLevel}`,

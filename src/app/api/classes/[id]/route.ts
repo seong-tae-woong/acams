@@ -15,6 +15,7 @@ function mapClass(c: {
   id: string; name: string; subject: string; level: string;
   color: string; room: string; fee: number; feeType: string; maxStudents: number;
   description: string;
+  curriculumPalette: string;
   teachers: { teacherId: string; teacher: { id: string; name: string } }[];
   enrollments: { studentId: string }[];
   schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
@@ -40,6 +41,7 @@ function mapClass(c: {
     fee: c.fee,
     feeType: c.feeType as 'monthly' | 'weekly' | 'per-lesson',
     description: c.description,
+    curriculumPalette: (c.curriculumPalette as 'red' | 'orange' | 'green' | 'custom') ?? 'green',
   };
 }
 
@@ -60,7 +62,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, subject, level, teacherId, maxStudents, schedule, color, room, fee, feeType, description } = body;
+    const { name, subject, level, teacherId, maxStudents, schedule, color, room, fee, feeType, description, curriculumPalette } = body;
 
     await prisma.$transaction(async (tx) => {
       await tx.class.update({
@@ -75,6 +77,7 @@ export async function PATCH(
           ...(feeType !== undefined && { feeType }),
           ...(maxStudents !== undefined && { maxStudents }),
           ...(description !== undefined && { description }),
+          ...(curriculumPalette !== undefined && ['red', 'orange', 'green', 'custom'].includes(curriculumPalette) && { curriculumPalette }),
         },
       });
 

@@ -2,6 +2,13 @@
 
 export type AttitudeGrade = 'Excellent' | 'Good' | 'Need Effort' | 'Bad';
 
+export interface ExamCategory {
+  id: string;
+  name: string;
+  level: 1 | 2 | 3;
+  parentId: string | null;
+}
+
 export interface Exam {
   id: string;
   name: string;
@@ -11,6 +18,12 @@ export interface Exam {
   date: string; // ISO date string (YYYY-MM-DD)
   totalScore: number; // 만점
   description: string;
+  category1Id: string | null;
+  category1Name: string | null;
+  category2Id: string | null;
+  category2Name: string | null;
+  category3Id: string | null;
+  category3Name: string | null;
 }
 
 export interface GradeRecord {

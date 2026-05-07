@@ -17,13 +17,23 @@ export async function PATCH(
     if (body.topic !== undefined) updateData.topic = body.topic;
     if (body.detail !== undefined) updateData.detail = body.detail;
     if (body.done !== undefined) updateData.done = body.done;
+    if (body.unitType !== undefined && ['MONTH', 'WEEK', 'SESSION'].includes(body.unitType)) {
+      updateData.unitType = body.unitType;
+    }
+    if (typeof body.startWeek === 'number' && body.startWeek > 0) updateData.startWeek = body.startWeek;
+    if (typeof body.endWeek === 'number' && body.endWeek > 0) updateData.endWeek = body.endWeek;
+    if (body.color !== undefined) updateData.color = body.color || null;
 
     const row = await prisma.curriculumRow.update({
       where: { id: rowId, academyId },
       data: updateData,
     });
 
-    return NextResponse.json({ id: row.id, week: row.week, topic: row.topic, detail: row.detail, done: row.done });
+    return NextResponse.json({
+      id: row.id, unitType: row.unitType,
+      startWeek: row.startWeek, endWeek: row.endWeek,
+      topic: row.topic, detail: row.detail, color: row.color, done: row.done,
+    });
   } catch (err) {
     console.error('[PATCH /api/classes/[id]/curriculum/[rowId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

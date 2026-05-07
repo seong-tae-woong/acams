@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { resolveStudentId } from '@/lib/mobile/resolveStudent';
+import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
 
 // GET /api/mobile/grades?studentId=
 export async function GET(req: NextRequest) {
@@ -57,7 +57,45 @@ export async function GET(req: NextRequest) {
       },
     }));
 
-    return NextResponse.json({ studentName: student?.name ?? '', grades });
+    // 학생의 활성 수강 반 → 다가오는 시험·과제 (오늘 포함)
+    const classIds = await resolveClassIds(studentId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcomingExams = classIds.length === 0 ? [] : await prisma.exam.findMany({
+      where: { academyId, classId: { in: classIds }, date: { gte: today } },
+      include: { class: { select: { name: true, subject: true } } },
+      orderBy: { date: 'asc' },
+    });
+
+    const upcomingAssignments = classIds.length === 0 ? [] : await prisma.assignment.findMany({
+      where: { academyId, classId: { in: classIds }, dueDate: { gte: today } },
+      include: { class: { select: { name: true, subject: true } } },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    return NextResponse.json({
+      studentName: student?.name ?? '',
+      grades,
+      upcomingExams: upcomingExams.map((e) => ({
+        id: e.id,
+        name: e.name,
+        subject: e.subject,
+        date: e.date.toISOString().slice(0, 10),
+        totalScore: e.totalScore,
+        description: e.description,
+        className: e.class.name,
+        classSubject: e.class.subject,
+      })),
+      upcomingAssignments: upcomingAssignments.map((a) => ({
+        id: a.id,
+        date: a.date.toISOString().slice(0, 10),
+        dueDate: a.dueDate.toISOString().slice(0, 10),
+        memo: a.memo,
+        className: a.class.name,
+        classSubject: a.class.subject,
+      })),
+    });
   } catch (err) {
     console.error('[GET /api/mobile/grades]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

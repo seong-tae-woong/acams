@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
 // GET /api/exams?classId=xxx — 반별 시험 목록
@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
       },
       include: {
         class: { select: { name: true, subject: true } },
+        category1: { select: { id: true, name: true } },
+        category2: { select: { id: true, name: true } },
+        category3: { select: { id: true, name: true } },
       },
       orderBy: { date: 'desc' },
     });
@@ -30,6 +33,12 @@ export async function GET(req: NextRequest) {
       date: e.date.toISOString().slice(0, 10),
       totalScore: e.totalScore,
       description: e.description,
+      category1Id: e.category1?.id ?? null,
+      category1Name: e.category1?.name ?? null,
+      category2Id: e.category2?.id ?? null,
+      category2Name: e.category2?.name ?? null,
+      category3Id: e.category3?.id ?? null,
+      category3Name: e.category3?.name ?? null,
     }));
 
     return NextResponse.json(result);
@@ -45,10 +54,41 @@ export async function POST(req: NextRequest) {
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { name, subject, classId, className, date, totalScore, description } = await req.json();
+    const {
+      name, subject, classId, date, totalScore, description,
+      category1Id, category2Id, category3Id,
+    } = await req.json();
 
     if (!name || !classId || !date) {
       return NextResponse.json({ error: '시험명, 반, 날짜는 필수입니다.' }, { status: 400 });
+    }
+    if (!category1Id) {
+      return NextResponse.json({ error: '카테고리 1은 필수입니다.' }, { status: 400 });
+    }
+
+    // 카테고리 소유권/계층 검증
+    const ids = [category1Id, category2Id, category3Id].filter(Boolean) as string[];
+    const cats = await prisma.examCategory.findMany({
+      where: { id: { in: ids }, academyId },
+      select: { id: true, level: true, parentId: true },
+    });
+    const byId = new Map(cats.map((c) => [c.id, c]));
+
+    const c1 = byId.get(category1Id);
+    if (!c1 || c1.level !== 1) return NextResponse.json({ error: '카테고리 1이 올바르지 않습니다.' }, { status: 400 });
+
+    if (category2Id) {
+      const c2 = byId.get(category2Id);
+      if (!c2 || c2.level !== 2 || c2.parentId !== category1Id) {
+        return NextResponse.json({ error: '카테고리 2가 올바르지 않습니다.' }, { status: 400 });
+      }
+    }
+    if (category3Id) {
+      if (!category2Id) return NextResponse.json({ error: '카테고리 3은 카테고리 2가 있어야 선택할 수 있습니다.' }, { status: 400 });
+      const c3 = byId.get(category3Id);
+      if (!c3 || c3.level !== 3 || c3.parentId !== category2Id) {
+        return NextResponse.json({ error: '카테고리 3이 올바르지 않습니다.' }, { status: 400 });
+      }
     }
 
     const exam = await prisma.exam.create({
@@ -60,9 +100,15 @@ export async function POST(req: NextRequest) {
         date: new Date(date),
         totalScore: totalScore ?? 100,
         description: description ?? '',
+        category1Id,
+        category2Id: category2Id ?? null,
+        category3Id: category3Id ?? null,
       },
       include: {
         class: { select: { name: true } },
+        category1: { select: { id: true, name: true } },
+        category2: { select: { id: true, name: true } },
+        category3: { select: { id: true, name: true } },
       },
     });
 
@@ -75,6 +121,12 @@ export async function POST(req: NextRequest) {
       date: exam.date.toISOString().slice(0, 10),
       totalScore: exam.totalScore,
       description: exam.description,
+      category1Id: exam.category1?.id ?? null,
+      category1Name: exam.category1?.name ?? null,
+      category2Id: exam.category2?.id ?? null,
+      category2Name: exam.category2?.name ?? null,
+      category3Id: exam.category3?.id ?? null,
+      category3Name: exam.category3?.name ?? null,
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/exams]', err instanceof Error ? err.message : String(err));

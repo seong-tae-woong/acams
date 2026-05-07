@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
+type CurriculumUnitType = 'MONTH' | 'WEEK' | 'SESSION';
+const VALID_TYPES: CurriculumUnitType[] = ['MONTH', 'WEEK', 'SESSION'];
+
 // GET /api/classes/[id]/curriculum
 export async function GET(
   req: NextRequest,
@@ -14,15 +17,18 @@ export async function GET(
   try {
     const rows = await prisma.curriculumRow.findMany({
       where: { academyId, classId },
-      orderBy: { week: 'asc' },
+      orderBy: [{ unitType: 'asc' }, { startWeek: 'asc' }, { createdAt: 'asc' }],
     });
 
     return NextResponse.json(
       rows.map((r) => ({
         id: r.id,
-        week: r.week,
+        unitType: r.unitType,
+        startWeek: r.startWeek,
+        endWeek: r.endWeek,
         topic: r.topic,
         detail: r.detail,
+        color: r.color,
         done: r.done,
       }))
     );
@@ -32,7 +38,7 @@ export async function GET(
   }
 }
 
-// POST /api/classes/[id]/curriculum — 주차 추가
+// POST /api/classes/[id]/curriculum
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -43,29 +49,34 @@ export async function POST(
   const { id: classId } = await ctx.params;
 
   try {
-    const { topic, detail } = await req.json();
-    if (!topic) return NextResponse.json({ error: '학습 주제는 필수입니다.' }, { status: 400 });
+    const { topic, detail, unitType, startWeek, endWeek, color } = await req.json();
+    if (!topic) return NextResponse.json({ error: '단원명은 필수입니다.' }, { status: 400 });
 
-    // 다음 주차 자동 계산
-    const last = await prisma.curriculumRow.findFirst({
-      where: { classId },
-      orderBy: { week: 'desc' },
-    });
-    const nextWeek = (last?.week ?? 0) + 1;
+    const type: CurriculumUnitType = VALID_TYPES.includes(unitType) ? unitType : 'WEEK';
+    const start = typeof startWeek === 'number' && startWeek > 0 ? startWeek : 1;
+    let end = typeof endWeek === 'number' && endWeek > 0 ? endWeek : start;
+    if (end < start) end = start;
 
     const row = await prisma.curriculumRow.create({
       data: {
         academyId,
         classId,
-        week: nextWeek,
+        unitType: type,
+        startWeek: start,
+        endWeek: end,
         topic,
         detail: detail ?? '',
+        color: typeof color === 'string' && color ? color : null,
         done: false,
       },
     });
 
     return NextResponse.json(
-      { id: row.id, week: row.week, topic: row.topic, detail: row.detail, done: row.done },
+      {
+        id: row.id, unitType: row.unitType,
+        startWeek: row.startWeek, endWeek: row.endWeek,
+        topic: row.topic, detail: row.detail, color: row.color, done: row.done,
+      },
       { status: 201 }
     );
   } catch (err) {

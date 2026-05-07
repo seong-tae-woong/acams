@@ -15,6 +15,7 @@ function mapClass(c: {
   id: string; name: string; subject: string; level: string;
   color: string; room: string; fee: number; feeType: string; maxStudents: number;
   description: string;
+  curriculumPalette: string;
   teachers: { teacherId: string; teacher: { id: string; name: string } }[];
   enrollments: { studentId: string }[];
   schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
@@ -40,6 +41,7 @@ function mapClass(c: {
     fee: c.fee,
     feeType: c.feeType as 'monthly' | 'weekly' | 'per-lesson',
     description: c.description,
+    curriculumPalette: (c.curriculumPalette as 'red' | 'orange' | 'green' | 'custom') ?? 'green',
   };
 }
 

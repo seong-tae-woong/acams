@@ -73,6 +73,10 @@ export default function NewAcademyPage() {
       toast('학원 키 중복확인을 완료해주세요.', 'error');
       return;
     }
+    if (form.phone.includes('-')) {
+      toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/super-admin/academies', {
@@ -178,7 +182,10 @@ export default function NewAcademyPage() {
           </div>
           <div>
             <label className="block text-[12px] text-[#6b7280] mb-1.5">대표 전화</label>
-            <input className={fieldCls} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="예: 02-1234-5678" />
+            <input className={fieldCls} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="예: 0212345678" />
+            {form.phone.includes('-') && (
+              <p className="text-[11px] text-[#991b1b] mt-1">'-' 없이 숫자만 입력해주세요.</p>
+            )}
           </div>
         </div>
 

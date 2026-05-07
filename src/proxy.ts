@@ -86,17 +86,22 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/students', req.url));
   }
 
-  if (
-    (pathname.startsWith('/students') ||
-      pathname.startsWith('/classes') ||
-      pathname.startsWith('/finance') ||
-      pathname.startsWith('/calendar') ||
-      pathname.startsWith('/communication') ||
-      pathname.startsWith('/analytics') ||
-      pathname.startsWith('/settings')) &&
-    role === 'super_admin'
-  ) {
+  const isAdminPage =
+    pathname.startsWith('/students') ||
+    pathname.startsWith('/classes') ||
+    pathname.startsWith('/finance') ||
+    pathname.startsWith('/calendar') ||
+    pathname.startsWith('/communication') ||
+    pathname.startsWith('/analytics') ||
+    pathname.startsWith('/settings');
+
+  if (isAdminPage && role === 'super_admin') {
     return NextResponse.redirect(new URL('/super-admin', req.url));
+  }
+
+  // 학부모/학생이 관리자 영역 또는 인강 영역 직접 접근 시 → /mobile
+  if ((isAdminPage || pathname.startsWith('/ingang')) && (role === 'parent' || role === 'student')) {
+    return NextResponse.redirect(new URL('/mobile', req.url));
   }
 
   // 하위 컴포넌트에 유저 정보 전달 (헤더 주입)
