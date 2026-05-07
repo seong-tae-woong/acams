@@ -13,7 +13,7 @@ const SECRET = process.env.JWT_SECRET!;
 
 export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, SECRET, {
-    expiresIn: (process.env.JWT_EXPIRES_IN ?? '7d') as jwt.SignOptions['expiresIn'],
+    expiresIn: (process.env.JWT_EXPIRES_IN ?? '30d') as jwt.SignOptions['expiresIn'],
   });
 }
 

@@ -9,7 +9,7 @@ export async function setAuthCookie(token: string) {
     secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 7, // 7일
+    maxAge: 60 * 60 * 24 * 30, // 30일
   });
 }
 
