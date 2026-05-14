@@ -31,21 +31,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     const body = await req.json();
-    const { title, description, teacherId, subjects, levels, targetGrades, videoUrl, duration, orderIndex, status } = body;
+    const { title, description, teacherId, subjects, levels, targetGrades, etcTags, videoUrl, duration, orderIndex, status, seriesId, episodeNumber } = body;
 
     const updated = await prisma.lecture.updateMany({
       where: { id, academyId },
       data: {
-        ...(title !== undefined       ? { title: title.trim() }                   : {}),
-        ...(description !== undefined ? { description }                            : {}),
-        ...(teacherId !== undefined   ? { teacherId: teacherId ?? null }           : {}),
-        ...(subjects !== undefined    ? { subjects }                               : {}),
-        ...(levels !== undefined      ? { levels }                                 : {}),
-        ...(targetGrades !== undefined ? { targetGrades }                          : {}),
-        ...(videoUrl !== undefined    ? { videoUrl: videoUrl ?? null }             : {}),
-        ...(duration !== undefined    ? { duration }                               : {}),
-        ...(orderIndex !== undefined  ? { orderIndex }                             : {}),
-        ...(status !== undefined      ? { status: status as LectureStatus }        : {}),
+        ...(title !== undefined         ? { title: title.trim() }                   : {}),
+        ...(description !== undefined   ? { description }                            : {}),
+        ...(teacherId !== undefined     ? { teacherId: teacherId ?? null }           : {}),
+        ...(subjects !== undefined      ? { subjects }                               : {}),
+        ...(levels !== undefined        ? { levels }                                 : {}),
+        ...(targetGrades !== undefined  ? { targetGrades }                           : {}),
+        ...(etcTags !== undefined       ? { etcTags }                                : {}),
+        ...(videoUrl !== undefined      ? { videoUrl: videoUrl ?? null }             : {}),
+        ...(duration !== undefined      ? { duration }                               : {}),
+        ...(orderIndex !== undefined    ? { orderIndex }                             : {}),
+        ...(status !== undefined        ? { status: status as LectureStatus }        : {}),
+        ...(seriesId !== undefined      ? { seriesId: seriesId ?? null }             : {}),
+        ...(episodeNumber !== undefined ? { episodeNumber: episodeNumber ?? null }   : {}),
       },
     });
 

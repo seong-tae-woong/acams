@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { title, description, teacherId, subjects, levels, targetGrades, cfVideoId, videoUrl, duration, orderIndex, status, seriesId, episodeNumber } = body;
+    const { title, description, teacherId, subjects, levels, targetGrades, etcTags, cfVideoId, videoUrl, duration, orderIndex, status, seriesId, episodeNumber } = body;
 
     if (!title?.trim()) return NextResponse.json({ error: '강의명은 필수입니다.' }, { status: 400 });
 
@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
         subjects: subjects ?? [],
         levels: levels ?? [],
         targetGrades: targetGrades ?? [],
+        etcTags: etcTags ?? [],
         cfVideoId: cfVideoId ?? null,
         videoUrl: videoUrl ?? null,
         duration: duration ?? '--:--',

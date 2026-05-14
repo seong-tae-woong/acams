@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 type TabId = 'tags' | 'target' | 'cond' | 'exam' | 'retry';
 
 type Tag = { id?: string; label: string; bg: string; color: string; border: string };
-type TagType = 'subject' | 'level' | 'grade';
+type TagType = 'subject' | 'level' | 'grade' | 'etc';
 
 type Lecture = {
   id: string;
@@ -14,6 +14,7 @@ type Lecture = {
   subjects: string[];
   levels: string[];
   targetGrades: string[];
+  etcTags: string[];
   status: 'DRAFT' | 'PUBLISHED';
 };
 
@@ -73,13 +74,22 @@ const CLASSES = [
   { name: '영어 회화반',    cnt: 4 },
 ];
 const NUMS = ['①','②','③','④','⑤'];
+const MOCK_STUDENTS = [
+  { id: 'ms1', name: '김민준', grade: '중1' },
+  { id: 'ms2', name: '이서연', grade: '중1' },
+  { id: 'ms3', name: '박지호', grade: '초6' },
+  { id: 'ms4', name: '최유나', grade: '초6' },
+  { id: 'ms5', name: '정하준', grade: '초5' },
+  { id: 'ms6', name: '강서윤', grade: '중1' },
+];
 
 // ─── Helpers ─────────────────────────────────────────────────
-function lectureTags(lec: Pick<Lecture, 'subjects' | 'levels' | 'targetGrades'>) {
+function lectureTags(lec: Pick<Lecture, 'subjects' | 'levels' | 'targetGrades' | 'etcTags'>) {
   return [
     ...lec.subjects.map((s) => ({ label: s, ...(SUBJECT_MAP[s] ?? CUSTOM_STYLE) })),
     ...lec.levels.map((l) => ({ label: l, ...(LEVEL_MAP[l] ?? CUSTOM_STYLE) })),
     ...lec.targetGrades.map((g) => ({ label: g, bg: '#f1f5f9', color: '#374151' })),
+    ...(lec.etcTags ?? []).map((e) => ({ label: e, ...CUSTOM_STYLE })),
   ];
 }
 
@@ -105,10 +115,10 @@ function TagGroup({
   };
 
   return (
-    <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
+    <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden shrink-0">
       <div className="px-4 py-3 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#1a2535]">{title}</div>
       <div className="px-4 py-3.5">
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-3 max-h-[110px] overflow-y-auto pr-1">
           {tags.map((t) => (
             <span
               key={t.id ?? t.label}
@@ -187,23 +197,86 @@ function LecturePanel({ lectures, loading, selectedId, onSelect, condMode }: {
 
 // ─── Tab: 강의 분류/태그 ──────────────────────────────────────
 function TagsContent({ lectures, loading }: { lectures: Lecture[]; loading: boolean }) {
+  // ── 전역 태그 목록 (학원 커스텀 포함)
   const [subjects, setSubjects] = useState<Tag[]>(DEFAULT_SUBJECTS);
   const [levels,   setLevels]   = useState<Tag[]>(DEFAULT_LEVELS);
   const [grades,   setGrades]   = useState<Tag[]>(DEFAULT_GRADES);
+  const [etcs,     setEtcs]     = useState<Tag[]>([]);
 
+  // ── 선택 강의 & 편집 중인 태그
+  const [selectedId,    setSelectedId]    = useState<string>('');
+  const [editSubjects,  setEditSubjects]  = useState<string[]>([]);
+  const [editLevels,    setEditLevels]    = useState<string[]>([]);
+  const [editGrades,    setEditGrades]    = useState<string[]>([]);
+  const [editEtcs,      setEditEtcs]      = useState<string[]>([]);
+  const [saving,        setSaving]        = useState(false);
+  const [saved,         setSaved]         = useState(false);
+  const [showTagModal,  setShowTagModal]  = useState(false);
+
+  // 전역 태그 로드
   useEffect(() => {
     fetch('/api/lectures/tags')
       .then((r) => r.json())
       .then((tagData) => {
         if (!Array.isArray(tagData)) return;
         const make = (t: { id: string; label: string }): Tag => ({ ...CUSTOM_STYLE, ...t });
-        setSubjects((p) => [...p, ...tagData.filter((t) => t.tagType === 'subject').map(make)]);
-        setLevels((p)   => [...p, ...tagData.filter((t) => t.tagType === 'level').map(make)]);
-        setGrades((p)   => [...p, ...tagData.filter((t) => t.tagType === 'grade').map(make)]);
+        setSubjects([...DEFAULT_SUBJECTS, ...tagData.filter((t) => t.tagType === 'subject').map(make)]);
+        setLevels([...DEFAULT_LEVELS,     ...tagData.filter((t) => t.tagType === 'level').map(make)]);
+        setGrades([...DEFAULT_GRADES,     ...tagData.filter((t) => t.tagType === 'grade').map(make)]);
+        setEtcs(tagData.filter((t) => t.tagType === 'etc').map(make));
       })
       .catch(() => {});
   }, []);
 
+  // 강의 목록 로드 시 첫 번째 자동 선택
+  useEffect(() => {
+    if (lectures.length > 0 && !selectedId) {
+      const first = lectures[0];
+      setSelectedId(first.id);
+      setEditSubjects(first.subjects);
+      setEditLevels(first.levels);
+      setEditGrades(first.targetGrades);
+      setEditEtcs(first.etcTags ?? []);
+    }
+  }, [lectures, selectedId]);
+
+  const selectLecture = (lec: Lecture) => {
+    setSelectedId(lec.id);
+    setEditSubjects(lec.subjects);
+    setEditLevels(lec.levels);
+    setEditGrades(lec.targetGrades);
+    setEditEtcs(lec.etcTags ?? []);
+    setSaved(false);
+  };
+
+  const toggle = (
+    arr: string[],
+    set: React.Dispatch<React.SetStateAction<string[]>>,
+    label: string,
+  ) => {
+    set(arr.includes(label) ? arr.filter((x) => x !== label) : [...arr, label]);
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    if (!selectedId) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/lectures/${selectedId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjects: editSubjects, levels: editLevels, targetGrades: editGrades, etcTags: editEtcs }),
+      });
+      if (!res.ok) throw new Error();
+      setSaved(true);
+    } catch {
+      alert('저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 전역 태그 추가/삭제
   const makeAdder = (
     tagType: TagType,
     currentTags: Tag[],
@@ -233,57 +306,189 @@ function TagsContent({ lectures, loading }: { lectures: Lecture[]; loading: bool
       setList((p) => p.filter((t) => t.label !== tag.label));
     };
 
+  const selectedLec = lectures.find((l) => l.id === selectedId) ?? null;
+
+  // 태그 토글 버튼 렌더
+  const TagToggle = ({
+    tags, active, onToggle,
+  }: {
+    tags: Tag[];
+    active: string[];
+    onToggle: (label: string) => void;
+  }) => (
+    <div className="flex flex-wrap gap-1.5">
+      {tags.map((t) => {
+        const on = active.includes(t.label);
+        return (
+          <button
+            key={t.id ?? t.label}
+            onClick={() => onToggle(t.label)}
+            className="px-3 py-1 rounded-full text-[12px] border-[1.5px] transition-all font-medium"
+            style={on
+              ? { background: t.bg, color: t.color, borderColor: t.border ?? t.color }
+              : { background: '#f9fafb', color: '#9ca3af', borderColor: '#e2e8f0' }}
+          >
+            {on && <span className="mr-1 text-[10px]">✓</span>}
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="flex-1 flex gap-4">
-      <div className="flex-1 flex flex-col gap-3.5">
-        <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#1a2535] flex items-center justify-between">
-            강의별 태그 설정
-            <span className="text-[12px] font-normal text-[#9ca3af]">강의를 클릭하면 태그를 수정할 수 있어요</span>
-          </div>
-          <div className="p-3.5 flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 560 }}>
-            {loading ? (
-              <p className="text-[12.5px] text-[#9ca3af] text-center py-6">불러오는 중...</p>
-            ) : lectures.length === 0 ? (
-              <p className="text-[12.5px] text-[#9ca3af] text-center py-6">등록된 강의가 없습니다</p>
-            ) : (
-              lectures.map((lec, i) => (
+    <div className="flex-1 flex gap-4 min-h-0">
+      {/* 왼쪽: 강의 선택 패널 */}
+      <div className="w-[220px] shrink-0 bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden flex flex-col">
+        <div className="px-3.5 py-2.5 border-b border-[#f1f5f9] text-[11px] font-semibold uppercase tracking-wider text-[#6b7280]">강의 선택</div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <p className="text-[12px] text-[#9ca3af] text-center py-6">불러오는 중...</p>
+          ) : lectures.length === 0 ? (
+            <p className="text-[12px] text-[#9ca3af] text-center py-6">등록된 강의 없음</p>
+          ) : (
+            lectures.map((lec) => {
+              const active = selectedId === lec.id;
+              return (
                 <div
                   key={lec.id}
-                  className="flex items-center gap-2.5 px-3 py-2.5 border rounded-[8px] cursor-pointer"
-                  style={i === 0
-                    ? { borderColor: '#a78bfa', background: 'rgba(167,139,250,0.07)' }
-                    : { borderColor: '#e2e8f0', background: '#f9fafb' }}
+                  onClick={() => selectLecture(lec)}
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-[#f1f5f9] cursor-pointer hover:bg-gray-50 last:border-none transition-colors"
+                  style={active ? { background: '#EEEDFE', borderLeft: '3px solid #a78bfa', paddingLeft: 11 } : {}}
                 >
-                  <div className="w-10 h-10 rounded-[7px] flex items-center justify-center shrink-0" style={{ background: '#1e1b2e' }}>
-                    <span style={{ borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: '11px solid #a78bfa', marginLeft: 2, display: 'inline-block' }} />
+                  <div className="w-7 h-7 rounded-[6px] flex items-center justify-center shrink-0" style={{ background: '#1e1b2e' }}>
+                    <span style={{ borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: '9px solid #a78bfa', marginLeft: 1, display: 'inline-block' }} />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0">
                     <p className="text-[12.5px] font-semibold text-[#111827] truncate">{lec.title}</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {lectureTags(lec).map((t) => (
-                        <span key={t.label} className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: t.bg, color: t.color }}>{t.label}</span>
+                    <div className="flex flex-wrap gap-0.5 mt-0.5">
+                      {lectureTags(lec).slice(0, 3).map((t) => (
+                        <span key={t.label} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: t.bg, color: t.color }}>{t.label}</span>
                       ))}
                     </div>
                   </div>
-                  <button className="px-2.5 py-1 rounded-[6px] text-[11.5px] border border-[#e2e8f0] bg-white text-[#374151] shrink-0 hover:bg-gray-50">태그 수정</button>
                 </div>
-              ))
-            )}
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* 오른쪽: 태그 편집 */}
+      <div className="flex-1 flex flex-col gap-3.5 overflow-y-auto">
+        {/* 선택 강의 태그 설정 */}
+        <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#f1f5f9] flex items-center justify-between">
+            <div>
+              <span className="text-[13px] font-semibold text-[#1a2535]">
+                {selectedLec ? `${selectedLec.title}` : '강의를 선택하세요'}
+              </span>
+              {selectedLec && <span className="ml-2 text-[11.5px] text-[#9ca3af]">— 태그 설정</span>}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTagModal(true)}
+                className="px-3 py-1 rounded-[7px] text-[12px] font-medium border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50"
+              >
+                태그 관리
+              </button>
+              {selectedLec && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-medium text-white disabled:opacity-60 transition-colors"
+                  style={{ background: saved ? '#059669' : '#5B4FBE' }}
+                >
+                  {saving ? '저장 중...' : saved ? '✓ 저장됨' : '저장'}
+                </button>
+              )}
+            </div>
+          </div>
+          {!selectedLec ? (
+            <p className="text-[12.5px] text-[#9ca3af] text-center py-8">왼쪽에서 강의를 클릭하세요</p>
+          ) : (
+            <div className="px-4 py-3.5 flex flex-col gap-4">
+              <div>
+                <p className="text-[11.5px] font-semibold text-[#6b7280] mb-2">과목</p>
+                <TagToggle
+                  tags={subjects}
+                  active={editSubjects}
+                  onToggle={(label) => toggle(editSubjects, setEditSubjects, label)}
+                />
+              </div>
+              <div>
+                <p className="text-[11.5px] font-semibold text-[#6b7280] mb-2">레벨</p>
+                <TagToggle
+                  tags={levels}
+                  active={editLevels}
+                  onToggle={(label) => toggle(editLevels, setEditLevels, label)}
+                />
+              </div>
+              <div>
+                <p className="text-[11.5px] font-semibold text-[#6b7280] mb-2">대상 학년</p>
+                <TagToggle
+                  tags={grades}
+                  active={editGrades}
+                  onToggle={(label) => toggle(editGrades, setEditGrades, label)}
+                />
+              </div>
+              <div>
+                <p className="text-[11.5px] font-semibold text-[#6b7280] mb-2">기타</p>
+                {etcs.length === 0 ? (
+                  <p className="text-[11.5px] text-[#9ca3af] italic">우측 상단 <strong>태그 관리</strong>에서 기타 태그를 먼저 추가하세요</p>
+                ) : (
+                  <TagToggle
+                    tags={etcs}
+                    active={editEtcs}
+                    onToggle={(label) => toggle(editEtcs, setEditEtcs, label)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 태그 관리 모달 */}
+      {showTagModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={(e) => e.target === e.currentTarget && setShowTagModal(false)}
+        >
+          <div className="bg-white rounded-[14px] shadow-2xl w-[520px] max-h-[80vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-[#e2e8f0] flex items-center justify-between shrink-0">
+              <div>
+                <p className="text-[14px] font-bold text-[#1a2535]">커스텀 태그 관리</p>
+                <p className="text-[11.5px] text-[#9ca3af] mt-0.5">
+                  기본 태그는 모든 학원 공통 · <span style={{ color: CUSTOM_STYLE.color }}>보라색 태그</span>는 이 학원에서 추가한 태그
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTagModal(false)}
+                className="text-[#9ca3af] hover:text-[#374151] text-[22px] leading-none ml-4"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-3">
+              <TagGroup title="과목 태그" tags={subjects} onDelete={makeDeleter(setSubjects)} onAdd={makeAdder('subject', subjects, setSubjects)} inputPlaceholder="새 과목 입력 (예: 사회)" />
+              <TagGroup title="레벨 태그" tags={levels} onDelete={makeDeleter(setLevels)} onAdd={makeAdder('level', levels, setLevels)} inputPlaceholder="새 레벨 입력 (예: 최고급)" />
+              <TagGroup title="대상 학년 태그" tags={grades} onDelete={makeDeleter(setGrades)} onAdd={makeAdder('grade', grades, setGrades)} inputPlaceholder="새 학년 입력 (예: 중2)" />
+              <TagGroup title="기타 태그 (학원 전용)" tags={etcs} onDelete={makeDeleter(setEtcs)} onAdd={makeAdder('etc', etcs, setEtcs)} inputPlaceholder="새 기타 태그 입력 (예: 특강)" />
+            </div>
+            <div className="px-5 py-3.5 border-t border-[#e2e8f0] flex justify-end shrink-0">
+              <button
+                onClick={() => setShowTagModal(false)}
+                className="px-4 py-2 rounded-[8px] text-[13px] font-medium text-white"
+                style={{ background: '#5B4FBE' }}
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      <div className="w-[340px] shrink-0 flex flex-col gap-3.5">
-        <div className="px-1">
-          <p className="text-[11.5px] font-semibold text-[#6b7280] mb-0.5">태그 관리</p>
-          <p className="text-[11px] text-[#9ca3af]">
-            기본 태그는 모든 학원 공통 · <span style={{ color: CUSTOM_STYLE.color }}>보라색 태그</span>는 이 학원에서 추가한 태그
-          </p>
-        </div>
-        <TagGroup title="과목 태그" tags={subjects} onDelete={makeDeleter(setSubjects)} onAdd={makeAdder('subject', subjects, setSubjects)} inputPlaceholder="새 과목 입력 (예: 사회)" />
-        <TagGroup title="레벨 태그" tags={levels} onDelete={makeDeleter(setLevels)} onAdd={makeAdder('level', levels, setLevels)} inputPlaceholder="새 레벨 입력 (예: 최고급)" />
-        <TagGroup title="대상 학년 태그" tags={grades} onDelete={makeDeleter(setGrades)} onAdd={makeAdder('grade', grades, setGrades)} inputPlaceholder="새 학년 입력 (예: 중2)" />
-      </div>
+      )}
     </div>
   );
 }
@@ -291,7 +496,8 @@ function TagsContent({ lectures, loading }: { lectures: Lecture[]; loading: bool
 // ─── Tab: 수강 대상 지정 ──────────────────────────────────────
 function TargetContent({ selectedLec }: { selectedLec: Lecture | null }) {
   const [targetType,   setTargetType]   = useState<'class' | 'individual' | 'all'>('class');
-  const [checkedClass, setCheckedClass] = useState<string[]>([]);
+  const [checkedClass,    setCheckedClass]    = useState<string[]>([]);
+  const [checkedStudents, setCheckedStudents] = useState<string[]>([]);
 
   if (!selectedLec) return <div className="flex-1 flex items-center justify-center text-[13px] text-[#9ca3af]">강의를 선택해주세요</div>;
 
@@ -312,33 +518,90 @@ function TargetContent({ selectedLec }: { selectedLec: Lecture | null }) {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2 p-4">
-          {CLASSES.map((c) => {
-            const checked = checkedClass.includes(c.name);
-            return (
-              <div
-                key={c.name}
-                onClick={() => setCheckedClass(checked ? checkedClass.filter((x) => x !== c.name) : [...checkedClass, c.name])}
-                className="flex items-center gap-2 px-3 py-2.5 border-[1.5px] rounded-[8px] cursor-pointer"
-                style={checked ? { background: '#EEEDFE', borderColor: '#a78bfa' } : { borderColor: '#e2e8f0' }}
-              >
-                <div className="rounded flex items-center justify-center text-[10px] shrink-0"
-                  style={checked ? { background: '#a78bfa', border: '1.5px solid #a78bfa', color: '#fff', width: 17, height: 17 } : { border: '1.5px solid #e2e8f0', width: 17, height: 17 }}>
-                  {checked ? '✓' : ''}
+        {/* 반 단위 지정 */}
+        {targetType === 'class' && (
+          <div className="grid grid-cols-2 gap-2 p-4">
+            {CLASSES.map((c) => {
+              const checked = checkedClass.includes(c.name);
+              return (
+                <div
+                  key={c.name}
+                  onClick={() => setCheckedClass(checked ? checkedClass.filter((x) => x !== c.name) : [...checkedClass, c.name])}
+                  className="flex items-center gap-2 px-3 py-2.5 border-[1.5px] rounded-[8px] cursor-pointer"
+                  style={checked ? { background: '#EEEDFE', borderColor: '#a78bfa' } : { borderColor: '#e2e8f0' }}
+                >
+                  <div className="rounded flex items-center justify-center text-[10px] shrink-0"
+                    style={checked ? { background: '#a78bfa', border: '1.5px solid #a78bfa', color: '#fff', width: 17, height: 17 } : { border: '1.5px solid #e2e8f0', width: 17, height: 17 }}>
+                    {checked ? '✓' : ''}
+                  </div>
+                  <div>
+                    <p className="text-[12.5px] font-semibold" style={checked ? { color: '#534AB7' } : { color: '#111827' }}>{c.name}</p>
+                    <p className="text-[10.5px] text-[#9ca3af]">{c.cnt}명</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[12.5px] font-semibold" style={checked ? { color: '#534AB7' } : { color: '#111827' }}>{c.name}</p>
-                  <p className="text-[10.5px] text-[#9ca3af]">{c.cnt}명</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 개별 학생 지정 */}
+        {targetType === 'individual' && (
+          <div className="p-4">
+            <p className="text-[12px] text-[#9ca3af] mb-3">수강할 학생을 개별로 선택합니다.</p>
+            <div className="flex flex-col gap-1.5">
+              {MOCK_STUDENTS.map((s) => {
+                const checked = checkedStudents.includes(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => setCheckedStudents(checked ? checkedStudents.filter((x) => x !== s.id) : [...checkedStudents, s.id])}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 border-[1.5px] rounded-[8px] cursor-pointer transition-colors"
+                    style={checked ? { background: '#EEEDFE', borderColor: '#a78bfa' } : { borderColor: '#e2e8f0' }}
+                  >
+                    <div className="rounded flex items-center justify-center text-[10px] shrink-0"
+                      style={checked ? { background: '#a78bfa', border: '1.5px solid #a78bfa', color: '#fff', width: 17, height: 17 } : { border: '1.5px solid #e2e8f0', width: 17, height: 17 }}>
+                      {checked ? '✓' : ''}
+                    </div>
+                    <p className="text-[12.5px] font-semibold flex-1" style={checked ? { color: '#534AB7' } : { color: '#111827' }}>{s.name}</p>
+                    <span className="text-[11px] text-[#9ca3af] shrink-0">{s.grade}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 전체 공개 */}
+        {targetType === 'all' && (
+          <div className="p-5 flex flex-col items-center justify-center gap-3 py-10">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-[22px]" style={{ background: '#EEEDFE' }}>🌐</div>
+            <p className="text-[14px] font-semibold text-[#1a2535]">전체 공개</p>
+            <p className="text-[12.5px] text-[#6b7280] text-center max-w-[320px] leading-relaxed">
+              이 강의는 학원에 등록된 <strong>모든 학생</strong>에게 공개됩니다.<br />
+              특정 반 또는 학생만 접근하게 하려면 다른 옵션을 선택하세요.
+            </p>
+          </div>
+        )}
       </div>
+
       <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5 text-[12.5px] text-[#6b7280] leading-7">
-        현재 수강 대상: <strong style={{ color: '#534AB7' }}>{checkedClass.length > 0 ? checkedClass.join(', ') : '미지정'}</strong>
-        {checkedClass.length > 0 && <> — 총 {CLASSES.filter((c) => checkedClass.includes(c.name)).reduce((a, c) => a + c.cnt, 0)}명</>}
-        <br />대상 변경 시 즉시 적용되며, 새로 추가된 학생에게는 강의가 표시됩니다.
+        {targetType === 'all' && (
+          <>현재 수강 대상: <strong style={{ color: '#534AB7' }}>전체 공개</strong> — 학원의 모든 학생이 이 강의를 볼 수 있습니다.</>
+        )}
+        {targetType === 'class' && (
+          <>
+            현재 수강 대상: <strong style={{ color: '#534AB7' }}>{checkedClass.length > 0 ? checkedClass.join(', ') : '미지정'}</strong>
+            {checkedClass.length > 0 && <> — 총 {CLASSES.filter((c) => checkedClass.includes(c.name)).reduce((a, c) => a + c.cnt, 0)}명</>}
+            <br />대상 변경 시 즉시 적용되며, 새로 추가된 학생에게는 강의가 표시됩니다.
+          </>
+        )}
+        {targetType === 'individual' && (
+          <>
+            현재 수강 대상: <strong style={{ color: '#534AB7' }}>{checkedStudents.length > 0 ? `${checkedStudents.length}명 선택됨` : '미지정'}</strong>
+            {checkedStudents.length > 0 && <> — {MOCK_STUDENTS.filter((s) => checkedStudents.includes(s.id)).map((s) => s.name).join(', ')}</>}
+            <br />선택된 학생에게만 강의가 표시됩니다.
+          </>
+        )}
       </div>
     </div>
   );

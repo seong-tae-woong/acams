@@ -491,7 +491,10 @@ AcademyTag          학원별 커스텀 태그 (tagType: subject|level|grade)
 - [x] 강의 카드 그리드, 등록 폼, 태그 관리, 수강대상 지정 (강의 목록 DB 연동)
 - [x] 재생: `https://iframe.videodelivery.net/{cfVideoId}` (iframe)
 
-> **Cloudflare Stream 주의**: 무료 tier는 0분 (업로드 불가). $5/월 1,000분 플랜 필요.
+> **Cloudflare Stream 주의**: 무료 tier는 업로드 불가(0분). $5/월 1,000분 플랜 이상 필요.
+> 유료 플랜 사용 전에는 강의 등록 폼의 **"외부 영상 URL"** 입력란에 YouTube Embed URL을 넣어 대신 사용하세요.
+> YouTube Embed URL 형식: `https://www.youtube.com/embed/{VIDEO_ID}`
+> `videoUrl`과 `cfVideoId` 중 `cfVideoId`가 우선 재생되며, `cfVideoId`가 없으면 `videoUrl`이 사용됩니다.
 
 ### Phase G (미구현 — 향후)
 - [ ] 인강 백엔드: 시청 진도 추적, 시험 응시·자동 채점 (ExamQuestion, ViewProgress, CompletionRecord 모델 필요)
@@ -616,10 +619,17 @@ TOSS_ENCRYPT_KEY=<32바이트 hex — Secret Key 암호화용>
 ## Cloudflare Stream 업로드 플로우
 
 ```
+[Cloudflare Stream — 유료 플랜 필요]
 강의 등록 폼 → POST /api/lectures/upload-url → { uploadURL, uid }
   → tus-js-client (동적 import) → Cloudflare TUS 엔드포인트 직접 업로드
   → 완료 시 cfVideoId(uid) 저장 → POST /api/lectures
   → 재생: https://iframe.videodelivery.net/{cfVideoId} (iframe)
+
+[YouTube Embed URL — 무료 대안]
+강의 등록 폼 "외부 영상 URL" 입력란에 YouTube Embed URL 직접 입력
+  → videoUrl 저장 → POST /api/lectures
+  → 재생: <iframe src={videoUrl}> (cfVideoId 없을 때 fallback)
+  → YouTube Embed URL 형식: https://www.youtube.com/embed/{VIDEO_ID}
 ```
 
 ---

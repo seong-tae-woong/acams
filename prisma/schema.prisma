@@ -67,6 +67,9 @@ model Academy {
   assignments           Assignment[]
   reportTemplates       ReportTemplate[]
   reports               Report[]
+  ingangViewSessions    IngangViewSession[]
+  studentLectureNotes   StudentLectureNote[]
+  ingangDailyCodes      IngangDailyCode[]
 
   @@map("academies")
 }
@@ -77,6 +80,7 @@ enum UserRole {
   teacher
   parent
   student
+  tablet     // 인강 시청 전용 태블릿 계정
 }
 
 model User {
@@ -186,9 +190,11 @@ model Student {
   bills            Bill[]
   makeupTargets    MakeupClassTarget[]
   consultations    ConsultationRecord[]
-  quizAttempts     LectureQuizAttempt[]
-  retryPerms       LectureRetryPermission[]
-  reports          Report[]
+  quizAttempts        LectureQuizAttempt[]
+  retryPerms          LectureRetryPermission[]
+  reports             Report[]
+  ingangViewSessions  IngangViewSession[]
+  lectureNotes        StudentLectureNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -399,6 +405,8 @@ model MakeupClass {
 model MakeupClassTarget {
   makeupClassId String
   studentId     String
+  status        AttendanceStatus?
+  memo          String            @default("")
   makeupClass   MakeupClass @relation(fields: [makeupClassId], references: [id])
   student       Student     @relation(fields: [studentId], references: [id])
 
@@ -858,6 +866,7 @@ model Lecture {
   subjects     String[] @default([])
   levels       String[] @default([])
   targetGrades String[] @default([])
+  etcTags      String[] @default([])
 
   seriesId      String?
   series        LectureSeries? @relation(fields: [seriesId], references: [id])
@@ -869,8 +878,9 @@ model Lecture {
   orderIndex Int           @default(0)
   status     LectureStatus @default(DRAFT)
 
-  targets LectureTarget[]
-  quiz    LectureQuiz?
+  targets       LectureTarget[]
+  quiz          LectureQuiz?
+  studentNotes  StudentLectureNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -908,7 +918,7 @@ model AcademyTag {
   academyId String
   academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
   label     String
-  tagType   String // "subject" | "level" | "grade"
+  tagType   String // "subject" | "level" | "grade" | "etc"
   createdAt DateTime @default(now())
 
   @@unique([academyId, tagType, label])
@@ -1064,4 +1074,63 @@ model Report {
   @@index([studentId, readAt])
   @@index([academyId, batchId])
   @@map("reports")
+}
+
+// ─────────────────────────────────────────────
+// INGANG TABLET (인강 태블릿 시청 인증)
+// ─────────────────────────────────────────────
+
+// 학생의 인강 시청 세션 (학생 인증 요청 → 강사 승인 → 시청 → 종료)
+model IngangViewSession {
+  id               String   @id @default(cuid())
+  academyId        String
+  academy          Academy  @relation(fields: [academyId], references: [id])
+  studentId        String
+  student          Student  @relation(fields: [studentId], references: [id])
+  classId          String?  // 강사가 승인 시 확정
+  tabletUserId     String   // 어느 태블릿 계정에서 요청했는지 (감사용)
+  // PENDING | APPROVED | REJECTED | EXPIRED | ENDED
+  status           String   @default("PENDING")
+  requestedAt      DateTime @default(now())
+  approvedAt       DateTime?
+  approvedByUserId String?  // 승인한 강사/원장 userId
+  endedAt          DateTime?
+
+  @@index([academyId, status, requestedAt])
+  @@index([academyId, studentId, requestedAt])
+  @@map("ingang_view_sessions")
+}
+
+// 강사가 인강 강의별로 특정 학생에게 남긴 코멘트
+model StudentLectureNote {
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  lectureId String
+  lecture   Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  note      String
+  authorId  String   // 작성한 teacher/director userId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, lectureId])
+  @@index([academyId, lectureId])
+  @@map("student_lecture_notes")
+}
+
+// 학원별 일일 인강 인증 코드 (날짜 단위)
+model IngangDailyCode {
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id])
+  date      DateTime // 해당 날짜 (00:00 기준 UTC)
+  code      String   // 6자리 숫자 코드
+  createdBy String   // 발급/회전한 userId
+  createdAt DateTime @default(now())
+
+  @@unique([academyId, date])
+  @@index([academyId, date])
+  @@map("ingang_daily_codes")
 }

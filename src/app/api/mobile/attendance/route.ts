@@ -42,14 +42,43 @@ export async function GET(req: NextRequest) {
       orderBy: { date: 'desc' },
     });
 
-    return NextResponse.json({
-      records: records.map((r) => ({
-        id: r.id,
-        date: r.date.toISOString().slice(0, 10),
-        status: r.status,
-        className: r.class.name,
-        classId: r.classId,
+    // 보강 출결을 학부모/학생 앱에도 노출
+    const makeups = await prisma.makeupClass.findMany({
+      where: {
+        academyId,
+        ...(dateFilter ? { makeupDate: dateFilter } : {}),
+        targets: { some: { studentId, status: { not: null } } },
+      },
+      include: {
+        originalClass: { select: { name: true } },
+        targets: {
+          where: { studentId, status: { not: null } },
+          select: { status: true },
+        },
+      },
+    });
+
+    const makeupMapped = makeups.flatMap((m) =>
+      m.targets.map((t) => ({
+        id: `makeup-${m.id}-${studentId}`,
+        date: m.makeupDate.toISOString().slice(0, 10),
+        status: t.status ?? 'PRESENT',
+        className: `${m.originalClass.name} (보강)`,
+        classId: m.originalClassId,
       })),
+    );
+
+    return NextResponse.json({
+      records: [
+        ...records.map((r) => ({
+          id: r.id,
+          date: r.date.toISOString().slice(0, 10),
+          status: r.status,
+          className: r.class.name,
+          classId: r.classId,
+        })),
+        ...makeupMapped,
+      ],
     });
   } catch (err) {
     console.error('[GET /api/mobile/attendance]', err instanceof Error ? err.message : String(err));

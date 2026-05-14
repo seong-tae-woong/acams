@@ -27,6 +27,9 @@ const PUBLIC_PATHS = [
   '/api/kiosk/recent',  // 키오스크 최근 체크인 조회 (인증 불필요)
 ];
 
+// tablet 역할이 접근 가능한 경로
+const TABLET_ALLOWED = ['/ingang-tablet', '/api/ingang-tablet'];
+
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
@@ -77,6 +80,31 @@ export async function proxy(req: NextRequest) {
   }
 
   // 역할별 접근 제어
+
+  // tablet 계정: TABLET_ALLOWED 경로만 허용, 나머지는 /ingang-tablet으로
+  if (role === 'tablet') {
+    const allowed = TABLET_ALLOWED.some((p) => pathname.startsWith(p));
+    if (!allowed) return NextResponse.redirect(new URL('/ingang-tablet', req.url));
+  }
+
+  // 비-tablet 계정이 /ingang-tablet 접근 시 → /login
+  if (pathname.startsWith('/ingang-tablet') && role !== 'tablet') {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+  // 비-tablet 계정이 /api/ingang-tablet 접근 시 → 401
+  // 단, /api/ingang-tablet/daily-code는 teacher·director도 접근 가능 (태블릿 코드 조회/재발급)
+  if (pathname.startsWith('/api/ingang-tablet') && role !== 'tablet') {
+    const isAdminAllowed =
+      pathname.startsWith('/api/ingang-tablet/daily-code') &&
+      (role === 'teacher' || role === 'director');
+    if (!isAdminAllowed) {
+      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   if (pathname.startsWith('/super-admin') && role !== 'super_admin') {
     return NextResponse.redirect(new URL('/login', req.url));
   }

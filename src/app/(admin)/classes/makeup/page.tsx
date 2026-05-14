@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
@@ -12,6 +12,7 @@ import { Plus, CheckCheck, UserPlus, X as XIcon } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { DAY_NAMES } from '@/lib/types/class';
 
 /* ─── 보강 등록/수정 폼 기본값 ─── */
 const EMPTY_FORM = {
@@ -32,7 +33,7 @@ const inputCls =
 const labelCls = 'block text-[11.5px] text-[#6b7280] mb-1';
 
 export default function MakeupPage() {
-  const { makeupClasses, loading, addMakeupClass, updateMakeupClass, addStudents, removeStudent, setAttendanceChecked, fetchMakeupClasses } =
+  const { makeupClasses, loading, addMakeupClass, updateMakeupClass, addStudents, removeStudent, saveAttendance, fetchMakeupClasses } =
     useMakeupStore();
   const { classes, fetchClasses } = useClassStore();
   const { students, fetchStudents } = useStudentStore();
@@ -49,6 +50,25 @@ export default function MakeupPage() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [memo, setMemo] = useState<Record<string, string>>({});
 
+  /* ── 선택된 보강의 학생별 출결 상태를 UI 상태로 복원 ── */
+  useEffect(() => {
+    const mc = makeupClasses.find((m) => m.id === selectedId);
+    if (!mc) {
+      setChecked({});
+      setMemo({});
+      return;
+    }
+    const nextChecked: Record<string, boolean> = {};
+    const nextMemo: Record<string, string> = {};
+    (mc.attendance ?? []).forEach((a) => {
+      if (a.status === '출석') nextChecked[a.studentId] = true;
+      else if (a.status === '결석') nextChecked[a.studentId] = false;
+      if (a.memo) nextMemo[a.studentId] = a.memo;
+    });
+    setChecked(nextChecked);
+    setMemo(nextMemo);
+  }, [selectedId, makeupClasses]);
+
   /* ── 보강 등록/수정 모달 ── */
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -64,7 +84,7 @@ export default function MakeupPage() {
     ? students.filter((s) => selected.targetStudents.includes(s.id))
     : [];
 
-  /* ── 반 선택 시 담당 강사 자동 세팅 ── */
+  /* ── 반 선택 시 담당 강사 자동 세팅 + 원래 수업일 초기화 ── */
   function handleClassChange(classId: string) {
     const cls = classes.find((c) => c.id === classId);
     setForm((f) => ({
@@ -72,8 +92,51 @@ export default function MakeupPage() {
       originalClassId: classId,
       teacherId: cls?.teacherId ?? '',
       teacherName: cls?.teacherName ?? '',
+      originalDate: '',
     }));
   }
+
+  /* ── 선택된 반의 최근 시간표 세션 목록 ── */
+  const originalSessionOptions = useMemo(() => {
+    const cls = classes.find((c) => c.id === form.originalClassId);
+    if (!cls || !cls.schedule || cls.schedule.length === 0) return [] as Array<{ value: string; label: string }>;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // 과거 8주 ~ 다가오는 2주까지 생성
+    const start = new Date(today); start.setDate(start.getDate() - 56);
+    const end = new Date(today); end.setDate(end.getDate() + 14);
+
+    // schedule.dayOfWeek 는 1=월..7=일. JS getDay()는 0=일..6=토.
+    const scheduleByDow = new Map<number, { startTime: string; endTime: string }[]>();
+    cls.schedule.forEach((s) => {
+      const jsDow = s.dayOfWeek === 7 ? 0 : s.dayOfWeek;
+      const arr = scheduleByDow.get(jsDow) ?? [];
+      arr.push({ startTime: s.startTime, endTime: s.endTime });
+      scheduleByDow.set(jsDow, arr);
+    });
+
+    const options: Array<{ value: string; label: string; sortKey: number }> = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const slots = scheduleByDow.get(d.getDay());
+      if (!slots) continue;
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      slots.forEach((slot) => {
+        const dowKor = DAY_NAMES[d.getDay() === 0 ? 7 : d.getDay()];
+        options.push({
+          value: dateStr,
+          label: `${yyyy}.${mm}.${dd} (${dowKor}) ${slot.startTime}~${slot.endTime}`,
+          sortKey: d.getTime(),
+        });
+      });
+    }
+    // 최근(미래에 가까운) 순으로 정렬
+    options.sort((a, b) => b.sortKey - a.sortKey);
+    return options.map(({ value, label }) => ({ value, label }));
+  }, [form.originalClassId, classes]);
 
   /* ── 보강 등록 열기 ── */
   function openRegister() {
@@ -136,9 +199,16 @@ export default function MakeupPage() {
   }
 
   /* ── 출결 저장 ── */
-  function handleSaveAttendance() {
+  async function handleSaveAttendance() {
     if (!selected) return;
-    setAttendanceChecked(selected.id, true);
+    const attendance = targetStudents.map((s) => ({
+      studentId: s.id,
+      status: checked[s.id] === true ? '출석' as const
+            : checked[s.id] === false ? '결석' as const
+            : null,
+      memo: memo[s.id] ?? '',
+    }));
+    await saveAttendance(selected.id, attendance);
     toast('보강 출결이 저장되었습니다.', 'success');
   }
 
@@ -466,12 +536,25 @@ export default function MakeupPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>원래 수업일 <span className="text-[#ef4444]">*</span></label>
-              <input
-                type="date"
+              <select
                 value={form.originalDate}
                 onChange={(e) => setForm((f) => ({ ...f, originalDate: e.target.value }))}
                 className={inputCls}
-              />
+                disabled={!form.originalClassId}
+              >
+                <option value="">
+                  {form.originalClassId
+                    ? originalSessionOptions.length > 0
+                      ? '수업일을 선택하세요'
+                      : '편성된 시간표가 없습니다'
+                    : '반을 먼저 선택하세요'}
+                </option>
+                {originalSessionOptions.map((opt) => (
+                  <option key={`${opt.value}-${opt.label}`} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelCls}>보강일 <span className="text-[#ef4444]">*</span></label>

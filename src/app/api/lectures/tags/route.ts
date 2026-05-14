@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
-const VALID_TYPES = ['subject', 'level', 'grade'] as const;
+const VALID_TYPES = ['subject', 'level', 'grade', 'etc'] as const;
 type TagType = (typeof VALID_TYPES)[number];
 
 // GET /api/lectures/tags  — 현재 학원의 커스텀 태그 목록

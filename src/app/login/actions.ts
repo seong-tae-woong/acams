@@ -121,6 +121,8 @@ export async function loginAction(
       redirectTo = '/super-admin';
     } else if (user.role === 'parent' || user.role === 'student') {
       redirectTo = '/mobile';
+    } else if (user.role === 'tablet') {
+      redirectTo = '/ingang-tablet';
     }
   } catch (err) {
     console.error('[loginAction]', err instanceof Error ? err.message : String(err));

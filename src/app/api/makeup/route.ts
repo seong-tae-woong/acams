@@ -1,20 +1,30 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
+
+const STATUS_TO_UI: Record<PrismaStatus, '출석' | '결석' | '지각' | '조퇴'> = {
+  [PrismaStatus.PRESENT]: '출석',
+  [PrismaStatus.ABSENT]: '결석',
+  [PrismaStatus.LATE]: '지각',
+  [PrismaStatus.EARLY_LEAVE]: '조퇴',
+};
 
 const MAKEUP_INCLUDE = {
   originalClass: { select: { name: true } },
   teacher: { select: { name: true } },
-  targets: { select: { studentId: true } },
+  targets: { select: { studentId: true, status: true, memo: true } },
 } as const;
 
-function mapMakeup(m: {
+type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
   makeupDate: Date; makeupTime: string; teacherId: string;
   reason: string; attendanceChecked: boolean;
   originalClass: { name: string };
   teacher: { name: string };
-  targets: { studentId: string }[];
-}) {
+  targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
+};
+
+function mapMakeup(m: MakeupForMap) {
   return {
     id: m.id,
     originalClassId: m.originalClassId,
@@ -25,6 +35,11 @@ function mapMakeup(m: {
     teacherId: m.teacherId,
     teacherName: m.teacher.name,
     targetStudents: m.targets.map((t) => t.studentId),
+    attendance: m.targets.map((t) => ({
+      studentId: t.studentId,
+      status: t.status ? STATUS_TO_UI[t.status] : null,
+      memo: t.memo,
+    })),
     reason: m.reason,
     attendanceChecked: m.attendanceChecked,
   };

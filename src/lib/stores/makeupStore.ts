@@ -1,18 +1,19 @@
 'use client';
 import { create } from 'zustand';
-import type { MakeupClass } from '@/lib/types/calendar';
+import type { MakeupClass, MakeupAttendance } from '@/lib/types/calendar';
 import { toast } from '@/lib/stores/toastStore';
 
 interface MakeupStore {
   makeupClasses: MakeupClass[];
   loading: boolean;
   fetchMakeupClasses: (classId?: string, month?: string) => Promise<void>;
-  addMakeupClass: (input: Omit<MakeupClass, 'id' | 'attendanceChecked' | 'originalClassName' | 'teacherName'> & { originalClassName?: string; teacherName?: string }) => Promise<string>;
+  addMakeupClass: (input: Omit<MakeupClass, 'id' | 'attendanceChecked' | 'originalClassName' | 'teacherName' | 'attendance'> & { originalClassName?: string; teacherName?: string }) => Promise<string>;
   updateMakeupClass: (id: string, updates: Partial<Omit<MakeupClass, 'id'>>) => Promise<void>;
   removeMakeupClass: (id: string) => Promise<void>;
   addStudents: (makeupClassId: string, studentIds: string[]) => Promise<void>;
   removeStudent: (makeupClassId: string, studentId: string) => Promise<void>;
   setAttendanceChecked: (makeupClassId: string, checked: boolean) => Promise<void>;
+  saveAttendance: (makeupClassId: string, attendance: MakeupAttendance[]) => Promise<void>;
 }
 
 export const useMakeupStore = create<MakeupStore>((set, get) => ({
@@ -76,6 +77,7 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
       if (updates.reason !== undefined) body.reason = updates.reason;
       if (updates.attendanceChecked !== undefined) body.attendanceChecked = updates.attendanceChecked;
       if (updates.targetStudents !== undefined) body.targetStudents = updates.targetStudents;
+      if (updates.attendance !== undefined) body.attendance = updates.attendance;
 
       const res = await fetch(`/api/makeup/${id}`, {
         method: 'PATCH',
@@ -125,5 +127,12 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
 
   setAttendanceChecked: async (makeupClassId, checked) => {
     await get().updateMakeupClass(makeupClassId, { attendanceChecked: checked });
+  },
+
+  saveAttendance: async (makeupClassId, attendance) => {
+    await get().updateMakeupClass(makeupClassId, {
+      attendance,
+      attendanceChecked: true,
+    });
   },
 }));

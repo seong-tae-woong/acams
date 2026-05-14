@@ -59,29 +59,78 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get('month'); // 'YYYY-MM'
 
   try {
+    const monthRange = month && !date
+      ? {
+          gte: new Date(`${month}-01`),
+          lt: new Date(
+            month.slice(0, 4) + '-' +
+            String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0') + '-01'
+          ),
+        }
+      : null;
+
     const records = await prisma.attendanceRecord.findMany({
       where: {
         academyId,
         ...(classId ? { classId } : {}),
         ...(studentId ? { studentId } : {}),
         ...(date ? { date: new Date(date) } : {}),
-        ...(month && !date
-          ? {
-              date: {
-                gte: new Date(`${month}-01`),
-                lt: new Date(
-                  month.slice(0, 4) + '-' +
-                  String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0') + '-01'
-                ),
-              },
-            }
-          : {}),
+        ...(monthRange ? { date: monthRange } : {}),
       },
       include: INCLUDE,
       orderBy: [{ date: 'desc' }, { student: { name: 'asc' } }],
     });
 
-    return NextResponse.json(records.map(mapRecord));
+    // 보강 출결도 함께 조회 (학생별 status 가 기록된 항목만)
+    const makeupRecords = await prisma.makeupClass.findMany({
+      where: {
+        academyId,
+        ...(classId ? { originalClassId: classId } : {}),
+        ...(date ? { makeupDate: new Date(date) } : {}),
+        ...(monthRange ? { makeupDate: monthRange } : {}),
+        targets: {
+          some: {
+            status: { not: null },
+            ...(studentId ? { studentId } : {}),
+          },
+        },
+      },
+      include: {
+        originalClass: { select: { name: true } },
+        targets: {
+          where: {
+            status: { not: null },
+            ...(studentId ? { studentId } : {}),
+          },
+          select: {
+            studentId: true,
+            status: true,
+            memo: true,
+            student: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    const makeupMapped = makeupRecords.flatMap((m) =>
+      m.targets.map((t) => ({
+        id: `makeup-${m.id}-${t.studentId}`,
+        studentId: t.studentId,
+        studentName: t.student.name,
+        classId: m.originalClassId,
+        className: `${m.originalClass.name} (보강)`,
+        date: m.makeupDate.toISOString().slice(0, 10),
+        status: t.status ? STATUS_TO_UI[t.status] : '출석',
+        checkInTime: null as string | null,
+        checkOutTime: null as string | null,
+        memo: t.memo,
+        checkedBy: 'system',
+        checkedAt: m.makeupDate.toISOString(),
+        isMakeup: true,
+      })),
+    );
+
+    return NextResponse.json([...records.map(mapRecord), ...makeupMapped]);
   } catch (err) {
     console.error('[GET /api/attendance]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

@@ -199,6 +199,8 @@ function LectureNewForm() {
   const [teacher,       setTeacher]       = useState('');
   const [order,         setOrder]         = useState('');
   const [cfVideoId,     setCfVideoId]     = useState('');
+  const [videoUrl,      setVideoUrl]      = useState('');
+  const [videoMode,     setVideoMode]     = useState<'youtube' | 'cloudflare'>('youtube');
   const [saving,        setSaving]        = useState(false);
   const [seriesList,    setSeriesList]    = useState<SeriesItem[]>([]);
   const [seriesId,      setSeriesId]      = useState('');       // '' = 없음, 'new' = 신규생성
@@ -267,6 +269,7 @@ function LectureNewForm() {
           levels,
           targetGrades: grades,
           cfVideoId: cfVideoId || null,
+          videoUrl: videoUrl || null,
           orderIndex: order ? Number(order) : 0,
           status,
           seriesId: resolvedSeriesId,
@@ -389,15 +392,55 @@ function LectureNewForm() {
             </div>
           </div>
 
-          {/* 영상 업로드 */}
+          {/* 영상 등록 — YouTube URL / 직접 업로드 선택 */}
           <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#1a2535] flex items-center gap-2">
-              영상 업로드
-              <span className="text-[11px] font-normal px-2 py-0.5 rounded-full" style={{ background: '#EEEDFE', color: '#534AB7' }}>Cloudflare Stream</span>
+            {/* 헤더 + 탭 */}
+            <div className="px-4 py-3 border-b border-[#f1f5f9] flex items-center gap-3">
+              <span className="text-[13px] font-semibold text-[#1a2535]">영상 등록</span>
+              <div className="flex rounded-[8px] overflow-hidden border border-[#e2e8f0] text-[12px] font-medium ml-auto">
+                <button
+                  onClick={() => { setVideoMode('youtube'); setCfVideoId(''); }}
+                  className="px-3.5 py-1.5 transition-colors"
+                  style={videoMode === 'youtube'
+                    ? { background: '#5B4FBE', color: '#fff' }
+                    : { background: '#fff', color: '#6b7280' }}
+                >
+                  YouTube URL
+                </button>
+                <button
+                  onClick={() => { setVideoMode('cloudflare'); setVideoUrl(''); }}
+                  className="px-3.5 py-1.5 border-l border-[#e2e8f0] transition-colors"
+                  style={videoMode === 'cloudflare'
+                    ? { background: '#5B4FBE', color: '#fff' }
+                    : { background: '#fff', color: '#6b7280' }}
+                >
+                  직접 업로드
+                </button>
+              </div>
             </div>
-            <div className="px-4 py-3.5">
-              <VideoUpload onComplete={(uid, name) => { setCfVideoId(uid); console.log('Video UID:', uid, name); }} />
-            </div>
+
+            {/* YouTube URL 패널 */}
+            {videoMode === 'youtube' && (
+              <div className="px-4 py-3.5 flex flex-col gap-2">
+                <p className="text-[11.5px] text-[#6b7280]">
+                  YouTube 영상 페이지에서 <strong>공유 → 퍼가기</strong>를 클릭하면 Embed URL을 확인할 수 있습니다.
+                </p>
+                <input
+                  type="url"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/embed/VIDEO_ID"
+                  className="text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] text-[#374151] placeholder-[#c4c4c4] outline-none focus:border-[#a78bfa] focus:bg-white w-full"
+                />
+              </div>
+            )}
+
+            {/* 직접 업로드 (Cloudflare Stream) 패널 */}
+            {videoMode === 'cloudflare' && (
+              <div className="px-4 py-3.5">
+                <VideoUpload onComplete={(uid, name) => { setCfVideoId(uid); console.log('Video UID:', uid, name); }} />
+              </div>
+            )}
           </div>
 
           {/* 분류 및 태그 */}
@@ -434,6 +477,13 @@ function LectureNewForm() {
               {cfVideoId ? (
                 <iframe
                   src={`https://iframe.videodelivery.net/${cfVideoId}`}
+                  className="w-full h-full"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : videoUrl ? (
+                <iframe
+                  src={videoUrl}
                   className="w-full h-full"
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
