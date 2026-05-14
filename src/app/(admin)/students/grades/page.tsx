@@ -11,14 +11,19 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Trash2, FolderTree, ChevronRight, ChevronDown, Pencil } from 'lucide-react';
+import { Plus, Trash2, FolderTree, ChevronRight, ChevronDown, Pencil, Send } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { DAY_NAMES } from '@/lib/types/class';
 import clsx from 'clsx';
+import PublishReportModal from '@/components/communication/PublishReportModal';
+import ReportTemplatesEditor from '@/components/communication/ReportTemplatesEditor';
+import ReportPublishHub from '@/components/communication/ReportPublishHub';
 
 const TAB_OPTIONS = [
   { value: 'exam', label: '시험 목록' },
   { value: 'assignment', label: '과제' },
+  { value: 'publish', label: '리포트 발행' },
+  { value: 'report-templates', label: '리포트 양식' },
 ];
 
 interface Assignment {
@@ -75,7 +80,7 @@ export default function GradesPage() {
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? '');
 
   // 메인 탭 (시험 목록 | 과제)
-  const [mainTab, setMainTab] = useState<'exam' | 'assignment'>('exam');
+  const [mainTab, setMainTab] = useState<'exam' | 'assignment' | 'publish' | 'report-templates'>('exam');
 
   // 과제 상태
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -107,6 +112,9 @@ export default function GradesPage() {
   // 코멘트 인라인 편집
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   const [editMemo, setEditMemo] = useState('');
+
+  // 리포트 발행 모달
+  const [publishModalOpen, setPublishModalOpen] = useState(false);
 
   const classExams = getExamsByClass(selectedClassId);
   const filteredExams = classExams.filter((e) => {
@@ -449,7 +457,7 @@ export default function GradesPage() {
         title="성적 관리"
         actions={
           <div className="flex gap-2">
-            {mainTab === 'exam' ? (
+            {mainTab === 'exam' && (
               <>
                 <Button variant="default" size="sm" onClick={() => setCategoryModalOpen(true)}>
                   <FolderTree size={13} /> 시험 카테고리 생성
@@ -458,7 +466,8 @@ export default function GradesPage() {
                   <Plus size={13} /> 시험 등록
                 </Button>
               </>
-            ) : (
+            )}
+            {mainTab === 'assignment' && (
               <Button variant="dark" size="sm" onClick={openCreateAssignmentModal}>
                 <Plus size={13} /> 과제 등록
               </Button>
@@ -470,9 +479,17 @@ export default function GradesPage() {
         <Tabs
           tabs={TAB_OPTIONS}
           value={mainTab}
-          onChange={(v) => setMainTab(v as 'exam' | 'assignment')}
+          onChange={(v) => setMainTab(v as 'exam' | 'assignment' | 'publish' | 'report-templates')}
         />
       </div>
+
+      {/* 리포트 양식 탭 — 자체 레이아웃 */}
+      {mainTab === 'report-templates' && <ReportTemplatesEditor />}
+
+      {/* 리포트 발행 탭 — 자체 레이아웃 */}
+      {mainTab === 'publish' && <ReportPublishHub />}
+
+      {(mainTab === 'exam' || mainTab === 'assignment') && (
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 반 선택 */}
         <div className="flex gap-2">
@@ -642,9 +659,14 @@ export default function GradesPage() {
               </div>
 
               <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-                <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
-                  <span className="text-[12.5px] font-semibold text-[#111827]">학생별 성적</span>
-                  <span className="text-[11px] text-[#9ca3af]">점수·코멘트를 클릭하면 수정할 수 있습니다</span>
+                <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[12.5px] font-semibold text-[#111827]">학생별 성적</span>
+                    <span className="text-[11px] text-[#9ca3af]">점수·코멘트를 클릭하면 수정할 수 있습니다</span>
+                  </div>
+                  <Button variant="primary" size="sm" onClick={() => setPublishModalOpen(true)}>
+                    <Send size={13} /> 리포트 발행
+                  </Button>
                 </div>
                 <table className="w-full text-[12.5px]">
                   <thead>
@@ -836,6 +858,7 @@ export default function GradesPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* 시험 등록/수정 모달 */}
       <Modal
@@ -1030,6 +1053,24 @@ export default function GradesPage() {
         onAdd={addCategory}
         onDelete={deleteCategory}
       />
+
+      {/* 리포트 발행 모달 (시험 목록 진입 — 시험별 전용) */}
+      {selectedExam && publishModalOpen && (
+        <PublishReportModal
+          open={publishModalOpen}
+          onClose={() => setPublishModalOpen(false)}
+          source="exam"
+          exam={{
+            id: selectedExam.id,
+            name: selectedExam.name,
+            classId: selectedExam.classId,
+            totalScore: selectedExam.totalScore,
+            date: selectedExam.date,
+          }}
+          examClassName={selectedClass?.name ?? ''}
+          examClassStudents={examGrades.map((g) => ({ id: g.studentId, name: g.studentName }))}
+        />
+      )}
     </div>
   );
 }

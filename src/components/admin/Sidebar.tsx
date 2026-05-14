@@ -110,7 +110,7 @@ export default function Sidebar() {
         ))}
       </div>
       <div className="px-4 py-3 text-[10px] text-white/30 border-t border-white/10">
-        © 2026 AcaMS
+        © 2026 HwLog
       </div>
     </aside>
   );

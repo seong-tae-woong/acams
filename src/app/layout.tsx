@@ -7,8 +7,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "AcaMS - 학원 관리 시스템",
-  description: "Academy Management System — 학원 운영 업무 디지털화",
+  title: "HwLog - 학원 관리 시스템",
+  description: "학원 운영 업무 디지털화 — 학원로그",
 };
 
 export default function RootLayout({

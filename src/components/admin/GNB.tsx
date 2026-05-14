@@ -22,8 +22,11 @@ export default function GNB() {
     >
       {/* Logo + Tab Navigation */}
       <div className="flex items-center gap-6">
-        <span className="text-[17px] font-bold text-white tracking-tight select-none">
-          Aca<span style={{ color: '#4fc3a1' }}>MS</span>
+        <span
+          className="text-[19px] font-bold text-white select-none"
+          style={{ letterSpacing: '-0.03em' }}
+        >
+          Hw<span style={{ color: '#4fc3a1' }}>Log</span>
         </span>
 
         <nav className="flex items-center gap-1">

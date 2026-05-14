@@ -35,6 +35,7 @@ export default function MobileHomePage() {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [unpaid, setUnpaid] = useState<BillInfo[]>([]);
   const [pinned, setPinned] = useState<AnnouncementInfo | null>(null);
+  const [reportUnread, setReportUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showChildModal, setShowChildModal] = useState(false);
 
@@ -55,10 +56,12 @@ export default function MobileHomePage() {
       fetch(`/api/mobile/me?studentId=${selectedChildId}`).then((r) => r.json()),
       fetch(`/api/mobile/payments?studentId=${selectedChildId}`).then((r) => r.json()),
       fetch(`/api/mobile/announcements?studentId=${selectedChildId}`).then((r) => r.json()),
-    ]).then(([me, pay, ann]) => {
+      fetch(`/api/mobile/reports?studentId=${selectedChildId}`).then((r) => r.json()),
+    ]).then(([me, pay, ann, rep]) => {
       if (me.student) { setStudent(me.student); setClasses(me.classes ?? []); }
       if (pay.bills) setUnpaid(pay.bills.filter((b: BillInfo) => b.status !== 'PAID'));
       if (ann.announcements) setPinned(ann.announcements.find((a: AnnouncementInfo) => a.pinned) ?? null);
+      if (typeof rep.unreadCount === 'number') setReportUnread(rep.unreadCount);
     }).finally(() => setLoading(false));
   }, [selectedChildId]);
 
@@ -299,7 +302,11 @@ export default function MobileHomePage() {
         <div className="grid grid-cols-2 gap-3">
           {[
             { href: '/mobile/attendance', label: '출결 확인', sub: '이번 달 출석현황', icon: Calendar, color: '#4fc3a1' },
-            { href: '/mobile/grades', label: '성적 조회', sub: '최근 시험 결과', icon: BookOpen, color: '#6366f1' },
+            {
+              href: '/mobile/grades', label: '리포트',
+              sub: reportUnread > 0 ? `미열람 ${reportUnread}건` : '발행된 리포트 보기',
+              icon: BookOpen, color: reportUnread > 0 ? '#4fc3a1' : '#6366f1',
+            },
             {
               href: '/mobile/payments', label: '수납 내역',
               sub: unpaid.length > 0 ? `미납 ${unpaid.length}건` : '전액 납부',

@@ -15,7 +15,7 @@ model Academy {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
-  loginKey  String?  @unique  // 학생 로그인 ID 접두어 (3글자 대문자 영어, 예: SGR)
+  loginKey  String?  @unique // 학생 로그인 ID 접두어 (3글자 대문자 영어, 예: SGR)
   phone     String?
   address   String?
   isActive  Boolean  @default(true)
@@ -23,48 +23,50 @@ model Academy {
   updatedAt DateTime @updatedAt
 
   // ── 토스페이먼츠 (학원별 결제 키) ──────────────────────
-  tossClientKey      String?   // 공개 키 — 평문 (브라우저 노출 OK)
-  tossSecretKeyEnc   String?   // 비밀 키 — AES-256-GCM 암호화 저장
-  tossKeyUpdatedAt   DateTime? // 마지막 키 등록/변경 일시
-  tossKeyUpdatedBy   String?   // 변경한 super_admin userId (감사 로그)
+  tossClientKey    String? // 공개 키 — 평문 (브라우저 노출 OK)
+  tossSecretKeyEnc String? // 비밀 키 — AES-256-GCM 암호화 저장
+  tossKeyUpdatedAt DateTime? // 마지막 키 등록/변경 일시
+  tossKeyUpdatedBy String? // 변경한 super_admin userId (감사 로그)
 
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
-  intro          String?  // 한 줄 소개
-  directorName   String?  // 대표자명
-  businessNumber String?  // 사업자등록번호
-  operatingHours String?  // 운영 시간 (자유 입력)
-  refundPolicy   String?  // 환불 정책
-  showFees       Boolean  @default(true)    // 수강료 공개 여부
-  profileEnabled Boolean  @default(false)   // 공개 페이지 활성화 여부
-  kakaoMapUrl    String?  // 카카오맵 iframe embed URL
-  galleryImages  Json?    // string[] — 학원 사진 URL 목록 (최대 6장)
+  intro          String? // 한 줄 소개
+  directorName   String? // 대표자명
+  businessNumber String? // 사업자등록번호
+  operatingHours String? // 운영 시간 (자유 입력)
+  refundPolicy   String? // 환불 정책
+  showFees       Boolean @default(true) // 수강료 공개 여부
+  profileEnabled Boolean @default(false) // 공개 페이지 활성화 여부
+  kakaoMapUrl    String? // 카카오맵 iframe embed URL
+  galleryImages  Json? // string[] — 학원 사진 URL 목록 (최대 6장)
 
-  users              User[]
-  students           Student[]
-  teachers           Teacher[]
-  classes            Class[]
-  bills              Bill[]
-  expenses           Expense[]
-  exams              Exam[]
-  gradeRecords       GradeRecord[]
-  attendance         AttendanceRecord[]
-  makeupClasses      MakeupClass[]
-  calendarEvents     CalendarEvent[]
-  notifications      Notification[]
-  consultations      ConsultationRecord[]
-  announcements      Announcement[]
-  textbooks          Textbook[]
-  curriculumRows     CurriculumRow[]
-  inquiries              PublicInquiry[]
-  lectures               Lecture[]
-  lectureSeries          LectureSeries[]
-  customTags             AcademyTag[]
-  notificationTemplates  NotificationTemplate[]
-  lectureQuizzes         LectureQuiz[]
-  lectureQuizAttempts    LectureQuizAttempt[]
-  lectureRetryPerms      LectureRetryPermission[]
-  examCategories         ExamCategory[]
-  assignments            Assignment[]
+  users                 User[]
+  students              Student[]
+  teachers              Teacher[]
+  classes               Class[]
+  bills                 Bill[]
+  expenses              Expense[]
+  exams                 Exam[]
+  gradeRecords          GradeRecord[]
+  attendance            AttendanceRecord[]
+  makeupClasses         MakeupClass[]
+  calendarEvents        CalendarEvent[]
+  notifications         Notification[]
+  consultations         ConsultationRecord[]
+  announcements         Announcement[]
+  textbooks             Textbook[]
+  curriculumRows        CurriculumRow[]
+  inquiries             PublicInquiry[]
+  lectures              Lecture[]
+  lectureSeries         LectureSeries[]
+  customTags            AcademyTag[]
+  notificationTemplates NotificationTemplate[]
+  lectureQuizzes        LectureQuiz[]
+  lectureQuizAttempts   LectureQuizAttempt[]
+  lectureRetryPerms     LectureRetryPermission[]
+  examCategories        ExamCategory[]
+  assignments           Assignment[]
+  reportTemplates       ReportTemplate[]
+  reports               Report[]
 
   @@map("academies")
 }
@@ -78,12 +80,12 @@ enum UserRole {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String?   @unique  // 강사/원장/슈퍼어드민
-  loginId      String?            // 학생(출석번호), 학부모(전화번호)
-  passwordHash String
-  name         String
-  role         UserRole
+  id                 String    @id @default(cuid())
+  email              String?   @unique // 강사/원장/슈퍼어드민
+  loginId            String? // 학생(출석번호), 학부모(전화번호)
+  passwordHash       String
+  name               String
+  role               UserRole
   isActive           Boolean   @default(true)
   tokenVersion       Int       @default(0)
   loginAttempts      Int       @default(0)
@@ -93,13 +95,13 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  academyId    String?
-  academy      Academy?  @relation(fields: [academyId], references: [id])
+  academyId String?
+  academy   Academy? @relation(fields: [academyId], references: [id])
 
-  teacherProfile   Teacher?       @relation("TeacherUser")
-  parentProfile    Parent?        @relation("ParentUser")
-  studentProfile   Student?       @relation("StudentUser")
-  retryPermsGiven  LectureRetryPermission[]
+  teacherProfile    Teacher?                 @relation("TeacherUser")
+  parentProfile     Parent?                  @relation("ParentUser")
+  studentProfile    Student?                 @relation("StudentUser")
+  retryPermsGiven   LectureRetryPermission[]
   pushSubscriptions PushSubscription[]
 
   @@unique([academyId, loginId])
@@ -156,9 +158,9 @@ enum StudentStatus {
 }
 
 model Student {
-  id               String        @id @default(cuid())
-  academyId        String
-  academy          Academy       @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
   name             String
   school           String        @default("")
@@ -172,13 +174,13 @@ model Student {
   qrCode           String        @default("")
   birthDate        DateTime?
 
-  userId           String?       @unique
-  user             User?         @relation("StudentUser", fields: [userId], references: [id])
+  userId String? @unique
+  user   User?   @relation("StudentUser", fields: [userId], references: [id])
 
   parentLinks      StudentParent[]
   classEnrollments ClassEnrollment[]
-  siblingLinks     StudentSibling[]  @relation("StudentA")
-  siblingOf        StudentSibling[]  @relation("StudentB")
+  siblingLinks     StudentSibling[]         @relation("StudentA")
+  siblingOf        StudentSibling[]         @relation("StudentB")
   attendance       AttendanceRecord[]
   gradeRecords     GradeRecord[]
   bills            Bill[]
@@ -186,9 +188,10 @@ model Student {
   consultations    ConsultationRecord[]
   quizAttempts     LectureQuizAttempt[]
   retryPerms       LectureRetryPermission[]
+  reports          Report[]
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([academyId, attendanceNumber])
   @@map("students")
@@ -205,12 +208,12 @@ model StudentSibling {
 }
 
 model Parent {
-  id       String @id @default(cuid())
-  name     String
-  phone    String @default("")
+  id    String @id @default(cuid())
+  name  String
+  phone String @default("")
 
-  userId   String? @unique
-  user     User?   @relation("ParentUser", fields: [userId], references: [id])
+  userId String? @unique
+  user   User?   @relation("ParentUser", fields: [userId], references: [id])
 
   children StudentParent[]
 
@@ -228,9 +231,9 @@ model StudentParent {
 }
 
 model Teacher {
-  id          String  @id @default(cuid())
-  academyId   String
-  academy     Academy @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
   name        String
   subject     String  @default("")
@@ -240,17 +243,17 @@ model Teacher {
   isActive    Boolean @default(true)
   permissions Json    @default("{\"manageStudents\":false,\"manageClasses\":false,\"manageAttendance\":true,\"manageGrades\":true,\"manageFinance\":false,\"manageNotifications\":false,\"viewReports\":true,\"admin\":false}")
 
-  userId      String? @unique
-  user        User?   @relation("TeacherUser", fields: [userId], references: [id])
+  userId String? @unique
+  user   User?   @relation("TeacherUser", fields: [userId], references: [id])
 
-  classes            ClassTeacher[]
-  checkedAttendance  AttendanceRecord[] @relation("CheckedBy")
-  makeupClasses      MakeupClass[]
-  consultations      ConsultationRecord[]
-  lectures           Lecture[]
+  classes           ClassTeacher[]
+  checkedAttendance AttendanceRecord[]   @relation("CheckedBy")
+  makeupClasses     MakeupClass[]
+  consultations     ConsultationRecord[]
+  lectures          Lecture[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("teachers")
 }
@@ -260,38 +263,39 @@ model Teacher {
 // ─────────────────────────────────────────────
 
 model Class {
-  id          String  @id @default(cuid())
-  academyId   String
-  academy     Academy @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  name        String
-  subject     String  @default("")
-  level       String  @default("")
-  color       String  @default("#4fc3a1")
-  room        String  @default("")
-  fee         Int     @default(0)
-  feeType     String  @default("monthly")  // "monthly" | "weekly" | "per-lesson"
-  maxStudents Int     @default(10)
-  description String  @default("")
-  isActive    Boolean @default(true)
-  curriculumPalette String @default("green")  // "red" | "orange" | "green" | "custom"
+  name              String
+  subject           String  @default("")
+  level             String  @default("")
+  color             String  @default("#4fc3a1")
+  room              String  @default("")
+  fee               Int     @default(0)
+  feeType           String  @default("monthly") // "monthly" | "weekly" | "per-lesson"
+  maxStudents       Int     @default(10)
+  description       String  @default("")
+  isActive          Boolean @default(true)
+  curriculumPalette String  @default("green") // "red" | "orange" | "green" | "custom"
 
-  teachers    ClassTeacher[]
-  enrollments ClassEnrollment[]
-  schedules   ClassSchedule[]
-  attendance  AttendanceRecord[]
-  exams       Exam[]
-  bills       Bill[]
-  makeupClasses MakeupClass[]
-  textbooks       Textbook[]
-  curriculumRows  CurriculumRow[]
-  announcements   Announcement[]
-  calendarEvents  CalendarEvent[]
-  lectureTargets  LectureTarget[]
-  assignments     Assignment[]
+  teachers       ClassTeacher[]
+  enrollments    ClassEnrollment[]
+  schedules      ClassSchedule[]
+  attendance     AttendanceRecord[]
+  exams          Exam[]
+  bills          Bill[]
+  makeupClasses  MakeupClass[]
+  textbooks      Textbook[]
+  curriculumRows CurriculumRow[]
+  announcements  Announcement[]
+  calendarEvents CalendarEvent[]
+  lectureTargets LectureTarget[]
+  assignments    Assignment[]
+  reports        Report[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("classes")
 }
@@ -344,14 +348,14 @@ enum AttendanceStatus {
 }
 
 model AttendanceRecord {
-  id           String           @id @default(cuid())
-  academyId    String
-  academy      Academy          @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  studentId    String
-  student      Student          @relation(fields: [studentId], references: [id])
-  classId      String
-  class        Class            @relation(fields: [classId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
 
   date         DateTime
   status       AttendanceStatus
@@ -359,35 +363,35 @@ model AttendanceRecord {
   checkOutTime String?
   memo         String           @default("")
 
-  checkedById  String?
-  checkedBy    Teacher?         @relation("CheckedBy", fields: [checkedById], references: [id])
-  checkedAt    DateTime         @default(now())
+  checkedById String?
+  checkedBy   Teacher? @relation("CheckedBy", fields: [checkedById], references: [id])
+  checkedAt   DateTime @default(now())
 
   @@unique([studentId, classId, date])
   @@map("attendance_records")
 }
 
 model MakeupClass {
-  id               String   @id @default(cuid())
-  academyId        String
-  academy          Academy  @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  originalClassId  String
-  originalClass    Class    @relation(fields: [originalClassId], references: [id])
-  originalDate     DateTime
+  originalClassId String
+  originalClass   Class    @relation(fields: [originalClassId], references: [id])
+  originalDate    DateTime
 
-  makeupDate       DateTime
-  makeupTime       String   @default("")
+  makeupDate DateTime
+  makeupTime String   @default("")
 
-  teacherId        String
-  teacher          Teacher  @relation(fields: [teacherId], references: [id])
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
 
-  reason           String   @default("")
+  reason            String  @default("")
   attendanceChecked Boolean @default(false)
 
-  targets          MakeupClassTarget[]
+  targets MakeupClassTarget[]
 
-  createdAt        DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("makeup_classes")
 }
@@ -407,18 +411,18 @@ model MakeupClassTarget {
 // ─────────────────────────────────────────────
 
 model Exam {
-  id          String  @id @default(cuid())
-  academyId   String
-  academy     Academy @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  classId     String
-  class       Class   @relation(fields: [classId], references: [id])
+  classId String
+  class   Class  @relation(fields: [classId], references: [id])
 
   name        String
-  subject     String  @default("")
+  subject     String   @default("")
   date        DateTime
-  totalScore  Int     @default(100)
-  description String  @default("")
+  totalScore  Int      @default(100)
+  description String   @default("")
 
   // 카테고리 (1은 필수, 2/3은 옵션) — 기존 데이터 호환을 위해 모두 nullable
   category1Id String?
@@ -429,8 +433,9 @@ model Exam {
   category3   ExamCategory? @relation("ExamCategory3", fields: [category3Id], references: [id])
 
   gradeRecords GradeRecord[]
+  reports      Report[]
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("exams")
 }
@@ -440,12 +445,12 @@ model ExamCategory {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  name      String
-  level     Int     // 1, 2, 3
+  name  String
+  level Int // 1, 2, 3
 
-  parentId  String?
-  parent    ExamCategory?  @relation("ExamCategoryHierarchy", fields: [parentId], references: [id])
-  children  ExamCategory[] @relation("ExamCategoryHierarchy")
+  parentId String?
+  parent   ExamCategory?  @relation("ExamCategoryHierarchy", fields: [parentId], references: [id])
+  children ExamCategory[] @relation("ExamCategoryHierarchy")
 
   examsAsCategory1 Exam[] @relation("ExamCategory1")
   examsAsCategory2 Exam[] @relation("ExamCategory2")
@@ -468,9 +473,9 @@ model GradeRecord {
   studentId String
   student   Student @relation(fields: [studentId], references: [id])
 
-  score     Float?
-  rank      Int?
-  memo      String  @default("")
+  score Float?
+  rank  Int?
+  memo  String @default("")
 
   @@unique([examId, studentId])
   @@map("grade_records")
@@ -481,16 +486,16 @@ model GradeRecord {
 // ─────────────────────────────────────────────
 
 model Assignment {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   academyId String
-  academy   Academy  @relation(fields: [academyId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  classId   String
-  class     Class    @relation(fields: [classId], references: [id])
+  classId String
+  class   Class  @relation(fields: [classId], references: [id])
 
-  date      DateTime  // 과제 출제일 (반 시간표 날짜 가능)
-  dueDate   DateTime  // 납기일
-  memo      String   @default("")
+  date    DateTime // 과제 출제일 (반 시간표 날짜 가능)
+  dueDate DateTime // 납기일
+  memo    String   @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -518,50 +523,50 @@ enum PaymentMethod {
 }
 
 model Bill {
-  id         String        @id @default(cuid())
-  academyId  String
-  academy    Academy       @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  studentId  String
-  student    Student       @relation(fields: [studentId], references: [id])
-  classId    String
-  class      Class         @relation(fields: [classId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
 
   month          String
   amount         Int
-  paidAmount     Int           @default(0)
-  status         BillStatus    @default(UNPAID)
+  paidAmount     Int            @default(0)
+  status         BillStatus     @default(UNPAID)
   dueDate        DateTime
   paidDate       DateTime?
   method         PaymentMethod?
-  memo           String        @default("")
-  scheduledCount Int?          // per-lesson: 해당 월 배정 수업 횟수
-  absentCount    Int?          // per-lesson: 결석 횟수
-  makeupCount    Int?          // per-lesson: 보강으로 복원된 횟수
-  notifiedAt     DateTime?     // 학부모에게 청구서 알림 발송 시각
+  memo           String         @default("")
+  scheduledCount Int? // per-lesson: 해당 월 배정 수업 횟수
+  absentCount    Int? // per-lesson: 결석 횟수
+  makeupCount    Int? // per-lesson: 보강으로 복원된 횟수
+  notifiedAt     DateTime? // 학부모에게 청구서 알림 발송 시각
 
-  cancelledAt    DateTime?     // 취소 시각 (CANCELLED 상태 시 기록)
-  cancelReason   String?       // 취소 사유
-  paymentOrderId String?       // 결제된 토스 PaymentOrder ID (취소 시 원본 주문 추적)
+  cancelledAt    DateTime? // 취소 시각 (CANCELLED 상태 시 기록)
+  cancelReason   String? // 취소 사유
+  paymentOrderId String? // 결제된 토스 PaymentOrder ID (취소 시 원본 주문 추적)
 
   // 재청구 링크 — 취소된 청구서에서 새로 생성된 청구서를 추적
-  rebillOfId     String?
-  rebillOf       Bill?         @relation("BillRebill", fields: [rebillOfId], references: [id])
-  rebills        Bill[]        @relation("BillRebill")
+  rebillOfId String?
+  rebillOf   Bill?   @relation("BillRebill", fields: [rebillOfId], references: [id])
+  rebills    Bill[]  @relation("BillRebill")
 
-  receipts   Receipt[]
+  receipts Receipt[]
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([studentId, classId, month])
   @@map("bills")
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  academyId   String
-  academy     Academy  @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
   category    String
   description String
@@ -569,25 +574,25 @@ model Expense {
   date        DateTime
   memo        String   @default("")
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("expenses")
 }
 
 model Receipt {
-  id         String        @id @default(cuid())
-  billId     String
-  bill       Bill          @relation(fields: [billId], references: [id])
+  id     String @id @default(cuid())
+  billId String
+  bill   Bill   @relation(fields: [billId], references: [id])
 
-  studentId  String
-  amount     Int
-  issuedDate DateTime
-  method     PaymentMethod
-  memo       String        @default("")
-  paidBy     String        @default("")  // 수납 처리자 userId (관리자 수동 처리 시 기록, 토스 자동결제 시 빈 문자열)
-  cancelledAt DateTime?                  // 영수증 취소 시각 (청구서 취소 시 함께 기록)
+  studentId   String
+  amount      Int
+  issuedDate  DateTime
+  method      PaymentMethod
+  memo        String        @default("")
+  paidBy      String        @default("") // 수납 처리자 userId (관리자 수동 처리 시 기록, 토스 자동결제 시 빈 문자열)
+  cancelledAt DateTime? // 영수증 취소 시각 (청구서 취소 시 함께 기록)
 
-  createdAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("receipts")
 }
@@ -605,16 +610,16 @@ enum NotificationType {
 }
 
 model Notification {
-  id        String           @id @default(cuid())
+  id        String  @id @default(cuid())
   academyId String
-  academy   Academy          @relation(fields: [academyId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  type      NotificationType
-  title     String
-  content   String
-  metadata  Json?            // { billIds: string[] } 등 추가 데이터
-  sentAt    DateTime         @default(now())
-  sentById  String           @default("")
+  type     NotificationType
+  title    String
+  content  String
+  metadata Json? // { billIds: string[] } 등 추가 데이터
+  sentAt   DateTime         @default(now())
+  sentById String           @default("")
 
   recipients NotificationRecipient[]
 
@@ -622,15 +627,15 @@ model Notification {
 }
 
 model PaymentOrder {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   academyId  String
   studentId  String
-  billIds    Json      // string[] — 결제 대상 청구서 ID 목록
+  billIds    Json // string[] — 결제 대상 청구서 ID 목록
   amount     Int
-  status     String    @default("PENDING") // PENDING | PROCESSING | PAID | FAILED
+  status     String   @default("PENDING") // PENDING | PROCESSING | PAID | FAILED
   paymentKey String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("payment_orders")
 }
@@ -640,7 +645,7 @@ model NotificationRecipient {
   studentId      String
   readAt         DateTime?
 
-  notification   Notification @relation(fields: [notificationId], references: [id])
+  notification Notification @relation(fields: [notificationId], references: [id])
 
   @@id([notificationId, studentId])
   @@map("notification_recipients")
@@ -655,13 +660,13 @@ model ConsultationRecord {
   student   Student @relation(fields: [studentId], references: [id])
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  date      DateTime
-  time      String   @default("")
-  duration  Int      @default(30)
-  type      String
-  topic     String
-  content   String   @default("")
-  followUp  String   @default("")
+  date     DateTime
+  time     String   @default("")
+  duration Int      @default(30)
+  type     String
+  topic    String
+  content  String   @default("")
+  followUp String   @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -675,9 +680,9 @@ enum AnnouncementStatus {
 }
 
 model Announcement {
-  id          String             @id @default(cuid())
-  academyId   String
-  academy     Academy            @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
   title       String
   content     String
@@ -686,11 +691,11 @@ model Announcement {
   pinned      Boolean            @default(false)
   publishedAt DateTime?
 
-  classId     String?
-  class       Class?             @relation(fields: [classId], references: [id])
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("announcements")
 }
@@ -700,13 +705,13 @@ model Announcement {
 // ─────────────────────────────────────────────
 
 model NotificationTemplate {
-  id        String           @id @default(cuid())
+  id        String  @id @default(cuid())
   academyId String
-  academy   Academy          @relation(fields: [academyId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  category  NotificationType
-  title     String
-  content   String
+  category NotificationType
+  title    String
+  content  String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -719,27 +724,27 @@ model NotificationTemplate {
 // ─────────────────────────────────────────────
 
 enum InquiryStatus {
-  NEW      // 신규 (미확인)
-  READ     // 확인
-  REPLIED  // 답변완료
+  NEW // 신규 (미확인)
+  READ // 확인
+  REPLIED // 답변완료
 }
 
 model PublicInquiry {
-  id        String        @id @default(cuid())
+  id        String  @id @default(cuid())
   academyId String
-  academy   Academy       @relation(fields: [academyId], references: [id])
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  name      String        // 학생 이름
-  phone     String        // 연락처
-  classId   String?       // 관심 수업 ID (선택)
-  className String?       // 관심 수업명 스냅샷
-  message   String        @default("")  // 문의 내용
+  name      String // 학생 이름
+  phone     String // 연락처
+  classId   String? // 관심 수업 ID (선택)
+  className String? // 관심 수업명 스냅샷
+  message   String  @default("") // 문의 내용
 
-  status    InquiryStatus @default(NEW)
-  memo      String        @default("")  // 원장 메모
+  status InquiryStatus @default(NEW)
+  memo   String        @default("") // 원장 메모
 
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("public_inquiries")
 }
@@ -772,8 +777,8 @@ model Textbook {
   purchaseDate DateTime?
   memo         String    @default("")
 
-  academy   Academy  @relation(fields: [academyId], references: [id])
-  class     Class    @relation(fields: [classId], references: [id])
+  academy Academy @relation(fields: [academyId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -796,11 +801,11 @@ model CurriculumRow {
   endWeek   Int                @default(1)
   topic     String
   detail    String             @default("")
-  color     String?            // 사용자 직접 지정 색 (null이면 팔레트 자동 부여)
+  color     String? // 사용자 직접 지정 색 (null이면 팔레트 자동 부여)
   done      Boolean            @default(false)
 
-  academy   Academy @relation(fields: [academyId], references: [id])
-  class     Class   @relation(fields: [classId], references: [id])
+  academy Academy @relation(fields: [academyId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -809,9 +814,9 @@ model CurriculumRow {
 }
 
 model CalendarEvent {
-  id          String            @id @default(cuid())
-  academyId   String
-  academy     Academy           @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
   title       String
   date        DateTime
@@ -823,10 +828,10 @@ model CalendarEvent {
   color       String            @default("#4fc3a1")
 
   classId          String?
-  class            Class?   @relation(fields: [classId], references: [id])
+  class            Class?  @relation(fields: [classId], references: [id])
   relatedStudentId String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("calendar_events")
 }
@@ -841,34 +846,34 @@ enum LectureStatus {
 }
 
 model Lecture {
-  id           String        @id @default(cuid())
-  academyId    String
-  academy      Academy       @relation(fields: [academyId], references: [id])
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
 
-  title        String
-  description  String        @default("")
-  teacherId    String?
-  teacher      Teacher?      @relation(fields: [teacherId], references: [id])
+  title       String
+  description String   @default("")
+  teacherId   String?
+  teacher     Teacher? @relation(fields: [teacherId], references: [id])
 
-  subjects     String[]      @default([])
-  levels       String[]      @default([])
-  targetGrades String[]      @default([])
+  subjects     String[] @default([])
+  levels       String[] @default([])
+  targetGrades String[] @default([])
 
   seriesId      String?
   series        LectureSeries? @relation(fields: [seriesId], references: [id])
   episodeNumber Int?
 
-  cfVideoId    String?       // Cloudflare Stream video UID
-  videoUrl     String?
-  duration     String        @default("--:--")
-  orderIndex   Int           @default(0)
-  status       LectureStatus @default(DRAFT)
+  cfVideoId  String? // Cloudflare Stream video UID
+  videoUrl   String?
+  duration   String        @default("--:--")
+  orderIndex Int           @default(0)
+  status     LectureStatus @default(DRAFT)
 
-  targets      LectureTarget[]
-  quiz         LectureQuiz?
+  targets LectureTarget[]
+  quiz    LectureQuiz?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("lectures")
 }
@@ -903,7 +908,7 @@ model AcademyTag {
   academyId String
   academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
   label     String
-  tagType   String   // "subject" | "level" | "grade"
+  tagType   String // "subject" | "level" | "grade"
   createdAt DateTime @default(now())
 
   @@unique([academyId, tagType, label])
@@ -915,57 +920,57 @@ model AcademyTag {
 // ─────────────────────────────────────────────
 
 model LectureQuiz {
-  id         String   @id @default(cuid())
-  academyId  String
-  academy    Academy  @relation(fields: [academyId], references: [id])
-  lectureId  String   @unique
-  lecture    Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+  lectureId String  @unique
+  lecture   Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
 
-  passScore  Int      @default(70)
-  maxTries   Int      @default(3)
-  examCond   String   @default("after100") // "after100" | "anytime"
+  passScore Int    @default(70)
+  maxTries  Int    @default(3)
+  examCond  String @default("after100") // "after100" | "anytime"
 
   questions  LectureQuestion[]
   attempts   LectureQuizAttempt[]
   retryPerms LectureRetryPermission[]
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("lecture_quizzes")
 }
 
 model LectureQuestion {
-  id         String   @id @default(cuid())
+  id         String                  @id @default(cuid())
   quizId     String
-  quiz       LectureQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  orderIndex Int      @default(0)
+  quiz       LectureQuiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  orderIndex Int                     @default(0)
   text       String
-  score      Int      @default(20)
+  score      Int                     @default(20)
   options    LectureQuestionOption[]
 
   @@map("lecture_questions")
 }
 
 model LectureQuestionOption {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   questionId String
   question   LectureQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  orderIndex Int      @default(0)
+  orderIndex Int             @default(0)
   text       String
-  isCorrect  Boolean  @default(false)
+  isCorrect  Boolean         @default(false)
 
   @@map("lecture_question_options")
 }
 
 model LectureQuizAttempt {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   academyId String
-  academy   Academy  @relation(fields: [academyId], references: [id])
+  academy   Academy     @relation(fields: [academyId], references: [id])
   quizId    String
   quiz      LectureQuiz @relation(fields: [quizId], references: [id])
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student     @relation(fields: [studentId], references: [id])
   score     Float
   isPassed  Boolean
 
@@ -975,18 +980,88 @@ model LectureQuizAttempt {
 }
 
 model LectureRetryPermission {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   academyId   String
-  academy     Academy  @relation(fields: [academyId], references: [id])
+  academy     Academy     @relation(fields: [academyId], references: [id])
   quizId      String
   quiz        LectureQuiz @relation(fields: [quizId], references: [id])
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id])
+  student     Student     @relation(fields: [studentId], references: [id])
   allowedById String
-  allowedBy   User     @relation(fields: [allowedById], references: [id])
+  allowedBy   User        @relation(fields: [allowedById], references: [id])
   usedAt      DateTime?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("lecture_retry_permissions")
+}
+
+// ─────────────────────────────────────────────
+// REPORTS (학생 성적 레포트)
+// ─────────────────────────────────────────────
+
+enum ReportTemplateKind {
+  PER_EXAM
+  PERIODIC
+}
+
+model ReportTemplate {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  name          String
+  alias         String             @default("") // 원장용 별칭 (발행된 리포트에는 노출 X)
+  kind          ReportTemplateKind
+  bodyMarkdown  String             @default("") // 토큰 포함된 양식 본문
+  layout        Json               @default("[]") // PERIODIC 차트/표 블록 배열
+  scopeFilter   Json               @default("{}") // {category1Ids?, category2Ids?, category3Ids?, subjects?}
+  passThreshold Int                @default(70) // 합격 기본 70%
+  periodMonths  Int?               // PERIODIC 전용: 발행 시점 기준 N개월 이전부터 집계
+  isActive      Boolean            @default(true)
+
+  reports Report[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([academyId, kind])
+  @@map("report_templates")
+}
+
+model Report {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  templateId String
+  template   ReportTemplate @relation(fields: [templateId], references: [id])
+
+  batchId   String?  // 같은 발행 액션으로 생성된 Report들을 묶는 식별자
+
+  kind        ReportTemplateKind
+  periodLabel String             @default("") // "2026-05" / "2026-Q1" / "2026 상반기" / "2026" / 시험명
+  title       String // PWA 리스트에 보일 제목
+  summary     String             @default("") // 짧은 설명 (리스트용)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  classId   String?
+  class     Class?  @relation(fields: [classId], references: [id])
+  examId    String?
+  exam      Exam?   @relation(fields: [examId], references: [id])
+
+  renderedBody String @default("") // 토큰 치환 완료된 본문
+  data         Json   @default("{}") // 차트 raw 데이터 + 표 데이터
+
+  publishedAt DateTime  @default(now())
+  publishedBy String? // 발행자 userId
+  readAt      DateTime? // 학부모/학생이 처음 연 시간
+
+  createdAt DateTime @default(now())
+
+  @@index([academyId, studentId, publishedAt])
+  @@index([studentId, readAt])
+  @@index([academyId, batchId])
+  @@map("reports")
 }
