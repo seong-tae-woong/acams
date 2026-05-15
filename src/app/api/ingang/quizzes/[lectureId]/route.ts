@@ -105,3 +105,30 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
+
+// PATCH /api/ingang/quizzes/[lectureId]
+// 이수 조건(합격 기준·응시 횟수·응시 조건)만 갱신. 문제는 건드리지 않음.
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const academyId = req.headers.get('x-academy-id');
+  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { lectureId } = await ctx.params;
+
+  try {
+    const { passScore, maxTries, examCond } = await req.json();
+
+    const lecture = await prisma.lecture.findFirst({ where: { id: lectureId, academyId } });
+    if (!lecture) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
+
+    const quiz = await prisma.lectureQuiz.upsert({
+      where: { lectureId },
+      update: { passScore, maxTries, examCond },
+      create: { academyId, lectureId, passScore, maxTries, examCond },
+    });
+
+    return NextResponse.json({ passScore: quiz.passScore, maxTries: quiz.maxTries, examCond: quiz.examCond });
+  } catch (err) {
+    console.error('[PATCH /api/ingang/quizzes/[lectureId]]', err);
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}

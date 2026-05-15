@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { VideoUpload } from '@/components/ingang/VideoUpload';
 
 type Lecture = {
   id: string;
@@ -49,6 +50,7 @@ export default function LecturesPage() {
   const [editDetail,    setEditDetail]    = useState<LectureDetail | null>(null);
   const [editLoading,   setEditLoading]   = useState(false);
   const [editSaving,    setEditSaving]    = useState(false);
+  const [editVideoMode, setEditVideoMode] = useState<'youtube' | 'cloudflare'>('youtube');
   const [editingSeriesId,   setEditingSeriesId]   = useState<string | null>(null);
   const [editSeriesDetail,  setEditSeriesDetail]  = useState<SeriesDetail | null>(null);
   const [editSeriesLoading, setEditSeriesLoading] = useState(false);
@@ -119,6 +121,7 @@ export default function LecturesPage() {
       const res = await fetch(`/api/lectures/${id}`);
       const data = await res.json();
       setEditDetail(data);
+      setEditVideoMode(data.cfVideoId ? 'cloudflare' : 'youtube');
     } catch {
       alert('강의 정보를 불러오지 못했습니다.');
       setEditingId(null);
@@ -267,7 +270,8 @@ export default function LecturesPage() {
           levels: editDetail.levels,
           targetGrades: editDetail.targetGrades,
           etcTags: editDetail.etcTags ?? [],
-          videoUrl: editDetail.videoUrl,
+          videoUrl: editVideoMode === 'youtube' ? editDetail.videoUrl : null,
+          cfVideoId: editVideoMode === 'cloudflare' ? editDetail.cfVideoId : null,
           duration: editDetail.duration,
           orderIndex: editDetail.orderIndex,
           status: editDetail.status,
@@ -426,16 +430,6 @@ export default function LecturesPage() {
                               </div>
                             ))
                           )}
-                          {/* 강의 추가 버튼 */}
-                          <div className="px-4 py-2.5 bg-[#fafafa] border-t border-[#f1f5f9]">
-                            <Link
-                              href={`/ingang/lectures/new?seriesId=${series.id}`}
-                              className="text-[12px] font-semibold hover:underline"
-                              style={{ color: '#5B4FBE' }}
-                            >
-                              + {series.title}에 강의 추가
-                            </Link>
-                          </div>
                         </div>
                       )}
                     </div>
@@ -577,15 +571,61 @@ export default function LecturesPage() {
                   )}
                 </div>
 
-                {/* YouTube Embed URL */}
+                {/* 영상 등록 — YouTube URL / 직접 업로드 선택 */}
                 <div>
-                  <label className="text-[12px] font-semibold text-[#374151] block mb-1.5">YouTube Embed URL</label>
-                  <input
-                    value={editDetail.videoUrl ?? ''}
-                    onChange={(e) => setEditDetail({ ...editDetail, videoUrl: e.target.value || null })}
-                    placeholder="https://www.youtube.com/embed/..."
-                    className="w-full text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] outline-none focus:border-[#a78bfa] focus:bg-white"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[12px] font-semibold text-[#374151]">영상 등록</label>
+                    <div className="flex rounded-[8px] overflow-hidden border border-[#e2e8f0] text-[11.5px] font-medium">
+                      <button
+                        onClick={() => setEditVideoMode('youtube')}
+                        className="px-3 py-1 transition-colors"
+                        style={editVideoMode === 'youtube'
+                          ? { background: '#5B4FBE', color: '#fff' }
+                          : { background: '#fff', color: '#6b7280' }}
+                      >
+                        YouTube URL
+                      </button>
+                      <button
+                        onClick={() => setEditVideoMode('cloudflare')}
+                        className="px-3 py-1 border-l border-[#e2e8f0] transition-colors"
+                        style={editVideoMode === 'cloudflare'
+                          ? { background: '#5B4FBE', color: '#fff' }
+                          : { background: '#fff', color: '#6b7280' }}
+                      >
+                        직접 업로드
+                      </button>
+                    </div>
+                  </div>
+
+                  {editVideoMode === 'youtube' ? (
+                    <>
+                      <input
+                        value={editDetail.videoUrl ?? ''}
+                        onChange={(e) => setEditDetail({ ...editDetail, videoUrl: e.target.value || null })}
+                        placeholder="https://www.youtube.com/embed/..."
+                        className="w-full text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] outline-none focus:border-[#a78bfa] focus:bg-white"
+                      />
+                      <p className="text-[11px] text-[#9ca3af] mt-1">YouTube 영상 페이지 → 공유 → 퍼가기에서 Embed URL을 확인할 수 있습니다.</p>
+                    </>
+                  ) : editDetail.cfVideoId ? (
+                    <div className="border border-[#e2e8f0] rounded-[10px] px-4 py-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-[8px] flex items-center justify-center shrink-0" style={{ background: '#1e1b2e' }}>
+                        <span style={{ borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderLeft: '11px solid #a78bfa', marginLeft: 1, display: 'inline-block' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] font-semibold text-[#111827]">업로드된 영상</p>
+                        <p className="text-[11px] text-[#9ca3af] truncate">Cloudflare Stream · {editDetail.cfVideoId}</p>
+                      </div>
+                      <button
+                        onClick={() => setEditDetail({ ...editDetail, cfVideoId: null })}
+                        className="text-[11px] text-[#9ca3af] hover:text-[#ef4444] shrink-0"
+                      >
+                        교체
+                      </button>
+                    </div>
+                  ) : (
+                    <VideoUpload onComplete={(uid) => setEditDetail((prev) => prev ? { ...prev, cfVideoId: uid } : prev)} />
+                  )}
                 </div>
 
                 {/* 영상 길이 + 순서 */}

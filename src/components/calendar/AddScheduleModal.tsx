@@ -7,12 +7,14 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import type { CalendarEvent, CalendarEventType } from '@/lib/types/calendar';
 
+// '수업'은 반 시간표 파생 일정이라 직접 추가할 수 없음 — 선택지에서 제외
 const EVENT_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정'];
 
 const TYPE_COLOR: Record<CalendarEventType, string> = {
   '학원일정': '#4fc3a1',
   '상담일정': '#6366f1',
   '보강일정': '#8b5cf6',
+  '수업': '#3b82f6',
 };
 
 interface Props {

@@ -8,6 +8,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 
+// 반에 속하지 않는 강의(전체 공개·개별 지정)를 묶는 가상 분류 ID
+const DIRECT_CLASS_ID = '__direct__';
+
 export async function POST(req: NextRequest) {
   const role = req.headers.get('x-user-role');
   const academyId = req.headers.get('x-academy-id');
@@ -51,6 +54,7 @@ export async function POST(req: NextRequest) {
                         episodeNumber: true,
                         orderIndex: true,
                         status: true,
+                        targetMode: true,
                       },
                     },
                   },
@@ -86,9 +90,10 @@ export async function POST(req: NextRequest) {
     const classes = await Promise.all(
       student.classEnrollments.map(async (enrollment) => {
         const cls = enrollment.class;
-        // 해당 반에 배정된 PUBLISHED 강의
+        // 해당 반에 배정된 PUBLISHED + CLASS 모드 강의
+        // (다른 모드로 전환된 강의는 반 배정 행이 남아있어도 제외)
         const lectures = cls.lectureTargets
-          .filter((lt) => lt.lecture.status === 'PUBLISHED')
+          .filter((lt) => lt.lecture.status === 'PUBLISHED' && lt.lecture.targetMode === 'CLASS')
           .sort((a, b) => {
             // seriesId → episodeNumber → orderIndex 순 정렬
             if (a.lecture.seriesId !== b.lecture.seriesId) {
@@ -124,6 +129,46 @@ export async function POST(req: NextRequest) {
         };
       }),
     );
+
+    // 전체 공개(ALL) + 개별 지정(INDIVIDUAL) 강의 — 반과 무관하게 학생에게 노출
+    const directLectures = await prisma.lecture.findMany({
+      where: {
+        academyId,
+        status: 'PUBLISHED',
+        OR: [
+          { targetMode: 'ALL' },
+          { targetMode: 'INDIVIDUAL', studentTargets: { some: { studentId: student.id } } },
+        ],
+      },
+      select: { id: true, title: true, duration: true, seriesId: true, episodeNumber: true, orderIndex: true },
+    });
+
+    if (directLectures.length > 0) {
+      directLectures.sort((a, b) => {
+        if (a.seriesId !== b.seriesId) return (a.seriesId ?? '').localeCompare(b.seriesId ?? '');
+        if ((a.episodeNumber ?? 0) !== (b.episodeNumber ?? 0)) return (a.episodeNumber ?? 0) - (b.episodeNumber ?? 0);
+        return a.orderIndex - b.orderIndex;
+      });
+
+      const directNotes = await prisma.studentLectureNote.findMany({
+        where: { studentId: student.id, lectureId: { in: directLectures.map((l) => l.id) } },
+        select: { lectureId: true, note: true },
+      });
+      const directNoteMap = Object.fromEntries(directNotes.map((n) => [n.lectureId, n.note]));
+
+      classes.push({
+        classId: DIRECT_CLASS_ID,
+        className: '개별 배정 강의',
+        subject: '',
+        color: '#a78bfa',
+        lectures: directLectures.map((l) => ({
+          lectureId: l.id,
+          title: l.title,
+          duration: l.duration,
+          note: directNoteMap[l.id] ?? null,
+        })),
+      });
+    }
 
     return NextResponse.json({
       sessionId: session.id,

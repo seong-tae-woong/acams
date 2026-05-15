@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import type { CalendarEventType } from '@/lib/types/calendar';
 
-const UI_TO_PRISMA: Record<CalendarEventType, PrismaType> = {
+const UI_TO_PRISMA: Partial<Record<CalendarEventType, PrismaType>> = {
   '학원일정': PrismaType.ACADEMY_SCHEDULE,
   '상담일정': PrismaType.CONSULTATION_SCHEDULE,
   '보강일정': PrismaType.MAKEUP_SCHEDULE,

@@ -195,6 +195,7 @@ model Student {
   reports             Report[]
   ingangViewSessions  IngangViewSession[]
   lectureNotes        StudentLectureNote[]
+  lectureTargets      LectureStudentTarget[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -853,6 +854,12 @@ enum LectureStatus {
   PUBLISHED
 }
 
+enum LectureTargetMode {
+  CLASS      // 반 단위 지정
+  INDIVIDUAL // 개별 학생 지정
+  ALL        // 전체 공개
+}
+
 model Lecture {
   id        String  @id @default(cuid())
   academyId String
@@ -878,9 +885,12 @@ model Lecture {
   orderIndex Int           @default(0)
   status     LectureStatus @default(DRAFT)
 
-  targets       LectureTarget[]
-  quiz          LectureQuiz?
-  studentNotes  StudentLectureNote[]
+  targetMode LectureTargetMode @default(CLASS)
+
+  targets        LectureTarget[]
+  studentTargets LectureStudentTarget[]
+  quiz           LectureQuiz?
+  studentNotes   StudentLectureNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -911,6 +921,16 @@ model LectureTarget {
 
   @@id([lectureId, classId])
   @@map("lecture_targets")
+}
+
+model LectureStudentTarget {
+  lectureId String
+  studentId String
+  lecture   Lecture @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([lectureId, studentId])
+  @@map("lecture_student_targets")
 }
 
 model AcademyTag {

@@ -1,11 +1,16 @@
 /**
  * GET /api/ingang-tablet/lectures?sessionId=&classId=
  *
- * 승인된 세션의 classId 기준으로 강의 목록 + cfVideoId 반환.
+ * 승인된 세션 기준으로 강의 목록 + cfVideoId 반환.
+ * classId가 실제 반이면 해당 반의 CLASS 모드 강의를,
+ * classId가 가상 분류('__direct__')면 전체 공개·개별 지정 강의를 반환.
  * role=tablet 전용. cfVideoId는 인강 재생에 필요하므로 여기서만 내려줌.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+
+// 반에 속하지 않는 강의(전체 공개·개별 지정)를 묶는 가상 분류 ID
+const DIRECT_CLASS_ID = '__direct__';
 
 export async function GET(req: NextRequest) {
   const role = req.headers.get('x-user-role');
@@ -32,50 +37,78 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 세션입니다.' }, { status: 403 });
     }
 
-    // 해당 반에 배정된 PUBLISHED 강의 목록 (cfVideoId 포함)
-    const targets = await prisma.lectureTarget.findMany({
-      where: { classId },
-      include: {
-        lecture: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            duration: true,
-            cfVideoId: true,
-            videoUrl: true,
-            seriesId: true,
-            episodeNumber: true,
-            orderIndex: true,
-            status: true,
-            teacher: { select: { name: true } },
-            studentNotes: {
-              where: { studentId: session.studentId },
-              select: { note: true },
+    type LectureRow = {
+      id: string;
+      title: string;
+      description: string;
+      duration: string;
+      cfVideoId: string | null;
+      videoUrl: string | null;
+      seriesId: string | null;
+      episodeNumber: number | null;
+      orderIndex: number;
+      status: string;
+      teacher: { name: string } | null;
+      studentNotes: { note: string }[];
+    };
+
+    let lectureList: LectureRow[];
+
+    if (classId === DIRECT_CLASS_ID) {
+      // 전체 공개(ALL) + 개별 지정(INDIVIDUAL) 강의
+      lectureList = await prisma.lecture.findMany({
+        where: {
+          academyId,
+          OR: [
+            { targetMode: 'ALL' },
+            { targetMode: 'INDIVIDUAL', studentTargets: { some: { studentId: session.studentId } } },
+          ],
+        },
+        select: {
+          id: true, title: true, description: true, duration: true,
+          cfVideoId: true, videoUrl: true, seriesId: true,
+          episodeNumber: true, orderIndex: true, status: true,
+          teacher: { select: { name: true } },
+          studentNotes: { where: { studentId: session.studentId }, select: { note: true } },
+        },
+      });
+    } else {
+      // 해당 반에 배정된 CLASS 모드 강의 (다른 모드로 전환된 강의는 제외)
+      const targets = await prisma.lectureTarget.findMany({
+        where: { classId, lecture: { targetMode: 'CLASS' } },
+        include: {
+          lecture: {
+            select: {
+              id: true, title: true, description: true, duration: true,
+              cfVideoId: true, videoUrl: true, seriesId: true,
+              episodeNumber: true, orderIndex: true, status: true,
+              teacher: { select: { name: true } },
+              studentNotes: { where: { studentId: session.studentId }, select: { note: true } },
             },
           },
         },
-      },
-    });
+      });
+      lectureList = targets.map((t) => t.lecture);
+    }
 
-    const lectures = targets
-      .filter((t) => t.lecture.status === 'PUBLISHED')
+    const lectures = lectureList
+      .filter((l) => l.status === 'PUBLISHED')
       .sort((a, b) => {
-        if (a.lecture.seriesId !== b.lecture.seriesId)
-          return (a.lecture.seriesId ?? '').localeCompare(b.lecture.seriesId ?? '');
-        if ((a.lecture.episodeNumber ?? 0) !== (b.lecture.episodeNumber ?? 0))
-          return (a.lecture.episodeNumber ?? 0) - (b.lecture.episodeNumber ?? 0);
-        return a.lecture.orderIndex - b.lecture.orderIndex;
+        if (a.seriesId !== b.seriesId)
+          return (a.seriesId ?? '').localeCompare(b.seriesId ?? '');
+        if ((a.episodeNumber ?? 0) !== (b.episodeNumber ?? 0))
+          return (a.episodeNumber ?? 0) - (b.episodeNumber ?? 0);
+        return a.orderIndex - b.orderIndex;
       })
-      .map((t) => ({
-        lectureId: t.lecture.id,
-        title: t.lecture.title,
-        description: t.lecture.description,
-        duration: t.lecture.duration,
-        cfVideoId: t.lecture.cfVideoId,
-        videoUrl: t.lecture.videoUrl,
-        teacherName: t.lecture.teacher?.name ?? null,
-        note: t.lecture.studentNotes[0]?.note ?? null,
+      .map((l) => ({
+        lectureId: l.id,
+        title: l.title,
+        description: l.description,
+        duration: l.duration,
+        cfVideoId: l.cfVideoId,
+        videoUrl: l.videoUrl,
+        teacherName: l.teacher?.name ?? null,
+        note: l.studentNotes[0]?.note ?? null,
       }));
 
     return NextResponse.json({ lectures });

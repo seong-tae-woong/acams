@@ -1,6 +1,6 @@
 // 캘린더 관련 타입 정의
 
-export type CalendarEventType = '학원일정' | '상담일정' | '보강일정';
+export type CalendarEventType = '학원일정' | '상담일정' | '보강일정' | '수업';
 
 export interface CalendarEvent {
   id: string;
@@ -15,6 +15,8 @@ export interface CalendarEvent {
   relatedStudentId: string | null; // 관련 학생 (상담 등, 없으면 null)
   classId?: string | null;   // 반 지정 (null = 전체)
   className?: string | null; // 반 이름 (읽기용)
+  // 'event' = CalendarEvent 레코드(편집 가능), 'makeup'/'class' = 파생 일정(편집 불가)
+  source?: 'event' | 'makeup' | 'class';
 }
 
 export interface MakeupAttendance {

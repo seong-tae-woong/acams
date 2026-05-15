@@ -2,9 +2,10 @@
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import type { CalendarEventType } from '@/lib/types/calendar';
+import { buildMakeupEvents, buildClassScheduleEvents } from '@/lib/calendar/virtualEvents';
 
-// UI 문자열 ↔ Prisma enum 변환
-const UI_TO_PRISMA: Record<CalendarEventType, PrismaType> = {
+// UI 문자열 ↔ Prisma enum 변환 ('수업'은 파생 일정이라 저장되지 않음)
+const UI_TO_PRISMA: Partial<Record<CalendarEventType, PrismaType>> = {
   '학원일정': PrismaType.ACADEMY_SCHEDULE,
   '상담일정': PrismaType.CONSULTATION_SCHEDULE,
   '보강일정': PrismaType.MAKEUP_SCHEDULE,
@@ -16,7 +17,7 @@ const PRISMA_TO_UI: Record<PrismaType, CalendarEventType> = {
   [PrismaType.MAKEUP_SCHEDULE]: '보강일정',
 };
 
-const TYPE_COLOR: Record<CalendarEventType, string> = {
+const TYPE_COLOR: Partial<Record<CalendarEventType, string>> = {
   '학원일정': '#4fc3a1',
   '상담일정': '#6366f1',
   '보강일정': '#8b5cf6',
@@ -73,13 +74,25 @@ export async function GET(req: NextRequest) {
   const to = new Date(year, month, 1); // exclusive
 
   try {
-    const events = await prisma.calendarEvent.findMany({
-      where: {
-        academyId,
-        date: { gte: from, lt: to },
-      },
-      orderBy: { date: 'asc' },
-    });
+    const [events, makeups, classRows] = await Promise.all([
+      prisma.calendarEvent.findMany({
+        where: { academyId, date: { gte: from, lt: to } },
+        orderBy: { date: 'asc' },
+      }),
+      prisma.makeupClass.findMany({
+        where: { academyId, makeupDate: { gte: from, lt: to } },
+        include: { originalClass: { select: { name: true } } },
+      }),
+      prisma.class.findMany({
+        where: { academyId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          schedules: { select: { id: true, dayOfWeek: true, startTime: true, endTime: true } },
+        },
+      }),
+    ]);
 
     const result = events.map((e) => ({
       id: e.id,
@@ -92,9 +105,13 @@ export async function GET(req: NextRequest) {
       description: e.description,
       color: e.color,
       relatedStudentId: e.relatedStudentId,
+      source: 'event' as const,
     }));
 
-    return NextResponse.json(result);
+    const makeupEvents = buildMakeupEvents(makeups);
+    const classEvents = buildClassScheduleEvents(classRows, year, month);
+
+    return NextResponse.json([...result, ...makeupEvents, ...classEvents]);
   } catch (err) {
     console.error('[GET /api/calendar]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

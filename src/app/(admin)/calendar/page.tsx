@@ -14,9 +14,10 @@ const TYPE_COLOR: Record<CalendarEventType, string> = {
   '학원일정': '#4fc3a1',
   '상담일정': '#6366f1',
   '보강일정': '#8b5cf6',
+  '수업': '#3b82f6',
 };
 
-const ALL_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정'];
+const ALL_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정', '수업'];
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -44,6 +45,7 @@ export default function CalendarPage() {
     '학원일정': true,
     '상담일정': true,
     '보강일정': true,
+    '수업': true,
   });
 
   const { events, loading, fetchEvents } = useCalendarStore();
@@ -226,12 +228,14 @@ export default function CalendarPage() {
                         <span className="text-[10px] text-[#9ca3af]">비공개</span>
                       )}
                     </div>
-                    <button
-                      onClick={() => { setEditEvent(ev); setIsAddOpen(true); }}
-                      className="shrink-0 p-1 rounded hover:bg-[#f4f6f8] text-[#9ca3af] hover:text-[#6b7280] transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Pencil size={11} />
-                    </button>
+                    {(!ev.source || ev.source === 'event') && (
+                      <button
+                        onClick={() => { setEditEvent(ev); setIsAddOpen(true); }}
+                        className="shrink-0 p-1 rounded hover:bg-[#f4f6f8] text-[#9ca3af] hover:text-[#6b7280] transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                    )}
                   </div>
                   <div className="text-[12.5px] font-medium text-[#111827]">{ev.title}</div>
                   {(ev.startTime || ev.endTime) && (

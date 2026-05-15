@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
+import { buildMakeupEvents, buildClassScheduleEvents } from '@/lib/calendar/virtualEvents';
 
 const PRISMA_TO_UI: Record<PrismaType, string> = {
   [PrismaType.ACADEMY_SCHEDULE]: '학원일정',
@@ -38,20 +39,44 @@ export async function GET(req: NextRequest) {
 
     const classIds = await resolveClassIds(studentId);
 
-    const events = await prisma.calendarEvent.findMany({
-      where: {
-        academyId,
-        date: { gte: from, lt: to },
-        OR: [
-          { isPublic: true },
-          { classId: { in: classIds } },
-        ],
-      },
-      include: {
-        class: { select: { id: true, name: true } },
-      },
-      orderBy: { date: 'asc' },
-    });
+    const [events, makeups, classRows] = await Promise.all([
+      prisma.calendarEvent.findMany({
+        where: {
+          academyId,
+          date: { gte: from, lt: to },
+          OR: [
+            { isPublic: true },
+            { classId: { in: classIds } },
+          ],
+        },
+        include: {
+          class: { select: { id: true, name: true } },
+        },
+        orderBy: { date: 'asc' },
+      }),
+      // 내 반 보강 또는 내가 보강 대상으로 등록된 보강
+      prisma.makeupClass.findMany({
+        where: {
+          academyId,
+          makeupDate: { gte: from, lt: to },
+          OR: [
+            { originalClassId: { in: classIds } },
+            { targets: { some: { studentId } } },
+          ],
+        },
+        include: { originalClass: { select: { name: true } } },
+      }),
+      // 내가 수강 중인 반의 주간 시간표
+      prisma.class.findMany({
+        where: { academyId, isActive: true, id: { in: classIds } },
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          schedules: { select: { id: true, dayOfWeek: true, startTime: true, endTime: true } },
+        },
+      }),
+    ]);
 
     const result = events.map((e) => ({
       id: e.id,
@@ -67,7 +92,10 @@ export async function GET(req: NextRequest) {
       className: e.class?.name ?? null,
     }));
 
-    return NextResponse.json({ events: result });
+    const makeupEvents = buildMakeupEvents(makeups);
+    const classEvents = buildClassScheduleEvents(classRows, year, month);
+
+    return NextResponse.json({ events: [...result, ...makeupEvents, ...classEvents] });
   } catch (err) {
     console.error('[GET /api/mobile/calendar]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

@@ -260,10 +260,28 @@ export default function IngangTabletPage() {
             </button>
           </div>
 
+          {classes.length === 0 ? (
+            <div className="px-6 py-8 flex flex-col items-center text-center gap-3">
+              <AlertCircle size={32} className="text-amber-400" />
+              <p className="text-white text-[15px] font-semibold">수강 중인 반이 없습니다</p>
+              <p className="text-white/45 text-[12.5px] leading-relaxed">
+                {student.name} 학생은 배정된 반이 없어 인강을 시청할 수 없습니다.<br />
+                관리자에게 반 배정을 문의해주세요.
+              </p>
+              <button
+                onClick={resetToIdle}
+                className="mt-2 w-full bg-white/10 text-white/70 rounded-[12px] py-3.5 text-[14px] font-medium cursor-pointer hover:bg-white/15 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          ) : (
+            <>
+
           {/* 반 선택 (2개 이상인 경우) */}
           {classes.length > 1 && (
             <div className="px-6 py-4 border-b border-white/10">
-              <p className="text-white/50 text-[11px] font-semibold uppercase tracking-wider mb-3">오늘 들을 반 선택</p>
+              <p className="text-white/50 text-[11px] font-semibold uppercase tracking-wider mb-3">오늘 들을 강의 선택</p>
               <div className="flex flex-wrap gap-2">
                 {classes.map((c) => (
                   <button
@@ -364,6 +382,8 @@ export default function IngangTabletPage() {
               </button>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     );

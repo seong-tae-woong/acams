@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     const body = await req.json();
-    const { title, description, teacherId, subjects, levels, targetGrades, etcTags, videoUrl, duration, orderIndex, status, seriesId, episodeNumber } = body;
+    const { title, description, teacherId, subjects, levels, targetGrades, etcTags, videoUrl, cfVideoId, duration, orderIndex, status, seriesId, episodeNumber } = body;
 
     const updated = await prisma.lecture.updateMany({
       where: { id, academyId },
@@ -44,6 +44,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(targetGrades !== undefined  ? { targetGrades }                           : {}),
         ...(etcTags !== undefined       ? { etcTags }                                : {}),
         ...(videoUrl !== undefined      ? { videoUrl: videoUrl ?? null }             : {}),
+        ...(cfVideoId !== undefined     ? { cfVideoId: cfVideoId ?? null }           : {}),
         ...(duration !== undefined      ? { duration }                               : {}),
         ...(orderIndex !== undefined    ? { orderIndex }                             : {}),
         ...(status !== undefined        ? { status: status as LectureStatus }        : {}),
