@@ -13,10 +13,17 @@ export async function GET(req: NextRequest) {
     where.kind = kindParam;
   }
 
+  // take 파라미터가 있으면 등록일(createdAt) 최신순 페이지네이션, 없으면 기존 전체 조회
+  const takeParam = req.nextUrl.searchParams.get('take');
+  const skipParam = req.nextUrl.searchParams.get('skip');
+  const take = takeParam ? Math.max(1, Math.min(100, Number(takeParam) || 0)) : undefined;
+  const skip = skipParam ? Math.max(0, Number(skipParam) || 0) : 0;
+
   try {
     const templates = await prisma.reportTemplate.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      ...(take !== undefined ? { take, skip } : {}),
     });
     return NextResponse.json(templates);
   } catch (err) {

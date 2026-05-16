@@ -9,6 +9,11 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
+  const takeParam = searchParams.get('take');
+  const skipParam = searchParams.get('skip');
+  // take 파라미터가 있으면 등록일(createdAt) 최신순 페이지네이션, 없으면 기존 전체 조회
+  const take = takeParam ? Math.max(1, Math.min(100, Number(takeParam) || 0)) : undefined;
+  const skip = skipParam ? Math.max(0, Number(skipParam) || 0) : 0;
 
   try {
     const assignments = await prisma.assignment.findMany({
@@ -17,7 +22,8 @@ export async function GET(req: NextRequest) {
         ...(classId ? { classId } : {}),
       },
       include: { class: { select: { name: true, subject: true } } },
-      orderBy: { date: 'desc' },
+      orderBy: take !== undefined ? { createdAt: 'desc' } : { date: 'desc' },
+      ...(take !== undefined ? { take, skip } : {}),
     });
 
     return NextResponse.json(assignments.map((a) => ({

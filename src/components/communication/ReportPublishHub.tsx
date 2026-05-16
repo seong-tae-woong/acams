@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Button from '@/components/shared/Button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import PublishReportModal from '@/components/communication/PublishReportModal';
+import BatchReportsModal from '@/components/communication/BatchReportsModal';
 import { Send } from 'lucide-react';
 import clsx from 'clsx';
 import { useClassStore } from '@/lib/stores/classStore';
@@ -32,11 +33,16 @@ function formatDateTime(iso: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+const PAGE_SIZE = 10;
+
 export default function ReportPublishHub() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [filter, setFilter] = useState<'all' | 'PER_EXAM' | 'PERIODIC'>('all');
   const [publishOpen, setPublishOpen] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
 
   const { classes, fetchClasses } = useClassStore();
   const { students, fetchStudents } = useStudentStore();
@@ -44,16 +50,33 @@ export default function ReportPublishHub() {
 
   useEffect(() => { fetchClasses(); fetchStudents(); fetchExams(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 발행 이력 1페이지 로드 (발행일 최신순)
   const fetchBatches = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/reports/batches');
+      const res = await fetch(`/api/reports/batches?skip=0&take=${PAGE_SIZE}`);
       const data = await res.json();
       if (Array.isArray(data.batches)) setBatches(data.batches);
+      setHasMore(Boolean(data.hasMore));
     } finally {
       setLoading(false);
     }
   };
+
+  // 발행 이력 다음 페이지 로드 (스크롤)
+  const loadMoreBatches = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/reports/batches?skip=${batches.length}&take=${PAGE_SIZE}`);
+      const data = await res.json();
+      if (Array.isArray(data.batches)) setBatches((prev) => [...prev, ...data.batches]);
+      setHasMore(Boolean(data.hasMore));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => { fetchBatches(); }, []);
 
   const studentsByClass: Record<string, { id: string; name: string }[]> = {};
@@ -66,7 +89,13 @@ export default function ReportPublishHub() {
   const filtered = batches.filter((b) => filter === 'all' || b.kind === filter);
 
   return (
-    <div className="flex-1 overflow-y-auto p-5 space-y-4">
+    <div
+      className="flex-1 overflow-y-auto p-5 space-y-4"
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) loadMoreBatches();
+      }}
+    >
       <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
         <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -114,7 +143,11 @@ export default function ReportPublishHub() {
                 const style = KIND_STYLE[b.kind];
                 const unread = b.totalCount - b.readCount;
                 return (
-                  <tr key={b.batchId} className="hover:bg-[#f4f6f8]">
+                  <tr
+                    key={b.batchId}
+                    onClick={() => setSelectedBatch(b)}
+                    className="hover:bg-[#f4f6f8] cursor-pointer"
+                  >
                     <td className="px-4 py-3">
                       <span
                         className="inline-block px-2 py-0.5 rounded-[6px] text-[10.5px] font-medium"
@@ -143,6 +176,9 @@ export default function ReportPublishHub() {
             </tbody>
           </table>
         )}
+        {loadingMore && (
+          <div className="p-3 text-center text-[11px] text-[#9ca3af]">불러오는 중…</div>
+        )}
       </div>
 
       {/* 발행 모달 (탭 진입 — 시험별/주기별 토글, 시험별은 반·시험 드롭다운) */}
@@ -157,6 +193,14 @@ export default function ReportPublishHub() {
             id: e.id, name: e.name, classId: e.classId, totalScore: e.totalScore, date: e.date,
           }))}
           onPublished={fetchBatches}
+        />
+      )}
+
+      {/* 발행 묶음 상세 — 대상 학생 목록 + 학생별 리포트 보기 */}
+      {selectedBatch && (
+        <BatchReportsModal
+          batch={selectedBatch}
+          onClose={() => setSelectedBatch(null)}
         />
       )}
     </div>

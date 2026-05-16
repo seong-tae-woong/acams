@@ -13,6 +13,7 @@ import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Send, ChevronDown, Check, Pencil, Phone, RotateCcw, Ban, Loader2 } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import SearchInput from '@/components/shared/SearchInput';
 import clsx from 'clsx';
 
 function generateBillingContent(studentName: string, bills: Bill[], monthStr: string): string {
@@ -120,8 +121,6 @@ export default function BillingPage() {
   useEffect(() => {
     fetchAvailableMonths();
     fetchAvailablePaidMonths();
-    fetchBills();
-    fetchPaidBills();
     fetchClasses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -185,11 +184,28 @@ export default function BillingPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // ── 검색어 디바운스 (~300ms) ──────────────────────────
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // 청구 탭: 선택 월 / 검색어 변경 시 서버 재조회
+  useEffect(() => {
+    fetchBills(filterMonths, { q: debouncedSearch || undefined });
+  }, [filterMonths, debouncedSearch, fetchBills]);
+
   // ── 수납 내역 탭 상태 ─────────────────────────────────
   const [payViewMode, setPayViewMode] = useState<'all' | 'card' | 'transfer' | 'cash'>('all');
   const [payFilterMonths2, setPayFilterMonths2] = useState<string[]>([currentMonth]);
   const [payMonthDropOpen2, setPayMonthDropOpen2] = useState(false);
   const payMonthDropRef2 = useRef<HTMLDivElement>(null);
+
+  // 수납 내역 탭: 선택 수납월(paidDate) 변경 시 서버 재조회
+  useEffect(() => {
+    fetchPaidBills(payFilterMonths2);
+  }, [payFilterMonths2, fetchPaidBills]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -205,10 +221,9 @@ export default function BillingPage() {
 
   // ── 청구 탭 계산 ──────────────────────────────────────
   const toggleMonth = (m: string) => {
-    const next = filterMonths.includes(m) ? filterMonths.filter((x) => x !== m) : [...filterMonths, m];
-    setFilterMonths(next);
-    if (next.length === 1) fetchBills(next[0]);
-    else fetchBills(); // 전체 월 or 복수 선택 시 전체 조회
+    setFilterMonths((prev) =>
+      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
+    );
   };
 
   const monthLabel = filterMonths.length === 0 ? '전체 월'
@@ -233,10 +248,9 @@ export default function BillingPage() {
 
   // ── 수납 내역 탭 계산 ─────────────────────────────────
   const togglePayMonth = (m: string) => {
-    const next = payFilterMonths2.includes(m) ? payFilterMonths2.filter((x) => x !== m) : [...payFilterMonths2, m];
-    setPayFilterMonths2(next);
-    if (next.length === 1) fetchPaidBills(next[0]);
-    else fetchPaidBills();
+    setPayFilterMonths2((prev) =>
+      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
+    );
   };
   const payMonthLabel2 = payFilterMonths2.length === 0 ? '전체 월'
     : payFilterMonths2.length === 1 ? formatMonth(payFilterMonths2[0])
@@ -302,7 +316,7 @@ export default function BillingPage() {
       const result = await generateBills(generateMonth);
       toast(`청구서 생성 완료: ${result.created}건 신규, ${result.refreshed}건 갱신`, 'success');
       setGenerateOpen(false);
-      await fetchBills(filterMonths.length === 1 ? filterMonths[0] : undefined);
+      await fetchBills(filterMonths, { q: debouncedSearch || undefined });
       await fetchAvailableMonths();
     } catch { /* store handles toast */ } finally {
       setGenerateSaving(false);
@@ -423,7 +437,7 @@ export default function BillingPage() {
     try {
       await cancelBill(cancelTarget.id, cancelReason);
       setCancelOpen(false);
-      await fetchBills(filterMonths.length === 1 ? filterMonths[0] : undefined);
+      await fetchBills(filterMonths, { q: debouncedSearch || undefined });
       setSelectedBillIds(new Set());
     } catch { /* store handles toast */ } finally {
       setCancelSaving(false);
@@ -459,7 +473,7 @@ export default function BillingPage() {
       await rebill(items, rebillSendNotif);
       setRebillOpen(false);
       setSelectedBillIds(new Set());
-      await fetchBills(filterMonths.length === 1 ? filterMonths[0] : undefined);
+      await fetchBills(filterMonths, { q: debouncedSearch || undefined });
     } catch { /* store handles toast */ } finally {
       setRebillSaving(false);
     }
@@ -518,7 +532,7 @@ export default function BillingPage() {
             </div>
             <div className="bg-white rounded-[10px] border border-[#e2e8f0]">
               <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-3 flex-wrap">
-                <input type="text" placeholder="학생 이름 검색" value={search} onChange={(e) => setSearch(e.target.value)} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-1.5 w-40 focus:outline-none focus:border-[#4fc3a1]" />
+                <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" className="w-40" />
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as BillStatus | 'all')} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer">
                   <option value="all">전체 상태</option>
                   <option value={BillStatus.PAID}>완납</option>
@@ -536,7 +550,7 @@ export default function BillingPage() {
                   </button>
                   {monthDropOpen && (
                     <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => { setFilterMonths([]); fetchBills(); }}>
+                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setFilterMonths([])}>
                         <Check size={12} className={clsx(filterMonths.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                       </div>
                       <div className="border-t border-[#f1f5f9] my-1" />
@@ -711,7 +725,7 @@ export default function BillingPage() {
                   </button>
                   {payMonthDropOpen2 && (
                     <div className="absolute top-full right-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => { setPayFilterMonths2([]); fetchPaidBills(); }}>
+                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setPayFilterMonths2([])}>
                         <Check size={12} className={clsx(payFilterMonths2.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                       </div>
                       <div className="border-t border-[#f1f5f9] my-1" />

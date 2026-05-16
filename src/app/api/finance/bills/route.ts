@@ -64,38 +64,62 @@ const BILL_INCLUDE = {
   class: { select: { name: true, feeType: true } },
 } as const;
 
-// GET /api/finance/bills?month=&studentId=&status=
+// 'YYYY-MM' → 해당 월의 paidDate 범위 { gte, lt }
+function monthRange(m: string) {
+  return {
+    gte: new Date(`${m}-01`),
+    lt: new Date(`${m.slice(0, 4)}-${String(parseInt(m.slice(5, 7)) + 1).padStart(2, '0')}-01`),
+  };
+}
+
+// GET /api/finance/bills?month=&months=&paidMonth=&paidMonths=&studentId=&status=&q=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month');
+  const monthsStr = searchParams.get('months');
   const paidMonth = searchParams.get('paidMonth');
+  const paidMonthsStr = searchParams.get('paidMonths');
   const studentId = searchParams.get('studentId');
   const statusStr = searchParams.get('status');
+  const q = searchParams.get('q');
 
   const STATUS_MAP: Record<string, PrismaBS> = {
     '완납': PrismaBS.PAID, '미납': PrismaBS.UNPAID, '부분납': PrismaBS.PARTIAL, '취소됨': PrismaBS.CANCELLED,
   };
 
+  // months — 콤마구분 YYYY-MM 목록 → month in [...]
+  const months = monthsStr ? monthsStr.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const monthFilter = month
+    ? { month }
+    : months.length > 0
+      ? { month: { in: months } }
+      : {};
+
+  // paidMonth(단일) / paidMonths(콤마구분) → paidDate 범위
+  const paidMonths = paidMonthsStr ? paidMonthsStr.split(',').map((s) => s.trim()).filter(Boolean) : [];
   const paidMonthFilter = paidMonth
-    ? {
-        paidDate: {
-          gte: new Date(`${paidMonth}-01`),
-          lt: new Date(`${paidMonth.slice(0, 4)}-${String(parseInt(paidMonth.slice(5, 7)) + 1).padStart(2, '0')}-01`),
-        },
-      }
-    : {};
+    ? { paidDate: monthRange(paidMonth) }
+    : paidMonths.length > 0
+      ? { OR: paidMonths.map((m) => ({ paidDate: monthRange(m) })) }
+      : {};
+
+  // status — 콤마구분 가능 (예: "미납,부분납")
+  const statuses = statusStr
+    ? statusStr.split(',').map((s) => STATUS_MAP[s.trim()]).filter((v): v is PrismaBS => !!v)
+    : [];
 
   try {
     const bills = await prisma.bill.findMany({
       where: {
         academyId,
-        ...(month ? { month } : {}),
+        ...monthFilter,
         ...paidMonthFilter,
         ...(studentId ? { studentId } : {}),
-        ...(statusStr && STATUS_MAP[statusStr] ? { status: STATUS_MAP[statusStr] } : {}),
+        ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
+        ...(q ? { student: { name: { contains: q } } } : {}),
       },
       include: BILL_INCLUDE,
       orderBy: [{ month: 'desc' }, { student: { name: 'asc' } }],

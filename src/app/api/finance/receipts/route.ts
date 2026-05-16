@@ -37,31 +37,39 @@ const RECEIPT_INCLUDE = {
   bill: { include: { student: { select: { name: true } } } },
 } as const;
 
-// GET /api/finance/receipts?month=YYYY-MM&studentId=
+// 'YYYY-MM' → 해당 월의 issuedDate 범위 { gte, lt }
+function monthRange(m: string) {
+  return {
+    gte: new Date(`${m}-01`),
+    lt: new Date(`${m.slice(0, 4)}-${String(parseInt(m.slice(5, 7)) + 1).padStart(2, '0')}-01`),
+  };
+}
+
+// GET /api/finance/receipts?month=YYYY-MM&months=&studentId=&q=
 export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month');
+  const monthsStr = searchParams.get('months');
   const studentId = searchParams.get('studentId');
+  const q = searchParams.get('q');
+
+  // months — 콤마구분 YYYY-MM 목록 → issuedDate 범위 OR
+  const months = monthsStr ? monthsStr.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const monthFilter = month
+    ? { issuedDate: monthRange(month) }
+    : months.length > 0
+      ? { OR: months.map((m) => ({ issuedDate: monthRange(m) })) }
+      : {};
 
   try {
     const receipts = await prisma.receipt.findMany({
       where: {
-        bill: { academyId },
+        bill: { academyId, ...(q ? { student: { name: { contains: q } } } : {}) },
         ...(studentId ? { studentId } : {}),
-        ...(month
-          ? {
-              issuedDate: {
-                gte: new Date(`${month}-01`),
-                lt: new Date(
-                  month.slice(0, 4) + '-' +
-                  String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0') + '-01'
-                ),
-              },
-            }
-          : {}),
+        ...monthFilter,
       },
       include: RECEIPT_INCLUDE,
       orderBy: { issuedDate: 'desc' },

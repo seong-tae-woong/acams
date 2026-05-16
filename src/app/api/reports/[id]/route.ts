@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { resolveStudentId } from '@/lib/mobile/resolveStudent';
 
-// GET /api/mobile/reports/[id]?studentId=
-// 상세 + 첫 열람 시 readAt 마킹
+// GET /api/reports/[id]
+// 원장/강사용 발행된 리포트 상세 (열람 시각 마킹 없음)
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  const role = req.headers.get('x-user-role');
-  if (!academyId || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (role !== 'student' && role !== 'parent') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await ctx.params;
-  const requestedStudentId = new URL(req.url).searchParams.get('studentId');
 
   try {
-    const studentId = await resolveStudentId({ userId, role, academyId, requestedStudentId });
-    if (!studentId) return NextResponse.json({ error: '학생 정보 없음' }, { status: 404 });
-
     const report = await prisma.report.findFirst({
-      where: { id, academyId, studentId },
+      where: { id, academyId },
       include: {
         template: { select: { name: true, layout: true } },
         student: { select: { name: true } },
@@ -29,11 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
     if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    if (!report.readAt) {
-      await prisma.report.update({ where: { id }, data: { readAt: new Date() } }).catch(() => {});
-    }
-
-    // 발행 시 확정된 layout 스냅샷 우선, 없으면(구 데이터) 양식 layout으로 폴백
+    // 발행 시점 layout 스냅샷 우선, 없으면(구 데이터) 양식 layout으로 폴백
     const layout = Array.isArray(report.layout) && report.layout.length > 0
       ? report.layout
       : report.template.layout;
@@ -45,6 +33,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       summary: report.summary,
       periodLabel: report.periodLabel,
       publishedAt: report.publishedAt.toISOString(),
+      readAt: report.readAt?.toISOString() ?? null,
       renderedBody: report.renderedBody,
       data: report.data,
       layout,
@@ -57,7 +46,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       } : null,
     });
   } catch (err) {
-    console.error('[GET /api/mobile/reports/[id]]', err instanceof Error ? err.message : String(err));
+    console.error('[GET /api/reports/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
   }
 }

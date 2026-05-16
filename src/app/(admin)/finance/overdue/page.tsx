@@ -10,6 +10,7 @@ import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Send, Phone } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import SearchInput from '@/components/shared/SearchInput';
 
 // 위험 등급 분류
 function getRiskLevel(bill: { status: BillStatus; memo: string; studentName: string }) {
@@ -62,12 +63,24 @@ function generateOverdueContent(studentName: string, unpaidBills: Bill[]): strin
 export default function OverduePage() {
   const { bills, loading, payBill, getBillsByStudent, fetchBills } = useFinanceStore();
 
-  useEffect(() => { fetchBills(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const today = new Date().toISOString().split('T')[0];
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
   const [overdueNotifSending, setOverdueNotifSending] = useState(false);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // 검색어 디바운스 (~300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // 미납·부분납 청구서만 조회 (월 무관) — 검색어 변경 시 서버 재조회
+  useEffect(() => {
+    fetchBills(undefined, { status: '미납,부분납', q: debouncedSearch || undefined });
+  }, [debouncedSearch, fetchBills]);
 
   const overdueBills = bills
     .filter((b) => b.status !== BillStatus.PAID)
@@ -190,8 +203,9 @@ export default function OverduePage() {
 
         {/* 미납 목록 */}
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#e2e8f0]">
+          <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-3">
             <span className="text-[12.5px] font-semibold text-[#111827]">미납/부분납 현황</span>
+            <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" className="w-40 ml-auto" />
           </div>
           {overdueBills.length === 0 ? (
             <div className="p-10 text-center text-[13px] text-[#9ca3af]">모든 수강료가 수납되었습니다</div>

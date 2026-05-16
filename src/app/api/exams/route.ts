@@ -9,12 +9,23 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
+  const category1Id = searchParams.get('category1Id');
+  const category2Id = searchParams.get('category2Id');
+  const category3Id = searchParams.get('category3Id');
+  const takeParam = searchParams.get('take');
+  const skipParam = searchParams.get('skip');
+  // take 파라미터가 있으면 등록일(createdAt) 최신순 페이지네이션, 없으면 기존 전체 조회
+  const take = takeParam ? Math.max(1, Math.min(100, Number(takeParam) || 0)) : undefined;
+  const skip = skipParam ? Math.max(0, Number(skipParam) || 0) : 0;
 
   try {
     const exams = await prisma.exam.findMany({
       where: {
         academyId,
         ...(classId ? { classId } : {}),
+        ...(category1Id ? { category1Id } : {}),
+        ...(category2Id ? { category2Id } : {}),
+        ...(category3Id ? { category3Id } : {}),
       },
       include: {
         class: { select: { name: true, subject: true } },
@@ -22,7 +33,8 @@ export async function GET(req: NextRequest) {
         category2: { select: { id: true, name: true } },
         category3: { select: { id: true, name: true } },
       },
-      orderBy: { date: 'desc' },
+      orderBy: take !== undefined ? { createdAt: 'desc' } : { date: 'desc' },
+      ...(take !== undefined ? { take, skip } : {}),
     });
 
     const result = exams.map((e) => ({

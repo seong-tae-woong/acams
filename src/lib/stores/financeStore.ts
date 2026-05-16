@@ -21,10 +21,10 @@ interface FinanceStore {
   fetchAvailableMonths: () => Promise<void>;
   fetchAvailablePaidMonths: () => Promise<void>;
   fetchAvailableReceiptMonths: () => Promise<void>;
-  fetchBills: (month?: string) => Promise<void>;
-  fetchPaidBills: (paidMonth?: string) => Promise<void>;
+  fetchBills: (months?: string[], opts?: { status?: string; q?: string }) => Promise<void>;
+  fetchPaidBills: (paidMonths?: string[], q?: string) => Promise<void>;
   fetchExpenses: (month?: string) => Promise<void>;
-  fetchReceipts: (month?: string) => Promise<void>;
+  fetchReceipts: (months?: string[], q?: string) => Promise<void>;
   payBill: (billId: string, amount: number, method: Bill['method'], paidDate: string) => Promise<void>;
   createBill: (input: { studentId: string; classId: string; month: string; dueDate: string; memo?: string; amount?: number }) => Promise<void>;
   generateBills: (month: string, dueDate?: string) => Promise<{ created: number; refreshed: number }>;
@@ -85,10 +85,15 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     }
   },
 
-  fetchBills: async (month) => {
+  fetchBills: async (months, opts) => {
     set({ loading: true });
     try {
-      const res = await fetch(month ? `/api/finance/bills?month=${month}` : '/api/finance/bills');
+      const params = new URLSearchParams();
+      if (months && months.length > 0) params.set('months', months.join(','));
+      if (opts?.status) params.set('status', opts.status);
+      if (opts?.q) params.set('q', opts.q);
+      const qs = params.toString();
+      const res = await fetch(qs ? `/api/finance/bills?${qs}` : '/api/finance/bills');
       if (!res.ok) throw new Error('청구서 조회 실패');
       const data: Bill[] = await res.json();
       set({ bills: data });
@@ -100,10 +105,14 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     }
   },
 
-  fetchPaidBills: async (paidMonth) => {
+  fetchPaidBills: async (paidMonths, q) => {
     set({ loading: true });
     try {
-      const res = await fetch(paidMonth ? `/api/finance/bills?paidMonth=${paidMonth}` : '/api/finance/bills');
+      const params = new URLSearchParams();
+      if (paidMonths && paidMonths.length > 0) params.set('paidMonths', paidMonths.join(','));
+      if (q) params.set('q', q);
+      const qs = params.toString();
+      const res = await fetch(qs ? `/api/finance/bills?${qs}` : '/api/finance/bills');
       if (!res.ok) throw new Error('수납 내역 조회 실패');
       const data: Bill[] = await res.json();
       set({ paidBillsView: data });
@@ -131,11 +140,14 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     }
   },
 
-  fetchReceipts: async (month) => {
+  fetchReceipts: async (months, q) => {
     set({ loading: true });
     try {
-      const m = month ?? get().selectedMonth;
-      const res = await fetch(`/api/finance/receipts?month=${m}`);
+      const params = new URLSearchParams();
+      if (months && months.length > 0) params.set('months', months.join(','));
+      if (q) params.set('q', q);
+      const qs = params.toString();
+      const res = await fetch(qs ? `/api/finance/receipts?${qs}` : '/api/finance/receipts');
       if (!res.ok) throw new Error('영수증 조회 실패');
       const data: Receipt[] = await res.json();
       set({ receipts: data });

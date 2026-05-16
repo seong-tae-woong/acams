@@ -45,9 +45,8 @@ export default function SettlementPage() {
   useEffect(() => {
     fetchAvailableMonths();
     fetchAvailableReceiptMonths();
-    fetchBills();
+    fetchBills(); // 정산 추이 차트는 전체 월 매출/지출 집계가 필요
     fetchExpenses();
-    fetchReceipts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── 정산 탭 ── */
@@ -111,11 +110,15 @@ export default function SettlementPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // 영수증 탭 — 선택 월이 바뀌면 서버 재조회
+  useEffect(() => {
+    fetchReceipts(rcptFilterMonths);
+  }, [rcptFilterMonths, fetchReceipts]);
+
   const toggleRcptMonth = (m: string) => {
-    const next = rcptFilterMonths.includes(m) ? rcptFilterMonths.filter((x) => x !== m) : [...rcptFilterMonths, m];
-    setRcptFilterMonths(next);
-    if (next.length === 1) fetchReceipts(next[0]);
-    else fetchReceipts();
+    setRcptFilterMonths((prev) =>
+      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
+    );
   };
 
   const rcptMonthLabel =

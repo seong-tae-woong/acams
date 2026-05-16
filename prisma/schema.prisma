@@ -1083,6 +1083,7 @@ model Report {
 
   renderedBody String @default("") // 토큰 치환 완료된 본문
   data         Json   @default("{}") // 차트 raw 데이터 + 표 데이터
+  layout       Json   @default("[]") // 발행 시점에 확정된 차트 블록 (양식 layout 스냅샷, 발행 시 변경 가능)
 
   publishedAt DateTime  @default(now())
   publishedBy String? // 발행자 userId

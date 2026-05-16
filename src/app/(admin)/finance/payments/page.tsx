@@ -6,6 +6,7 @@ import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { ChevronDown, Check } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import SearchInput from '@/components/shared/SearchInput';
 import clsx from 'clsx';
 
 const METHOD_STYLE: Record<string, { bg: string; text: string }> = {
@@ -23,13 +24,26 @@ function formatMonth(m: string) {
 }
 
 export default function PaymentsPage() {
-  const { bills, loading, fetchBills } = useFinanceStore();
+  const { paidBillsView, loading, fetchPaidBills } = useFinanceStore();
+  const bills = paidBillsView;
 
-  useEffect(() => { fetchBills(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [viewMode, setViewMode] = useState<'all' | 'card' | 'transfer' | 'cash'>('all');
   const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
   const [monthDropOpen, setMonthDropOpen] = useState(false);
   const monthDropRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // 검색어 디바운스 (~300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // 수납 월(paidDate) 선택 / 검색어 변경 시 서버 재조회
+  useEffect(() => {
+    fetchPaidBills(filterMonths, debouncedSearch || undefined);
+  }, [filterMonths, debouncedSearch, fetchPaidBills]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -69,6 +83,7 @@ export default function PaymentsPage() {
     .sort((a, b) => (b.paidDate ?? '').localeCompare(a.paidDate ?? ''));
 
   const filtered = paidBills.filter((b) => {
+    if (search && !b.studentName.includes(search)) return false;
     if (viewMode === 'all') return true;
     if (viewMode === 'card') return b.method === '카드';
     if (viewMode === 'transfer') return b.method === '계좌이체';
@@ -114,6 +129,7 @@ export default function PaymentsPage() {
         {/* 필터 탭 + 월 선택 */}
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-2 flex-wrap">
+            <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" className="w-40" />
             {(['all', 'card', 'transfer', 'cash'] as const).map((mode) => {
               const labels = { all: '전체', card: '카드', transfer: '계좌이체', cash: '현금' };
               return (

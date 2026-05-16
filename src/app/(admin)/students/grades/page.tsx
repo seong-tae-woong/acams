@@ -68,6 +68,9 @@ const EMPTY_EXAM_FORM: ExamForm = {
   category3Id: '',
 };
 
+// 탭 진입 시 등록일 기준 최근 N개만 로딩, 스크롤 시 N개씩 추가
+const PAGE_SIZE = 10;
+
 export default function GradesPage() {
   const { classes, fetchClasses } = useClassStore();
   const {
@@ -85,6 +88,12 @@ export default function GradesPage() {
   // 과제 상태
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [assignmentHasMore, setAssignmentHasMore] = useState(false);
+  const [assignmentLoadingMore, setAssignmentLoadingMore] = useState(false);
+
+  // 시험 목록 페이지네이션 상태
+  const [examHasMore, setExamHasMore] = useState(false);
+  const [examLoadingMore, setExamLoadingMore] = useState(false);
   const [assignmentFormOpen, setAssignmentFormOpen] = useState(false);
   const [assignmentForm, setAssignmentForm] = useState<AssignmentForm>(EMPTY_ASSIGNMENT_FORM);
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
@@ -116,13 +125,9 @@ export default function GradesPage() {
   // 리포트 발행 모달
   const [publishModalOpen, setPublishModalOpen] = useState(false);
 
+  // 시험 목록은 서버에서 반·카테고리 필터 + 등록일순 페이지네이션으로 내려옴
   const classExams = getExamsByClass(selectedClassId);
-  const filteredExams = classExams.filter((e) => {
-    if (filterCat1 && e.category1Id !== filterCat1) return false;
-    if (filterCat2 && e.category2Id !== filterCat2) return false;
-    if (filterCat3 && e.category3Id !== filterCat3) return false;
-    return true;
-  });
+  const hasExamFilter = Boolean(filterCat1 || filterCat2 || filterCat3);
   const selectedExam = exams.find((e) => e.id === selectedExamId);
   const examGrades = selectedExamId ? getGradesByExam(selectedExamId) : [];
 
@@ -165,11 +170,37 @@ export default function GradesPage() {
   const filterCat2Options = filterCat1 ? (cat2ByParent.get(filterCat1) ?? []) : [];
   const filterCat3Options = filterCat2 ? (cat3ByParent.get(filterCat2) ?? []) : [];
 
-  // 반 변경 시 시험 목록 로드
-  const loadExams = useCallback(async (classId: string) => {
-    if (!classId) return;
-    await fetchExams(classId);
-  }, [fetchExams]);
+  // 시험 목록 1페이지 로드 (반·카테고리 필터 적용, 등록일 최신순)
+  const loadExamsFirstPage = useCallback(async () => {
+    if (!selectedClassId) return;
+    const count = await fetchExams(selectedClassId, {
+      take: PAGE_SIZE,
+      skip: 0,
+      category1Id: filterCat1 || undefined,
+      category2Id: filterCat2 || undefined,
+      category3Id: filterCat3 || undefined,
+    });
+    setExamHasMore(count === PAGE_SIZE);
+  }, [selectedClassId, filterCat1, filterCat2, filterCat3, fetchExams]);
+
+  // 시험 목록 다음 페이지 로드 (스크롤)
+  const loadMoreExams = useCallback(async () => {
+    if (examLoadingMore || !examHasMore || !selectedClassId) return;
+    setExamLoadingMore(true);
+    try {
+      const count = await fetchExams(selectedClassId, {
+        take: PAGE_SIZE,
+        skip: getExamsByClass(selectedClassId).length,
+        append: true,
+        category1Id: filterCat1 || undefined,
+        category2Id: filterCat2 || undefined,
+        category3Id: filterCat3 || undefined,
+      });
+      setExamHasMore(count === PAGE_SIZE);
+    } finally {
+      setExamLoadingMore(false);
+    }
+  }, [examLoadingMore, examHasMore, selectedClassId, filterCat1, filterCat2, filterCat3, fetchExams, getExamsByClass]);
 
   useEffect(() => {
     if (students.length === 0) fetchStudents();
@@ -184,25 +215,47 @@ export default function GradesPage() {
     }
   }, [classes, selectedClassId]);
 
+  // 시험 탭 진입 / 반·카테고리 필터 변경 시 1페이지 재로딩
   useEffect(() => {
-    if (selectedClassId) loadExams(selectedClassId);
-  }, [selectedClassId, loadExams]);
+    if (mainTab === 'exam') loadExamsFirstPage();
+  }, [mainTab, loadExamsFirstPage]);
 
-  // 과제 목록 로드
+  // 과제 목록 1페이지 로드 (등록일 최신순)
   const loadAssignments = useCallback(async (classId: string) => {
     if (!classId) return;
     setAssignmentLoading(true);
     try {
-      const res = await fetch(`/api/assignments?classId=${classId}`);
+      const res = await fetch(`/api/assignments?classId=${classId}&skip=0&take=${PAGE_SIZE}`);
       if (!res.ok) throw new Error('과제 목록을 불러올 수 없습니다.');
       const data = await res.json();
-      setAssignments(data);
+      setAssignments(Array.isArray(data) ? data : []);
+      setAssignmentHasMore(Array.isArray(data) && data.length === PAGE_SIZE);
     } catch {
       setAssignments([]);
+      setAssignmentHasMore(false);
     } finally {
       setAssignmentLoading(false);
     }
   }, []);
+
+  // 과제 목록 다음 페이지 로드 (스크롤)
+  const loadMoreAssignments = useCallback(async () => {
+    if (assignmentLoadingMore || !assignmentHasMore || !selectedClassId) return;
+    setAssignmentLoadingMore(true);
+    try {
+      const res = await fetch(`/api/assignments?classId=${selectedClassId}&skip=${assignments.length}&take=${PAGE_SIZE}`);
+      if (!res.ok) throw new Error('과제 목록을 불러올 수 없습니다.');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setAssignments((prev) => [...prev, ...data]);
+        setAssignmentHasMore(data.length === PAGE_SIZE);
+      }
+    } catch {
+      // 추가 로딩 실패는 조용히 무시
+    } finally {
+      setAssignmentLoadingMore(false);
+    }
+  }, [assignmentLoadingMore, assignmentHasMore, selectedClassId, assignments.length]);
 
   useEffect(() => {
     if (mainTab === 'assignment' && selectedClassId) {
@@ -380,6 +433,8 @@ export default function GradesPage() {
         }
 
         toast(`'${examForm.name}' 시험이 등록되었습니다.`, 'success');
+        // 새 시험이 등록일 최신순 목록 맨 앞에 오도록 1페이지 재로딩
+        await loadExamsFirstPage();
         await handleSelectExam(examId);
       }
 
@@ -520,7 +575,9 @@ export default function GradesPage() {
           <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
             <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
               <span className="text-[12.5px] font-semibold text-[#111827]">시험 목록</span>
-              <span className="text-[11px] text-[#9ca3af]">{filteredExams.length}개</span>
+              <span className="text-[11px] text-[#9ca3af]">
+                {classExams.length}개{examHasMore ? '+' : ''}
+              </span>
             </div>
 
             {/* 카테고리 필터 */}
@@ -570,14 +627,20 @@ export default function GradesPage() {
               </select>
             </div>
 
-            <div className="divide-y divide-[#f1f5f9]">
+            <div
+              className="divide-y divide-[#f1f5f9] max-h-[calc(100vh-280px)] overflow-y-auto"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) loadMoreExams();
+              }}
+            >
               {loading ? (
                 <LoadingSpinner size="inline" />
-              ) : filteredExams.length === 0 ? (
+              ) : classExams.length === 0 ? (
                 <div className="p-6 text-center text-[12px] text-[#9ca3af]">
-                  {classExams.length === 0 ? '시험 없음' : '필터 조건에 해당하는 시험 없음'}
+                  {hasExamFilter ? '필터 조건에 해당하는 시험 없음' : '시험 없음'}
                 </div>
-              ) : filteredExams.map((exam) => {
+              ) : classExams.map((exam) => {
                 const crumbs = [exam.category1Name, exam.category2Name, exam.category3Name].filter(Boolean) as string[];
                 return (
                   <div
@@ -638,6 +701,9 @@ export default function GradesPage() {
                   </div>
                 );
               })}
+              {examLoadingMore && (
+                <div className="p-3 text-center text-[11px] text-[#9ca3af]">불러오는 중…</div>
+              )}
             </div>
           </div>
 
@@ -799,7 +865,9 @@ export default function GradesPage() {
               <span className="text-[12.5px] font-semibold text-[#111827]">
                 과제 목록 {selectedClass ? `· ${selectedClass.name}` : ''}
               </span>
-              <span className="text-[11px] text-[#9ca3af]">{assignments.length}건</span>
+              <span className="text-[11px] text-[#9ca3af]">
+                {assignments.length}건{assignmentHasMore ? '+' : ''}
+              </span>
             </div>
             {assignmentLoading ? (
               <LoadingSpinner size="inline" />
@@ -808,6 +876,13 @@ export default function GradesPage() {
                 {selectedClassId ? '등록된 과제가 없습니다.' : '반을 선택해주세요.'}
               </div>
             ) : (
+              <div
+                className="max-h-[calc(100vh-260px)] overflow-y-auto"
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) loadMoreAssignments();
+                }}
+              >
               <table className="w-full text-[12.5px]">
                 <thead>
                   <tr className="bg-[#f4f6f8]">
@@ -854,6 +929,10 @@ export default function GradesPage() {
                   })}
                 </tbody>
               </table>
+              {assignmentLoadingMore && (
+                <div className="p-3 text-center text-[11px] text-[#9ca3af]">불러오는 중…</div>
+              )}
+              </div>
             )}
           </div>
         )}

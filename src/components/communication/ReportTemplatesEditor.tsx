@@ -44,11 +44,15 @@ function computeEndLabel(ref: Date = new Date()): string {
   return `${ref.getFullYear()}년 ${ref.getMonth() + 1}월 ${ref.getDate()}일`;
 }
 
+const PAGE_SIZE = 10;
+
 export default function ReportTemplatesEditor() {
   const [kind, setKind] = useState<Kind>('PER_EXAM');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -128,14 +132,34 @@ export default function ReportTemplatesEditor() {
 
   const selected = templates.find((t) => t.id === selectedId);
 
+  // 양식 목록 1페이지 로드 (등록일 최신순)
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/communication/report-templates?kind=${kind}`);
+      const res = await fetch(`/api/communication/report-templates?kind=${kind}&skip=0&take=${PAGE_SIZE}`);
       const data = await res.json();
-      if (Array.isArray(data)) setTemplates(data);
+      if (Array.isArray(data)) {
+        setTemplates(data);
+        setHasMore(data.length === PAGE_SIZE);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 양식 목록 다음 페이지 로드 (스크롤)
+  const loadMoreTemplates = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/communication/report-templates?kind=${kind}&skip=${templates.length}&take=${PAGE_SIZE}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setTemplates((prev) => [...prev, ...data]);
+        setHasMore(data.length === PAGE_SIZE);
+      }
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -197,7 +221,8 @@ export default function ReportTemplatesEditor() {
         return;
       }
       const created = await res.json();
-      await fetchTemplates();
+      // 새 양식은 등록일 최신순 목록 맨 앞에 추가
+      setTemplates((prev) => [created, ...prev]);
       setSelectedId(created.id);
       toast('새 양식 생성됨', 'success');
     } finally {
@@ -234,7 +259,9 @@ export default function ReportTemplatesEditor() {
         toast('저장 실패', 'error');
         return;
       }
-      await fetchTemplates();
+      // 전체 재조회 대신 현재 목록에서 해당 양식만 갱신 (페이지 위치 유지)
+      const updated = await res.json();
+      setTemplates((prev) => prev.map((t) => (t.id === selected.id ? { ...t, ...updated } : t)));
       toast('저장됨', 'success');
     } finally {
       setSaving(false);
@@ -250,7 +277,7 @@ export default function ReportTemplatesEditor() {
       toast(data.error || '삭제 실패', 'error');
       return;
     }
-    await fetchTemplates();
+    setTemplates((prev) => prev.filter((t) => t.id !== selected.id));
     setSelectedId(null);
     toast('삭제됨', 'success');
   };
@@ -324,7 +351,13 @@ export default function ReportTemplatesEditor() {
             <Plus size={13} /> 새 양식
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className="flex-1 overflow-y-auto"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) loadMoreTemplates();
+          }}
+        >
           {loading && <LoadingSpinner />}
           {!loading && templates.length === 0 && (
             <div className="p-4 text-[12px] text-[#9ca3af] text-center">양식 없음</div>
@@ -347,6 +380,9 @@ export default function ReportTemplatesEditor() {
               </div>
             </button>
           ))}
+          {loadingMore && (
+            <div className="p-3 text-center text-[11px] text-[#9ca3af]">불러오는 중…</div>
+          )}
         </div>
       </div>
 

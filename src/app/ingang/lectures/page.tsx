@@ -1,7 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { VideoUpload } from '@/components/ingang/VideoUpload';
+
+// 무한 스크롤 윈도잉 단위 (한 번에 늘려서 렌더할 항목 수)
+const PAGE_SIZE = 10;
 
 type Lecture = {
   id: string;
@@ -61,6 +64,10 @@ export default function LecturesPage() {
   const [academyTags,       setAcademyTags]       = useState<AcademyTag[]>([]);
   const [editDeleting,      setEditDeleting]      = useState(false);
   const [editSeriesDeleting,setEditSeriesDeleting]= useState(false);
+  // 탭 + 무한 스크롤 윈도잉
+  const [activeTab,         setActiveTab]         = useState<'series' | 'lecture'>('series');
+  const [visibleCount,      setVisibleCount]      = useState(PAGE_SIZE);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     Promise.all([
@@ -77,26 +84,42 @@ export default function LecturesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const matchesFilter = (l: Lecture) => {
+  // lectureId → 소속 시리즈 제목 룩업 (강의별 탭 검색에서 시리즈 제목 매칭에 사용)
+  const seriesTitleById  = new Map(seriesList.map((s) => [s.id, s.title]));
+  const seriesTitleOfLec = (l: Lecture) => (l.seriesId ? seriesTitleById.get(l.seriesId) ?? '' : '');
+
+  // 검색 외 필터(과목·상태)만 검사
+  const matchesBaseFilter = (l: Lecture) => {
     if (subjectFilter && !l.subjects.includes(subjectFilter)) return false;
     if (statusFilter  && l.status !== statusFilter)           return false;
+    return true;
+  };
+
+  // 강의 자체 텍스트(제목·태그)가 검색어와 일치하는지
+  const lectureMatchesSearch = (l: Lecture, q: string) => {
+    const hay = [
+      l.title,
+      ...l.subjects,
+      ...l.levels,
+      ...l.targetGrades,
+      ...(l.etcTags ?? []),
+    ].join(' ').toLowerCase();
+    return hay.includes(q);
+  };
+
+  // 강의별 탭용: 과목·상태 필터 + (강의 제목 OR 소속 시리즈 제목) 검색
+  const matchesFilter = (l: Lecture) => {
+    if (!matchesBaseFilter(l)) return false;
     if (search) {
       const q = search.toLowerCase();
-      const hay = [
-        l.title,
-        ...l.subjects,
-        ...l.levels,
-        ...l.targetGrades,
-        ...(l.etcTags ?? []),
-      ].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
+      if (!lectureMatchesSearch(l, q) && !seriesTitleOfLec(l).toLowerCase().includes(q)) return false;
     }
     return true;
   };
 
   const episodesOf = (seriesId: string) =>
     lectures
-      .filter((l) => l.seriesId === seriesId && matchesFilter(l))
+      .filter((l) => l.seriesId === seriesId && matchesBaseFilter(l))
       .sort((a, b) => (a.episodeNumber ?? a.orderIndex) - (b.episodeNumber ?? b.orderIndex));
 
   const seriesSubjects = (seriesId: string) => {
@@ -105,13 +128,41 @@ export default function LecturesPage() {
     return Array.from(set);
   };
 
-  const standalone = lectures.filter((l) => !l.seriesId && matchesFilter(l));
+  // ── 시리즈별 탭 데이터 ──────────────────────────
+  // 검색은 시리즈 제목으로, 과목·상태 필터는 소속 강의 기준으로 적용
+  const filteredSeries = seriesList.filter((s) => {
+    if (search && !s.title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (subjectFilter || statusFilter) return episodesOf(s.id).length > 0;
+    return true;
+  });
+  const visibleSeries = filteredSeries.slice(0, visibleCount);
 
-  const visibleSeries = seriesList.filter((s) =>
-    !subjectFilter && !statusFilter && !search ? true : episodesOf(s.id).length > 0
-  );
+  // ── 강의별 탭 데이터 ────────────────────────────
+  // 시리즈 소속 여부와 무관하게 모든 강의를 하나의 평면 목록으로
+  const filteredLectures = lectures
+    .filter(matchesFilter)
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+  const visibleLectures = filteredLectures.slice(0, visibleCount);
 
-  const isEmpty = visibleSeries.length === 0 && standalone.length === 0;
+  const totalCount   = activeTab === 'series' ? filteredSeries.length : filteredLectures.length;
+  const visibleLen   = activeTab === 'series' ? visibleSeries.length  : visibleLectures.length;
+  const hasMore      = visibleLen < totalCount;
+  const isEmpty      = totalCount === 0;
+
+  // 탭·검색·필터 변경 시 윈도우를 다시 첫 페이지로 리셋
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [activeTab, search, subjectFilter, statusFilter]);
+
+  // 스크롤이 하단 근처(80px)에 도달하면 다음 페이지 만큼 더 렌더
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || !hasMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
+      setVisibleCount((n) => n + PAGE_SIZE);
+    }
+  };
 
   const openEdit = async (id: string) => {
     setEditingId(id);
@@ -319,7 +370,26 @@ export default function LecturesPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
+        {/* 탭 토글 (시리즈별 / 강의별) */}
+        <div className="flex rounded-[8px] overflow-hidden border border-[#e2e8f0] text-[12.5px] font-medium w-fit">
+          {([
+            { key: 'series',  label: '시리즈별' },
+            { key: 'lecture', label: '강의별' },
+          ] as const).map((t, i) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-4 py-1.5 transition-colors ${i > 0 ? 'border-l border-[#e2e8f0]' : ''}`}
+              style={activeTab === t.key
+                ? { background: '#1a2535', color: '#fff' }
+                : { background: '#fff', color: '#6b7280' }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Toolbar */}
         <div className="flex items-center gap-2.5">
           <select
@@ -342,7 +412,7 @@ export default function LecturesPage() {
           </select>
           <input
             type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="강의명·태그 검색 (예: 수학)"
+            placeholder="강의명·시리즈명·태그 검색 (예: 수학)"
             className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none w-44"
           />
         </div>
@@ -353,12 +423,11 @@ export default function LecturesPage() {
           <div className="flex-1 flex items-center justify-center text-[13px] text-[#9ca3af]">
             {lectures.length === 0 && seriesList.length === 0 ? '등록된 강의가 없습니다' : '검색 결과가 없습니다'}
           </div>
-        ) : (
+        ) : activeTab === 'series' ? (
           <>
-            {/* ── 시리즈 강좌 ───────────────────────────── */}
+            {/* ── 시리즈별 탭 ───────────────────────────── */}
             {visibleSeries.length > 0 && (
               <section className="flex flex-col gap-2.5">
-                <p className="text-[11.5px] font-semibold uppercase tracking-wider text-[#6b7280]">시리즈 강좌</p>
                 {visibleSeries.map((series) => {
                   const episodes = episodesOf(series.id);
                   const isOpen   = expandedId === series.id;
@@ -438,63 +507,87 @@ export default function LecturesPage() {
               </section>
             )}
 
-            {/* ── 단독 강의 ─────────────────────────────── */}
-            {standalone.length > 0 && (
+            {/* 무한 스크롤 안내 */}
+            {hasMore && (
+              <p className="text-center text-[12px] text-[#9ca3af] py-2">
+                스크롤하여 더 보기 ({visibleSeries.length}/{filteredSeries.length})
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── 강의별 탭 (시리즈 소속·단독 강의 통합 평면 목록) ── */}
+            {visibleLectures.length > 0 && (
               <section className="flex flex-col gap-2.5">
-                {visibleSeries.length > 0 && (
-                  <p className="text-[11.5px] font-semibold uppercase tracking-wider text-[#6b7280]">단독 강의</p>
-                )}
                 <div className="grid grid-cols-3 gap-3.5">
-                  {standalone.map((lec) => (
-                    <div
-                      key={lec.id}
-                      className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden cursor-pointer transition-all hover:border-[#a78bfa] hover:shadow-md"
-                    >
+                  {visibleLectures.map((lec) => {
+                    const seriesTitle = seriesTitleOfLec(lec);
+                    return (
                       <div
-                        className="h-[110px] flex items-center justify-center relative"
-                        style={{ background: lec.status === 'DRAFT' ? '#2a2040' : '#1e1b2e' }}
+                        key={lec.id}
+                        className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden cursor-pointer transition-all hover:border-[#a78bfa] hover:shadow-md"
                       >
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center"
-                          style={{ background: 'rgba(167,139,250,0.25)', border: '2px solid rgba(167,139,250,0.5)', opacity: lec.status === 'DRAFT' ? 0.5 : 1 }}
+                          className="h-[110px] flex items-center justify-center relative"
+                          style={{ background: lec.status === 'DRAFT' ? '#2a2040' : '#1e1b2e' }}
                         >
-                          <span style={{ borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '15px solid #a78bfa', marginLeft: 3, display: 'inline-block' }} />
-                        </div>
-                        <span
-                          className="absolute bottom-2 right-2.5 text-[10.5px] px-1.5 py-0.5 rounded"
-                          style={{ background: 'rgba(0,0,0,0.4)', color: lec.status === 'DRAFT' ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)' }}
-                        >
-                          {lec.duration}
-                        </span>
-                        {lec.subjects.length > 0 && (
-                          <span
-                            className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-medium"
-                            style={{ background: 'rgba(167,139,250,0.25)', color: '#c4b5fd' }}
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center"
+                            style={{ background: 'rgba(167,139,250,0.25)', border: '2px solid rgba(167,139,250,0.5)', opacity: lec.status === 'DRAFT' ? 0.5 : 1 }}
                           >
-                            {lec.subjects[0]}
+                            <span style={{ borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: '15px solid #a78bfa', marginLeft: 3, display: 'inline-block' }} />
+                          </div>
+                          <span
+                            className="absolute bottom-2 right-2.5 text-[10.5px] px-1.5 py-0.5 rounded"
+                            style={{ background: 'rgba(0,0,0,0.4)', color: lec.status === 'DRAFT' ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)' }}
+                          >
+                            {lec.duration}
                           </span>
-                        )}
-                      </div>
-                      <div className="p-3">
-                        <p className="text-[13px] font-semibold text-[#111827] mb-2 leading-snug line-clamp-2">{lec.title}</p>
-                        <div className="flex justify-between items-center pt-2 border-t border-[#f1f5f9]">
-                          {lec.status === 'PUBLISHED' ? (
-                            <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#D1FAE5', color: '#065f46' }}>게시됨</span>
-                          ) : (
-                            <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400e' }}>임시저장</span>
+                          {lec.subjects.length > 0 && (
+                            <span
+                              className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-medium"
+                              style={{ background: 'rgba(167,139,250,0.25)', color: '#c4b5fd' }}
+                            >
+                              {lec.subjects[0]}
+                            </span>
                           )}
-                          <div className="flex gap-1.5">
-                            <button onClick={() => openEdit(lec.id)} className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">수정</button>
-                            <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">
-                              {lec.status === 'DRAFT' ? '게시' : '시험'}
-                            </button>
+                        </div>
+                        <div className="p-3">
+                          {/* 소속 시리즈 표시 (단독 강의는 표시 없음) */}
+                          {seriesTitle ? (
+                            <p className="text-[10.5px] text-[#7c3aed] font-medium mb-1 truncate">
+                              {seriesTitle}{lec.episodeNumber ? ` · ${lec.episodeNumber}강` : ''}
+                            </p>
+                          ) : (
+                            <p className="text-[10.5px] text-[#9ca3af] font-medium mb-1">단독 강의</p>
+                          )}
+                          <p className="text-[13px] font-semibold text-[#111827] mb-2 leading-snug line-clamp-2">{lec.title}</p>
+                          <div className="flex justify-between items-center pt-2 border-t border-[#f1f5f9]">
+                            {lec.status === 'PUBLISHED' ? (
+                              <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#D1FAE5', color: '#065f46' }}>게시됨</span>
+                            ) : (
+                              <span className="text-[10.5px] px-2 py-0.5 rounded-full font-medium" style={{ background: '#FEF3C7', color: '#92400e' }}>임시저장</span>
+                            )}
+                            <div className="flex gap-1.5">
+                              <button onClick={() => openEdit(lec.id)} className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">수정</button>
+                              <button className="px-2 py-1 rounded-[6px] text-[11px] border border-[#e2e8f0] bg-white text-[#6b7280] hover:bg-gray-50">
+                                {lec.status === 'DRAFT' ? '게시' : '시험'}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
+            )}
+
+            {/* 무한 스크롤 안내 */}
+            {hasMore && (
+              <p className="text-center text-[12px] text-[#9ca3af] py-2">
+                스크롤하여 더 보기 ({visibleLectures.length}/{filteredLectures.length})
+              </p>
             )}
           </>
         )}

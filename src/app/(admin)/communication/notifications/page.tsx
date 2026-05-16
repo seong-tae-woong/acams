@@ -12,6 +12,7 @@ import { Send, Plus, Phone, BookOpen, MessageSquare, Save, LayoutTemplate, Users
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import NotificationTemplateModal from '@/components/communication/NotificationTemplateModal';
+import SearchInput from '@/components/shared/SearchInput';
 import clsx from 'clsx';
 
 const TYPE_STYLE: Record<NotificationType, { bg: string; text: string }> = {
@@ -57,6 +58,7 @@ export default function NotificationsPage() {
   const [notifMonthDropOpen, setNotifMonthDropOpen] = useState(false);
   const notifMonthDropRef = useRef<HTMLDivElement>(null);
   const [selectedNotifId, setSelectedNotifId] = useState<string | null>(null);
+  const [notifSearch, setNotifSearch] = useState('');
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -85,7 +87,11 @@ export default function NotificationsPage() {
     }
   }, [notifications, selectedNotifId]);
 
-  const filteredNotifs = notifications.filter((n) => filter === 'all' || n.type === filter);
+  const notifSearchTerm = notifSearch.trim().toLowerCase();
+  const filteredNotifs = notifications.filter((n) =>
+    (filter === 'all' || n.type === filter) &&
+    (notifSearchTerm === '' || n.title.toLowerCase().includes(notifSearchTerm)),
+  );
   const selectedNotif = notifications.find((n) => n.id === selectedNotifId);
 
   /* ── 알림 작성 ── */
@@ -136,6 +142,7 @@ export default function NotificationsPage() {
   const [inqMonthDropOpen, setInqMonthDropOpen] = useState(false);
   const inqMonthDropRef = useRef<HTMLDivElement>(null);
   const [selectedInqId, setSelectedInqId] = useState<string | null>(null);
+  const [inqSearch, setInqSearch] = useState('');
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -160,7 +167,13 @@ export default function NotificationsPage() {
   const [editStatus, setEditStatus] = useState<InquiryStatus>('NEW');
   const [savingInq, setSavingInq] = useState(false);
 
-  const filteredInq = inquiries.filter((inq) => inqStatusFilter === 'all' || inq.status === inqStatusFilter);
+  const inqSearchTerm = inqSearch.trim().toLowerCase();
+  const filteredInq = inquiries.filter((inq) =>
+    (inqStatusFilter === 'all' || inq.status === inqStatusFilter) &&
+    (inqSearchTerm === ''
+      || inq.name.toLowerCase().includes(inqSearchTerm)
+      || (inq.phone ?? '').toLowerCase().includes(inqSearchTerm)),
+  );
   const selectedInq: PublicInquiry | undefined = inquiries.find((inq) => inq.id === selectedInqId);
   const newCount = inquiries.filter((inq) => inq.status === 'NEW').length;
 
@@ -247,10 +260,17 @@ export default function NotificationsPage() {
                   )}
                 </div>
 
+                {/* 제목 검색 */}
+                <div className="px-2 py-1.5 border-b border-[#e2e8f0]">
+                  <SearchInput value={notifSearch} onChange={setNotifSearch} placeholder="제목 검색..." />
+                </div>
+
                 {/* 목록 */}
                 <div className="flex-1 overflow-y-auto divide-y divide-[#f1f5f9]">
                   {filteredNotifs.length === 0 && (
-                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">발송된 알림이 없습니다</div>
+                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">
+                      {notifSearch.trim() ? '검색 결과가 없습니다' : '발송된 알림이 없습니다'}
+                    </div>
                   )}
                   {filteredNotifs.map((n) => {
                     const ts = TYPE_STYLE[n.type];
@@ -523,9 +543,16 @@ export default function NotificationsPage() {
                   )}
                 </div>
 
+                {/* 이름·연락처 검색 */}
+                <div className="px-2 py-1.5 border-b border-[#e2e8f0]">
+                  <SearchInput value={inqSearch} onChange={setInqSearch} placeholder="이름·연락처 검색..." />
+                </div>
+
                 <div className="divide-y divide-[#f1f5f9]">
                   {filteredInq.length === 0 && (
-                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">문의사항이 없습니다</div>
+                    <div className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">
+                      {inqSearch.trim() ? '검색 결과가 없습니다' : '문의사항이 없습니다'}
+                    </div>
                   )}
                   {filteredInq.map((inq) => {
                     const ss = INQUIRY_STATUS_STYLE[inq.status];

@@ -6,6 +6,7 @@ import { useFinanceStore } from '@/lib/stores/financeStore';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { FileDown, Printer, ChevronDown, Check } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import SearchInput from '@/components/shared/SearchInput';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 
@@ -26,11 +27,22 @@ function formatMonth(m: string) {
 export default function ReceiptsPage() {
   const { receipts, loading, fetchReceipts } = useFinanceStore();
 
-  useEffect(() => { fetchReceipts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
   const [monthDropOpen, setMonthDropOpen] = useState(false);
   const monthDropRef = useRef<HTMLDivElement>(null);
+
+  // 검색어 디바운스 (~300ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // 월 선택 / 검색어 변경 시 서버 재조회
+  useEffect(() => {
+    fetchReceipts(filterMonths, debouncedSearch || undefined);
+  }, [filterMonths, debouncedSearch, fetchReceipts]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -80,13 +92,7 @@ export default function ReceiptsPage() {
       {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-3 flex-wrap">
-            <input
-              type="text"
-              placeholder="학생 이름 검색"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-1.5 w-40 focus:outline-none focus:border-[#4fc3a1]"
-            />
+            <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" className="w-40" />
             {/* 월 다중 선택 드롭다운 */}
             <div className="relative" ref={monthDropRef}>
               <button

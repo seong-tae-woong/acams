@@ -7,6 +7,7 @@ import { useCommunicationStore } from '@/lib/stores/communicationStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate } from '@/lib/utils/format';
+import SearchInput from '@/components/shared/SearchInput';
 import { Plus, MessageSquare } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
@@ -28,8 +29,12 @@ export default function ConsultationPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedConsultId, setSelectedConsultId] = useState<string | null>(null);
+  const [studentSearch, setStudentSearch] = useState('');
 
-  const activeStudents = students.filter((s) => s.status !== StudentStatus.WITHDRAWN);
+  const searchTerm = studentSearch.trim().toLowerCase();
+  const activeStudents = students
+    .filter((s) => s.status !== StudentStatus.WITHDRAWN)
+    .filter((s) => searchTerm === '' || s.name.toLowerCase().includes(searchTerm));
   const studentConsults = consultations
     .filter((c) => c.studentId === selectedStudentId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -45,7 +50,12 @@ export default function ConsultationPage() {
       {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* 패널 1: 학생 목록 */}
         <div className="w-44 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-          <div className="p-2 pt-3 px-3 text-[10.5px] text-[#9ca3af] uppercase font-medium">학생</div>
+          <div className="p-2 border-b border-[#f1f5f9]">
+            <SearchInput value={studentSearch} onChange={setStudentSearch} placeholder="학생 검색..." />
+          </div>
+          {activeStudents.length === 0 && (
+            <div className="px-3 py-6 text-center text-[12px] text-[#9ca3af]">검색 결과 없음</div>
+          )}
           {activeStudents.map((s) => {
             const count = consultations.filter((c) => c.studentId === s.id).length;
             return (

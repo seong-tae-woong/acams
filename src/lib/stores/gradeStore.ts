@@ -16,7 +16,18 @@ interface GradeStore {
   setSelectedExam: (id: string | null) => void;
 
   // API 연동 (async)
-  fetchExams: (classId?: string) => Promise<void>;
+  // opts.take 지정 시 등록일 최신순 페이지네이션 (append=true면 기존 목록에 누적). 반환값 = 이번에 받은 개수
+  fetchExams: (
+    classId?: string,
+    opts?: {
+      take?: number;
+      skip?: number;
+      append?: boolean;
+      category1Id?: string;
+      category2Id?: string;
+      category3Id?: string;
+    },
+  ) => Promise<number>;
   fetchGrades: (examId: string) => Promise<void>;
   addExam: (exam: Omit<Exam, 'id'>) => Promise<string>;
   updateExam: (id: string, updates: Partial<Omit<Exam, 'id' | 'classId' | 'className' | 'subject'>>) => Promise<void>;
@@ -42,16 +53,27 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
   getGradesByStudent: (studentId) => get().grades.filter((g) => g.studentId === studentId),
   setSelectedExam: (id) => set({ selectedExamId: id }),
 
-  fetchExams: async (classId) => {
-    set({ loading: true });
+  fetchExams: async (classId, opts) => {
+    // append(추가 로딩) 시에는 전체 로딩 스피너를 띄우지 않음
+    if (!opts?.append) set({ loading: true });
     try {
-      const url = classId ? `/api/exams?classId=${classId}` : '/api/exams';
-      const res = await fetch(url);
+      const params = new URLSearchParams();
+      if (classId) params.set('classId', classId);
+      if (opts?.category1Id) params.set('category1Id', opts.category1Id);
+      if (opts?.category2Id) params.set('category2Id', opts.category2Id);
+      if (opts?.category3Id) params.set('category3Id', opts.category3Id);
+      if (opts?.take !== undefined) {
+        params.set('take', String(opts.take));
+        params.set('skip', String(opts.skip ?? 0));
+      }
+      const qs = params.toString();
+      const res = await fetch(`/api/exams${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('시험 목록 조회 실패');
       const data: Exam[] = await res.json();
-      set({ exams: data });
+      set((state) => ({ exams: opts?.append ? [...state.exams, ...data] : data }));
+      return data.length;
     } finally {
-      set({ loading: false });
+      if (!opts?.append) set({ loading: false });
     }
   },
 

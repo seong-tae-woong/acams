@@ -14,13 +14,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { templateId, classIds, studentIds, summary, overrideBody, overrideTitle } = body as {
+    const { templateId, classIds, studentIds, summary, overrideBody, overrideTitle, overrideLayout } = body as {
       templateId: string;
       classIds?: string[];
       studentIds?: string[];
       summary?: string;
       overrideBody?: string;
       overrideTitle?: string;
+      overrideLayout?: unknown;
     };
     if (!templateId) return NextResponse.json({ error: 'templateId 필수' }, { status: 400 });
 
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
       ? overrideBody
       : template.bodyMarkdown;
     const finalTitle = overrideTitle?.trim() || template.name;
+    // 발행 시 차트 블록을 수정했으면 그 layout을, 아니면 양식 layout을 스냅샷으로 저장
+    const finalLayout = Array.isArray(overrideLayout) ? overrideLayout : (template.layout ?? []);
     const created: { studentId: string; reportId: string }[] = [];
     let periodLabel = '';
 
@@ -94,6 +97,8 @@ export async function POST(req: NextRequest) {
           renderedBody,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           data: data as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          layout: finalLayout as any,
           publishedBy: userId ?? null,
         },
       });

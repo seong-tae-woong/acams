@@ -4,8 +4,9 @@ import Modal from '@/components/shared/Modal';
 import Button from '@/components/shared/Button';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
+import { X } from 'lucide-react';
 import TokenPanel, { insertTokenAtCursor } from '@/components/reports/TokenPanel';
-import { ChartPresetRenderer, type ChartPresetKey } from '@/components/reports/charts';
+import { ChartPresetRenderer, CHART_PRESETS, type ChartPresetKey } from '@/components/reports/charts';
 
 interface LayoutBlock { type: 'chart'; preset: ChartPresetKey; title?: string }
 interface PeriodicPreview {
@@ -38,6 +39,7 @@ interface Template {
   passThreshold: number;
   kind: 'PER_EXAM' | 'PERIODIC';
   periodMonths: number | null;
+  layout?: unknown;
 }
 
 interface Props {
@@ -95,6 +97,8 @@ export default function PublishReportModal({
   const [bodyDirty, setBodyDirty] = useState(false);                  // 양식 본문에서 변경됐는지
   const [editedTitle, setEditedTitle] = useState<string>('');         // 제목 (수정 가능, 기본 = 양식 이름)
   const [titleDirty, setTitleDirty] = useState(false);
+  const [editedLayout, setEditedLayout] = useState<LayoutBlock[]>([]); // 차트 블록 (PERIODIC, 수정 가능)
+  const [layoutDirty, setLayoutDirty] = useState(false);              // 양식 차트 블록에서 변경됐는지
   const [preview, setPreview] = useState<{ renderedBody: string; raw: Record<string, unknown> } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   // PERIODIC 미리보기
@@ -121,10 +125,13 @@ export default function PublishReportModal({
             setEditedBody(data[0].bodyMarkdown ?? '');
             setTitleDirty(false);
             setEditedTitle(data[0].name ?? '');
+            setLayoutDirty(false);
+            setEditedLayout(Array.isArray(data[0].layout) ? (data[0].layout as LayoutBlock[]) : []);
           } else {
             setTemplateId('');
             setEditedBody('');
             setEditedTitle('');
+            setEditedLayout([]);
           }
         }
       });
@@ -152,13 +159,14 @@ export default function PublishReportModal({
     }
   }, [source, kind, tabClassId, tabClassExams.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 템플릿 변경 시 임계값/본문/제목 자동 설정 (dirty 아닐 때만)
+  // 템플릿 변경 시 임계값/본문/제목/차트 자동 설정 (dirty 아닐 때만)
   useEffect(() => {
     const t = templates.find((x) => x.id === templateId);
     if (t) {
       setPassThreshold(t.passThreshold ?? 70);
       if (!bodyDirty) setEditedBody(t.bodyMarkdown ?? '');
       if (!titleDirty) setEditedTitle(t.name ?? '');
+      if (!layoutDirty) setEditedLayout(Array.isArray(t.layout) ? (t.layout as LayoutBlock[]) : []);
     }
   }, [templateId, templates]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -176,6 +184,14 @@ export default function PublishReportModal({
     if (t) {
       setEditedTitle(t.name ?? '');
       setTitleDirty(false);
+    }
+  };
+  // 양식 원래 차트 블록 복원
+  const resetLayout = () => {
+    const t = templates.find((x) => x.id === templateId);
+    if (t) {
+      setEditedLayout(Array.isArray(t.layout) ? (t.layout as LayoutBlock[]) : []);
+      setLayoutDirty(false);
     }
   };
 
@@ -296,6 +312,7 @@ export default function PublishReportModal({
             summary,
             overrideBody: bodyDirty ? editedBody : undefined,
             overrideTitle: titleDirty ? editedTitle : undefined,
+            overrideLayout: layoutDirty ? editedLayout : undefined,
           };
       const res = await fetch(url, {
         method: 'POST',
@@ -618,6 +635,80 @@ export default function PublishReportModal({
           </div>
         )}
 
+        {/* 차트 블록 편집 (PERIODIC — 양식 차트 로딩 + 이번 발행만 한정 수정) */}
+        {kind === 'PERIODIC' && templateId && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11.5px] font-medium text-[#374151]">
+                차트 블록 ({editedLayout.length}개)
+                {layoutDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
+              </label>
+              {layoutDirty && (
+                <button
+                  type="button"
+                  onClick={resetLayout}
+                  className="text-[10.5px] text-[#6b7280] hover:underline cursor-pointer"
+                >
+                  양식 차트로 되돌리기
+                </button>
+              )}
+            </div>
+            <div className="space-y-2 mb-2">
+              {editedLayout.length === 0 && (
+                <div className="text-[12px] text-[#9ca3af] py-3 text-center border border-dashed border-[#e2e8f0] rounded-[8px]">
+                  아래에서 차트를 추가하세요
+                </div>
+              )}
+              {editedLayout.map((block, i) => {
+                const meta = CHART_PRESETS.find((p) => p.key === block.preset);
+                return (
+                  <div key={i} className="flex items-center gap-2 p-2 bg-[#f9fafb] border border-[#e2e8f0] rounded-[8px]">
+                    <span className="text-[11.5px] text-[#9ca3af] w-5">{i + 1}.</span>
+                    <input
+                      value={block.title ?? ''}
+                      onChange={(e) => {
+                        const next = [...editedLayout];
+                        next[i] = { ...block, title: e.target.value };
+                        setEditedLayout(next);
+                        setLayoutDirty(true);
+                      }}
+                      placeholder={meta?.label ?? block.preset}
+                      className="flex-1 px-2 py-1 text-[12px] border border-[#e2e8f0] rounded-[6px] bg-white"
+                    />
+                    <span className="text-[10.5px] text-[#6b7280] bg-white px-1.5 py-0.5 rounded border border-[#e2e8f0]">
+                      {meta?.label ?? block.preset}
+                    </span>
+                    <button
+                      onClick={() => { setEditedLayout(editedLayout.filter((_, k) => k !== i)); setLayoutDirty(true); }}
+                      className="text-[#9ca3af] hover:text-[#ef4444] cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[#6b7280] uppercase mb-1.5">차트 추가</div>
+              <div className="flex flex-wrap gap-1.5">
+                {CHART_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => { setEditedLayout([...editedLayout, { type: 'chart', preset: p.key }]); setLayoutDirty(true); }}
+                    title={p.description}
+                    className="px-2.5 py-1 bg-white border border-[#e2e8f0] rounded-[6px] text-[11.5px] text-[#374151] hover:border-[#4fc3a1] hover:text-[#0D9E7A] cursor-pointer"
+                  >
+                    + {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="text-[10.5px] text-[#9ca3af] mt-1">
+              양식에서 선정한 차트가 로딩됩니다. 차트를 추가·삭제·이름 변경하면 양식은 변경되지 않고 이번 발행에만 적용됩니다.
+            </div>
+          </div>
+        )}
+
         {/* 미리보기 (PER_EXAM만) */}
         {kind === 'PER_EXAM' && (
           <div>
@@ -657,10 +748,10 @@ export default function PublishReportModal({
                       {periodicPreview.renderedBody || <span className="text-[#9ca3af]">본문 없음</span>}
                     </div>
 
-                    {/* 차트 블록 */}
-                    {Array.isArray(periodicPreview.layout) && periodicPreview.layout.length > 0 && (
+                    {/* 차트 블록 (발행 화면에서 선정·수정한 차트 기준) */}
+                    {editedLayout.length > 0 && (
                       <div className="space-y-2">
-                        {periodicPreview.layout
+                        {editedLayout
                           .filter((b) => b?.type === 'chart')
                           .map((block, i) => {
                             const chartData = periodicPreview.data?.charts?.[block.preset];

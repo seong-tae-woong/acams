@@ -7,10 +7,36 @@ export async function GET(req: NextRequest) {
   const academyId = req.headers.get('x-academy-id');
   if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // take 파라미터가 있으면 발행 묶음(batch) 단위 페이지네이션, 없으면 기존 전체 조회
+  const { searchParams } = new URL(req.url);
+  const takeParam = searchParams.get('take');
+  const skipParam = searchParams.get('skip');
+  const take = takeParam ? Math.max(1, Math.min(100, Number(takeParam) || 0)) : undefined;
+  const skip = skipParam ? Math.max(0, Number(skipParam) || 0) : 0;
+
   try {
+    // 페이지네이션 요청 시: 발행 시각 최신순 batchId 한 페이지만 추림
+    let pageBatchIds: string[] | undefined;
+    let hasMore = false;
+    if (take !== undefined) {
+      const grouped = await prisma.report.groupBy({
+        by: ['batchId'],
+        where: { academyId, batchId: { not: null } },
+        _max: { publishedAt: true },
+        orderBy: { _max: { publishedAt: 'desc' } },
+        take,
+        skip,
+      });
+      pageBatchIds = grouped.map((g) => g.batchId).filter((v): v is string => !!v);
+      hasMore = grouped.length === take;
+    }
+
     // batchId가 있는 Report만 그룹핑
     const reports = await prisma.report.findMany({
-      where: { academyId, batchId: { not: null } },
+      where: {
+        academyId,
+        batchId: pageBatchIds !== undefined ? { in: pageBatchIds } : { not: null },
+      },
       select: {
         batchId: true,
         kind: true,
@@ -83,7 +109,7 @@ export async function GET(req: NextRequest) {
     const batches = Array.from(groups.values())
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 
-    return NextResponse.json({ batches });
+    return NextResponse.json({ batches, hasMore });
   } catch (err) {
     console.error('[GET /api/reports/batches]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
