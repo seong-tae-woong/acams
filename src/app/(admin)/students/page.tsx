@@ -99,6 +99,8 @@ interface PostRegisterInfo {
   newStudentId: string;
   studentLoginId: string;
   parentLoginId: string;
+  studentTempPassword: string | null;
+  parentTempPassword: string | null;
   siblingCandidates: Array<{ id: string; name: string; school: string; grade: number; avatarColor: string }>;
 }
 
@@ -230,7 +232,7 @@ export default function StudentsPage() {
 
   // 비밀번호 초기화
   const [resetTarget, setResetTarget] = useState<'student' | 'parent' | null>(null);
-  const [resetResult, setResetResult] = useState<{ loginId: string | null; target: 'student' | 'parent' } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string | null; tempPassword: string | null; target: 'student' | 'parent' } | null>(null);
   const [resetting, setResetting] = useState(false);
 
   // 상담 예정 일정
@@ -423,7 +425,7 @@ export default function StudentsPage() {
       .map(({ id, name, school, grade, avatarColor }) => ({ id, name, school, grade, avatarColor }));
 
     try {
-      const { studentLoginId } = await addStudent({
+      const { studentLoginId, studentTempPassword, parentTempPassword } = await addStudent({
         ...registerForm,
         school: `${registerForm.school.trim()}${registerForm.schoolLevel}`,
         grade: Number(registerForm.grade),
@@ -443,6 +445,8 @@ export default function StudentsPage() {
         newStudentId,
         studentLoginId: studentLoginId ?? attendanceNumber,
         parentLoginId: registerForm.parentPhone,
+        studentTempPassword,
+        parentTempPassword,
         siblingCandidates,
       });
     } catch {
@@ -508,7 +512,7 @@ export default function StudentsPage() {
         return;
       }
       setResetTarget(null);
-      setResetResult({ loginId: data.loginId, target });
+      setResetResult({ loginId: data.loginId, tempPassword: data.tempPassword ?? null, target });
     } catch {
       toast('네트워크 오류가 발생했습니다.', 'error');
     } finally {
@@ -1295,10 +1299,10 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
-              <span className="text-[#4fc3a1] font-medium">연락처로 SMS 발송됨</span>
+              <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 등록된 연락처로 SMS 발송되었습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 학생/학부모에게 전달해주세요. 등록된 연락처로 SMS도 발송됩니다.</p>
         </div>
       </Modal>
 
@@ -1330,7 +1334,7 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="text-[#4fc3a1] font-medium">학생 연락처로 SMS 발송됨</span>
+              <span className="font-mono font-semibold text-[#111827]">{postRegister?.studentTempPassword ?? '—'}</span>
             </div>
           </div>
           <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
@@ -1343,10 +1347,12 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="text-[#4fc3a1] font-medium">보호자 연락처로 SMS 발송됨</span>
+              <span className={postRegister?.parentTempPassword ? 'font-mono font-semibold text-[#111827]' : 'text-[#6b7280]'}>
+                {postRegister?.parentTempPassword ?? '기존 보호자 계정 — 비밀번호 유지'}
+              </span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 각 연락처로 SMS 발송되었습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 전달해주세요. 각 연락처로 SMS도 발송됩니다.</p>
           {postRegister?.siblingCandidates.length ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">
               <div className="text-[12.5px] font-semibold text-[#92400e] mb-2">형제/자매 감지</div>

@@ -4,7 +4,7 @@ import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { sendSms } from '@/lib/sms/solapi';
 import { writeAuditLog } from '@/lib/auth/auditLog';
-import { validateSession } from '@/lib/auth/validateSession';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -16,15 +16,12 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  const role = req.headers.get('x-user-role');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
   if (role !== 'director' && role !== 'super_admin') {
     return NextResponse.json({ error: '원장만 비밀번호를 초기화할 수 있습니다.' }, { status: 403 });
   }
-
-  const sessionError = await validateSession(req);
-  if (sessionError) return sessionError;
 
   const { id } = await ctx.params;
 
@@ -62,7 +59,7 @@ export async function POST(
       target: teacher.user.id,
     });
 
-    return NextResponse.json({ loginId: teacher.user.loginId });
+    return NextResponse.json({ loginId: teacher.user.loginId, tempPassword });
   } catch (err) {
     console.error('[POST /api/teachers/[id]/reset-password]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

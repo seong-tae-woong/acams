@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
 import { calcInitialPerLessonAmount } from '@/lib/utils/billing';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // 한국 표준시(KST) 기준 날짜 문자열 반환 — 결제 시각 등 시간 정보가 있는 Date를 올바르게 표시
 function toKSTDate(d: Date): string {
@@ -26,12 +27,14 @@ function mapBill(b: {
   month: string; amount: number; paidAmount: number;
   status: PrismaBS; dueDate: Date; paidDate: Date | null;
   method: PrismaPM | null; memo: string;
+  adjustAmount: number; adjustMemo: string;
   scheduledCount: number | null; absentCount: number | null; makeupCount: number | null;
   notifiedAt: Date | null;
   cancelledAt: Date | null; cancelReason: string | null;
   paymentOrderId: string | null; rebillOfId: string | null;
   student: { name: string };
   class: { name: string; feeType: string };
+  _count: { adjustments: number };
 }) {
   return {
     id: b.id,
@@ -47,6 +50,9 @@ function mapBill(b: {
     paidDate: b.paidDate ? toKSTDate(b.paidDate) : null,
     method: b.method ? METHOD_TO_UI[b.method] : null,
     memo: b.memo,
+    adjustAmount: b.adjustAmount,
+    adjustMemo: b.adjustMemo,
+    adjustCount: b._count.adjustments,
     feeType: b.class.feeType,
     scheduledCount: b.scheduledCount,
     absentCount: b.absentCount,
@@ -62,6 +68,7 @@ function mapBill(b: {
 const BILL_INCLUDE = {
   student: { select: { name: true } },
   class: { select: { name: true, feeType: true } },
+  _count: { select: { adjustments: true } },
 } as const;
 
 // 'YYYY-MM' → 해당 월의 paidDate 범위 { gte, lt }
@@ -74,8 +81,9 @@ function monthRange(m: string) {
 
 // GET /api/finance/bills?month=&months=&paidMonth=&paidMonths=&studentId=&status=&q=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month');
@@ -137,8 +145,9 @@ export async function GET(req: NextRequest) {
 // per-lesson 수업은 출결·보강 기반으로 amount 자동 계산
 // monthly/weekly 수업은 body.amount 사용
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body = await req.json();

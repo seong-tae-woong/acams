@@ -21,8 +21,6 @@ interface CommunicationStore {
   fetchAvailableNotifMonths:   () => Promise<void>;
   fetchAvailableInquiryMonths: () => Promise<void>;
 
-  getConsultationsByStudent: (studentId: string) => ConsultationRecord[];
-
   addNotification:    (n: Omit<Notification, 'id' | 'sentAt' | 'readCount' | 'totalCount'>) => Promise<void>;
   addConsultation:    (c: Omit<ConsultationRecord, 'id'>) => Promise<void>;
   addAnnouncement:    (a: Omit<Announcement, 'id' | 'createdAt' | 'publishedAt' | 'readCount' | 'totalCount'>) => Promise<void>;
@@ -117,9 +115,6 @@ export const useCommunicationStore = create<CommunicationStore>((set, get) => ({
       toast('문의사항을 불러오는 데 실패했습니다.', 'error');
     }
   },
-
-  getConsultationsByStudent: (studentId) =>
-    get().consultations.filter((c) => c.studentId === studentId),
 
   addNotification: async (input) => {
     try {

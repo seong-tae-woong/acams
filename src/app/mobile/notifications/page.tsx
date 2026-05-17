@@ -6,6 +6,7 @@ import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import { ChevronLeft, Bell, CreditCard, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import { useMobileChild } from '@/contexts/MobileChildContext';
+import { requestTossPayment } from '@/lib/mobile/toss';
 
 type NotificationType = '공지' | '출결알림' | '수납알림' | '상담알림' | '일반';
 
@@ -46,38 +47,6 @@ function parseTotalAmount(content: string): number | null {
   return null;
 }
 
-// 토스페이먼츠 결제 트리거
-async function requestTossPayment(billIds: string[], amount: number, orderName: string) {
-  // 1. PaymentOrder 생성
-  const orderRes = await fetch('/api/mobile/payments/order', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ billIds, amount }),
-  });
-
-  if (!orderRes.ok) {
-    const err = await orderRes.json();
-    throw new Error(err.error ?? '주문 생성에 실패했습니다.');
-  }
-
-  const { orderId } = await orderRes.json();
-
-  // 2. 토스페이먼츠 SDK 동적 로드
-  const { loadTossPayments, ANONYMOUS } = await import('@tosspayments/tosspayments-sdk');
-  const tossPayments = await loadTossPayments(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY!);
-  const payment = tossPayments.payment({ customerKey: ANONYMOUS });
-
-  // 3. 결제 요청 (완료 시 successUrl로 리다이렉트)
-  await payment.requestPayment({
-    method: 'CARD',
-    amount: { currency: 'KRW', value: amount },
-    orderId,
-    orderName,
-    successUrl: `${window.location.origin}/mobile/payments/success`,
-    failUrl: `${window.location.origin}/mobile/payments/fail`,
-  });
-}
-
 function NotificationCard({ notif }: { notif: NotificationItem }) {
   const [expanded, setExpanded] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
@@ -97,11 +66,11 @@ function NotificationCard({ notif }: { notif: NotificationItem }) {
     }
     setPayLoading(true);
     try {
-      await requestTossPayment(
-        notif.billIds,
-        totalAmount,
-        notif.title,
-      );
+      await requestTossPayment({
+        billIds: notif.billIds,
+        amount: totalAmount,
+        orderName: notif.title,
+      });
       // 결제 완료 → successUrl로 이동 (여기는 도달 안 함)
     } catch (err) {
       const msg = err instanceof Error ? err.message : '결제 중 오류가 발생했습니다.';

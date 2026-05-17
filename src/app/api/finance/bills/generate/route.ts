@@ -2,17 +2,15 @@
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS } from '@/generated/prisma/client';
 import { calcInitialPerLessonAmount } from '@/lib/utils/billing';
-import { validateSession } from '@/lib/auth/validateSession';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/finance/bills/generate
 // body: { month: "YYYY-MM", dueDate?: "YYYY-MM-DD" }
 // 활성 수강생 전체 대상으로 해당 월 청구서 일괄 생성·갱신
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const sessionError = await validateSession(req);
-  if (sessionError) return sessionError;
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body = await req.json();

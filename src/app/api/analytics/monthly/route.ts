@@ -1,10 +1,13 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { BillStatus } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/analytics/monthly — 최근 6개월 수납액 및 재원 학생 수 추이
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     // 최근 6개월 목록 생성 (YYYY-MM 형식)
@@ -16,8 +19,9 @@ export async function GET(req: NextRequest) {
     }
 
     // 월별 수납액: bills.paidAmount 합계 (month 컬럼으로 그룹)
+    // 취소된 청구서(CANCELLED)는 제외 — 취소 시 paidAmount는 유지되므로 명시적으로 걸러야 함
     const bills = await prisma.bill.findMany({
-      where: { academyId, month: { in: months } },
+      where: { academyId, month: { in: months }, status: { not: BillStatus.CANCELLED } },
       select: { month: true, paidAmount: true },
     });
 

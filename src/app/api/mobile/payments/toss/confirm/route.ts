@@ -4,17 +4,14 @@ import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/p
 import { decryptTossKey } from '@/lib/crypto/tossKey';
 import { resolveStudentId } from '@/lib/mobile/resolveStudent';
 import type { TossPaymentData } from '@/lib/types/toss';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/mobile/payments/toss/confirm
 // 토스페이먼츠 결제 승인 → 청구서 상태 업데이트 + 영수증 발행
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId    = req.headers.get('x-user-id');
-  const role      = req.headers.get('x-user-role');
-
-  if (!academyId || !userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
 
   // orderId를 catch 블록에서 PROCESSING 복구에 사용하기 위해 미리 선언
   let claimedOrderId: string | undefined;

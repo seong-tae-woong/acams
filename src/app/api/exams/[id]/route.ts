@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 // PATCH /api/exams/[id] — 시험 수정
 export async function PATCH(req: NextRequest, ctx: RouteContext) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 
@@ -90,8 +92,9 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
 
 // DELETE /api/exams/[id] — 시험 삭제 (연결된 성적 레코드도 함께 삭제)
 export async function DELETE(req: NextRequest, ctx: RouteContext) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 

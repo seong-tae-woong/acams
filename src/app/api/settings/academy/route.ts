@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function toProxyUrl(blobUrl: string): string {
   if (!blobUrl || !blobUrl.includes('blob.vercel-storage.com')) return blobUrl;
@@ -8,8 +9,9 @@ function toProxyUrl(blobUrl: string): string {
 
 // GET /api/settings/academy — 현재 로그인된 원장의 학원 프로필 조회
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const academy = await prisma.academy.findUnique({
@@ -45,9 +47,9 @@ export async function GET(req: NextRequest) {
 
 // PATCH /api/settings/academy — 공개 프로필 저장
 export async function PATCH(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const role      = req.headers.get('x-user-role');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
   if (role !== 'director') return NextResponse.json({ error: '원장만 수정할 수 있습니다.' }, { status: 403 });
 
   try {

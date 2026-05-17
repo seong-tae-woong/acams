@@ -8,12 +8,14 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 export async function POST(req: NextRequest) {
-  const role = req.headers.get('x-user-role');
-  const academyId = req.headers.get('x-academy-id');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
 
-  if (role !== 'tablet' || !academyId) {
+  if (role !== 'tablet') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

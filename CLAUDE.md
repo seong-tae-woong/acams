@@ -70,12 +70,17 @@ requestHeaders.set('x-user-name', encodeURIComponent(name)); // 헤더 한글: U
 
 ### 멀티테넌트 보안
 ```typescript
-const academyId = req.headers.get('x-academy-id'); // body/query 값 절대 신뢰 금지
-if (req.headers.get('x-user-role') !== 'super_admin') return 403;
+// API 라우트 인증 — requireAuth가 academyId + validateSession(계정활성·토큰버전) 검사
+import { requireAuth } from '@/lib/auth/requireAuth';
+const auth = await requireAuth(req);
+if (auth instanceof NextResponse) return auth;
+const { academyId, userId, role } = auth; // body/query의 academyId 값은 절대 신뢰 금지
+if (role !== 'super_admin') return 403;    // 역할 제한이 필요한 경우
 ```
+- 공개 라우트(`/api/academy/*`, `/api/kiosk/*` 등)는 requireAuth 미적용
 
 ### 금지
-- `src/lib/mock/`에 신규 데이터 추가 — 신규 기능은 바로 DB API로
+- 목업/하드코딩 데이터로 신규 기능 구현 — 신규 기능은 바로 DB API로
 - 클라이언트 컴포넌트에서 `prisma` 직접 사용
 
 ---
@@ -153,7 +158,7 @@ prisma.calendarEvent.findMany({
 - **영상 업로드**: `tus-js-client`(동적 import) + Cloudflare Stream Direct Creator Upload → `POST /api/lectures/upload-url` → `{ uploadURL, uid }` → TUS 업로드 → `cfVideoId` 저장
   - 재생: `https://iframe.videodelivery.net/{cfVideoId}` (iframe)
   - 환경변수 필요: `CF_ACCOUNT_ID`, `CF_STREAM_API_TOKEN`
-- **mock 영역**: exams·completion·completion/stats·completion/notifications — **`src/lib/mock/`에 추가 금지**
+- **미구현(목업) 영역**: exams·completion·completion/stats·completion/notifications — 페이지 내 하드코딩 데이터, DB 연동 미구현
 - 디자인 토큰 (인강 전용): bg `#1e1b2e` · accent `#a78bfa` · sub-accent `#5B4FBE` · highlight `#EEEDFE`
 - 진입: GNB의 "인강" 링크(`src/components/admin/GNB.tsx`) → `/ingang/lectures` 리다이렉트
 
@@ -164,6 +169,5 @@ prisma.calendarEvent.findMany({
 - **Read 후에만 Edit** — 미열람 파일 수정 금지
 - **단일 도메인 집중** — 한 번에 §1의 1행만
 - **타입 재사용** — `src/lib/types/` 먼저 확인 후 신규 정의
-- **mock 파일은 참고용** — 필드 구조 파악만, 수정 금지
 - **Zustand 패턴** — 기존 store(예: `gradeStore.ts`) 그대로 따라가기
 - **상세는 README** — 시드계정·Phase·31개 모델 풀 스펙·Prisma/Next.js Breaking Changes 전체 코드 예시는 `README.md`에서 찾기

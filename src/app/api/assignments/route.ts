@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { sendPushToClass } from '@/lib/push/sendPush';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/assignments?classId=xxx — 반별 과제 목록
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
@@ -43,8 +45,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/assignments — 과제 등록
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { classId, date, dueDate, memo } = await req.json();

@@ -3,14 +3,16 @@ import { prisma } from '@/lib/db/prisma';
 import { ReportTemplateKind } from '@/generated/prisma/client';
 import { renderBody } from '@/lib/reports/tokens';
 import { buildPeriodicData } from '@/lib/reports/buildPeriodic';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/reports/preview-periodic
 // body: { templateId, studentId }
 // → { renderedBody, layout, data }
 //   - DB write 없이 발행 시점 기준 데이터를 미리 계산
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { templateId, studentId, bodyMarkdown } = await req.json();

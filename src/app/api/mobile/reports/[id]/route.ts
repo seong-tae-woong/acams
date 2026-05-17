@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveStudentId } from '@/lib/mobile/resolveStudent';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/mobile/reports/[id]?studentId=
 // 상세 + 첫 열람 시 readAt 마킹
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  const role = req.headers.get('x-user-role');
-  if (!academyId || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
   if (role !== 'student' && role !== 'parent') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await ctx.params;

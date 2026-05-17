@@ -1,12 +1,14 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/ingang/retry
 // pending: 최대 응시 초과 학생 목록
 // history: 재응시 허용 이력
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     // 각 학생×퀴즈의 응시 횟수 집계
@@ -123,9 +125,9 @@ export async function GET(req: NextRequest) {
 // POST /api/ingang/retry
 // { quizId, studentId } → 재응시 1회 허용
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId    = req.headers.get('x-user-id');
-  if (!academyId || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId } = auth;
 
   try {
     const { quizId, studentId } = await req.json();

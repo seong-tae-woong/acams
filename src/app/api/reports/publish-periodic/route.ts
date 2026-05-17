@@ -4,13 +4,14 @@ import { ReportTemplateKind } from '@/generated/prisma/client';
 import { renderBody } from '@/lib/reports/tokens';
 import { buildPeriodicData } from '@/lib/reports/buildPeriodic';
 import { sendPushToStudents } from '@/lib/push/sendPush';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/reports/publish-periodic
 // body: { templateId, classIds?: string[], studentIds?: string[], summary?: string }
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId } = auth;
 
   try {
     const body = await req.json();

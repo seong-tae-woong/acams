@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 type CurriculumUnitType = 'MONTH' | 'WEEK' | 'SESSION';
 const VALID_TYPES: CurriculumUnitType[] = ['MONTH', 'WEEK', 'SESSION'];
@@ -9,8 +10,9 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id: classId } = await ctx.params;
 
@@ -43,8 +45,9 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id: classId } = await ctx.params;
 

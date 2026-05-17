@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
 import { buildMakeupEvents, buildClassScheduleEvents } from '@/lib/calendar/virtualEvents';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const PRISMA_TO_UI: Record<PrismaType, string> = {
   [PrismaType.ACADEMY_SCHEDULE]: '학원일정',
@@ -12,13 +13,10 @@ const PRISMA_TO_UI: Record<PrismaType, string> = {
 
 // GET /api/mobile/calendar?year=YYYY&month=MM&studentId=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  const role = req.headers.get('x-user-role');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
 
-  if (!academyId || !userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   if (role !== 'student' && role !== 'parent') {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }

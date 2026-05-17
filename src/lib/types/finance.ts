@@ -25,6 +25,7 @@ export interface Bill {
   memo: string;
   adjustAmount?: number; // 조정 차감 금액 (수업 결석 등)
   adjustMemo?: string;   // 조정 사유
+  adjustCount?: number;  // 이 청구서의 누적 조정 횟수
   feeType?: string;         // "monthly" | "per-lesson"
   scheduledCount?: number | null; // per-lesson: 배정 수업 횟수
   absentCount?: number | null;    // per-lesson: 결석 횟수
@@ -34,6 +35,18 @@ export interface Bill {
   cancelReason?: string | null;   // 취소 사유
   paymentOrderId?: string | null; // 결제 주문 ID
   rebillOfId?: string | null;     // 재청구 시 원본 취소 청구서 ID
+}
+
+// 청구액 조정 이력 1건
+export interface BillAdjustment {
+  id: string;
+  billId: string;
+  month: string;        // 청구 월 "YYYY-MM"
+  className: string;
+  amount: number;       // 이 조정으로 설정된 차감 금액
+  memo: string;         // 조정 사유
+  createdByName: string; // 조정 처리자 이름
+  createdAt: string;    // ISO datetime
 }
 
 export interface Expense {

@@ -7,16 +7,17 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // 반에 속하지 않는 강의(전체 공개·개별 지정)를 묶는 가상 분류 ID
 const DIRECT_CLASS_ID = '__direct__';
 
 export async function POST(req: NextRequest) {
-  const role = req.headers.get('x-user-role');
-  const academyId = req.headers.get('x-academy-id');
-  const tabletUserId = req.headers.get('x-user-id');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId: tabletUserId, role } = auth;
 
-  if (role !== 'tablet' || !academyId || !tabletUserId) {
+  if (role !== 'tablet') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

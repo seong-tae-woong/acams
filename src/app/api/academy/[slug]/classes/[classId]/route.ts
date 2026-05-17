@@ -41,6 +41,7 @@ export async function GET(
       subject: cls.subject,
       grade: cls.level ?? '',
       fee: academy.showFees ? cls.fee : null,
+      feeType: cls.feeType,
       color: cls.color,
       schedule: formatSchedule(cls.schedules),
       description: cls.description ?? '',

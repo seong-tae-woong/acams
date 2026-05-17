@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
 import { recalculateBillByContext } from '@/lib/utils/billing';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const STATUS_TO_PRISMA: Record<string, PrismaStatus> = {
   '출석': PrismaStatus.PRESENT,
@@ -22,8 +23,9 @@ export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 

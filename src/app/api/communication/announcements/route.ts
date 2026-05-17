@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AnnouncementStatus as PrismaStatus } from '@/generated/prisma/client';
-import { validateSession } from '@/lib/auth/validateSession';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const STATUS_TO_UI: Record<PrismaStatus, '임시저장' | '게시됨'> = {
   DRAFT: '임시저장',
@@ -39,8 +39,9 @@ function mapAnnouncement(a: {
 
 // GET /api/communication/announcements
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const announcements = await prisma.announcement.findMany({
@@ -57,13 +58,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/communication/announcements
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const sessionError = await validateSession(req);
-  if (sessionError) return sessionError;
-
-  const userId = req.headers.get('x-user-id') ?? '';
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId } = auth;
 
   try {
     const { title, content, status, pinned, classId } = await req.json();

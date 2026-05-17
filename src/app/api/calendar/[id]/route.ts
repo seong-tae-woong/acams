@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import type { CalendarEventType } from '@/lib/types/calendar';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const UI_TO_PRISMA: Partial<Record<CalendarEventType, PrismaType>> = {
   '학원일정': PrismaType.ACADEMY_SCHEDULE,
@@ -20,10 +21,10 @@ export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
 
-  const role = req.headers.get('x-user-role');
   if (role !== 'director' && role !== 'teacher' && role !== 'admin') {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }
@@ -82,10 +83,10 @@ export async function DELETE(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
 
-  const role = req.headers.get('x-user-role');
   if (role !== 'director' && role !== 'teacher' && role !== 'admin') {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }

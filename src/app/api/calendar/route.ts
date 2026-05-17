@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import type { CalendarEventType } from '@/lib/types/calendar';
 import { buildMakeupEvents, buildClassScheduleEvents } from '@/lib/calendar/virtualEvents';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // UI 문자열 ↔ Prisma enum 변환 ('수업'은 파생 일정이라 저장되지 않음)
 const UI_TO_PRISMA: Partial<Record<CalendarEventType, PrismaType>> = {
@@ -25,8 +26,9 @@ const TYPE_COLOR: Partial<Record<CalendarEventType, string>> = {
 
 // GET /api/calendar?year=YYYY&month=MM — 해당 월 이벤트 목록
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const studentId = searchParams.get('studentId');
@@ -120,10 +122,10 @@ export async function GET(req: NextRequest) {
 
 // POST /api/calendar — 일정 생성
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
 
-  const role = req.headers.get('x-user-role');
   if (role !== 'director' && role !== 'teacher' && role !== 'admin') {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }

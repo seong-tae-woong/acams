@@ -50,6 +50,7 @@ model Academy {
   attendance            AttendanceRecord[]
   makeupClasses         MakeupClass[]
   calendarEvents        CalendarEvent[]
+  classEvents           ClassEvent[]
   notifications         Notification[]
   consultations         ConsultationRecord[]
   announcements         Announcement[]
@@ -297,6 +298,7 @@ model Class {
   curriculumRows CurriculumRow[]
   announcements  Announcement[]
   calendarEvents CalendarEvent[]
+  classEvents    ClassEvent[]
   lectureTargets LectureTarget[]
   assignments    Assignment[]
   reports        Report[]
@@ -549,6 +551,8 @@ model Bill {
   paidDate       DateTime?
   method         PaymentMethod?
   memo           String         @default("")
+  adjustAmount   Int            @default(0) // 청구액 조정 차감 금액 (최근 조정 기준)
+  adjustMemo     String         @default("") // 조정 사유 (최근 조정 기준)
   scheduledCount Int? // per-lesson: 해당 월 배정 수업 횟수
   absentCount    Int? // per-lesson: 결석 횟수
   makeupCount    Int? // per-lesson: 보강으로 복원된 횟수
@@ -563,13 +567,30 @@ model Bill {
   rebillOf   Bill?   @relation("BillRebill", fields: [rebillOfId], references: [id])
   rebills    Bill[]  @relation("BillRebill")
 
-  receipts Receipt[]
+  receipts    Receipt[]
+  adjustments BillAdjustment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([studentId, classId, month])
   @@map("bills")
+}
+
+// 청구액 조정 이력 — 조정할 때마다 1건 기록 (감사 추적)
+model BillAdjustment {
+  id     String @id @default(cuid())
+  billId String
+  bill   Bill   @relation(fields: [billId], references: [id])
+
+  amount        Int    // 이 조정으로 설정된 차감 금액
+  memo          String @default("") // 조정 사유
+  createdByName String @default("") // 조정 처리자 이름
+
+  createdAt DateTime @default(now())
+
+  @@index([billId])
+  @@map("bill_adjustments")
 }
 
 model Expense {
@@ -843,6 +864,25 @@ model CalendarEvent {
   createdAt DateTime @default(now())
 
   @@map("calendar_events")
+}
+
+// 반 일회성 수업 일정 — 특정 날짜에 추가되는 단발성 수업 (반복 일정은 ClassSchedule)
+model ClassEvent {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id])
+
+  date      DateTime
+  startTime String
+  endTime   String
+
+  createdAt DateTime @default(now())
+
+  @@index([academyId, date])
+  @@map("class_events")
 }
 
 // ─────────────────────────────────────────────

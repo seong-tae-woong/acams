@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function onlyDirector(req: NextRequest) {
   const role = req.headers.get('x-user-role');
@@ -10,8 +11,9 @@ function onlyDirector(req: NextRequest) {
 // PATCH /api/settings/tablets/[id] — 활성화/비활성화, 비밀번호 재설정, 이름 변경
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!onlyDirector(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { id } = await ctx.params;
@@ -48,8 +50,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 // DELETE /api/settings/tablets/[id] — 태블릿 계정 삭제
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!onlyDirector(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { id } = await ctx.params;

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { LectureStatus } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/lecture-series/[id]
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 
@@ -24,8 +26,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 // PATCH /api/lecture-series/[id]
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 
@@ -53,8 +56,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 // DELETE /api/lecture-series/[id]
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 

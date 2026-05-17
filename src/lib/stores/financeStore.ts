@@ -1,6 +1,6 @@
 'use client';
 import { create } from 'zustand';
-import type { Bill, Expense, Receipt } from '@/lib/types/finance';
+import type { Bill, Expense, Receipt, BillAdjustment } from '@/lib/types/finance';
 import { BillStatus } from '@/lib/types/finance';
 import { toast } from '@/lib/stores/toastStore';
 
@@ -29,8 +29,8 @@ interface FinanceStore {
   createBill: (input: { studentId: string; classId: string; month: string; dueDate: string; memo?: string; amount?: number }) => Promise<void>;
   generateBills: (month: string, dueDate?: string) => Promise<{ created: number; refreshed: number }>;
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
-  // adjustBill 은 DB 스키마에 adjustAmount/adjustMemo 없어 로컬만
-  adjustBill: (billId: string, adjustAmount: number, adjustMemo: string) => void;
+  adjustBill: (billId: string, adjustAmount: number, adjustMemo: string) => Promise<void>;
+  fetchBillAdjustments: (studentId: string) => Promise<BillAdjustment[]>;
   cancelBill: (billId: string, cancelReason?: string) => Promise<{ cancelledBillIds: string[] }>;
   previewRebill: (billIds: string[]) => Promise<{ billId: string; studentName: string; className: string; month: string; calculatedAmount: number; feeType: string }[]>;
   rebill: (items: { billId: string; amount: number; dueDate: string }[], sendNotification?: boolean) => Promise<{ created: number }>;
@@ -302,18 +302,32 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
     }
   },
 
-  // DB에 adjustAmount/adjustMemo 컬럼 없어 로컬만 (추후 스키마 추가 필요)
-  adjustBill: (billId, adjustAmount, adjustMemo) => {
-    set((state) => ({
-      bills: state.bills.map((b) => {
-        if (b.id !== billId) return b;
-        const effectiveAmount = b.amount - adjustAmount;
-        let status: BillStatus;
-        if (b.paidAmount >= effectiveAmount && effectiveAmount > 0) status = BillStatus.PAID;
-        else if (b.paidAmount > 0) status = BillStatus.PARTIAL;
-        else status = BillStatus.UNPAID;
-        return { ...b, adjustAmount, adjustMemo, status };
-      }),
-    }));
+  adjustBill: async (billId, adjustAmount, adjustMemo) => {
+    try {
+      const res = await fetch(`/api/finance/bills/${billId}/adjust`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adjustAmount, adjustMemo }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '조정 처리 실패');
+      }
+      const updated: Bill = await res.json();
+      set((state) => ({
+        bills: state.bills.map((b) => (b.id === billId ? updated : b)),
+        paidBillsView: state.paidBillsView.map((b) => (b.id === billId ? updated : b)),
+      }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '조정 처리에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  fetchBillAdjustments: async (studentId) => {
+    const res = await fetch(`/api/finance/bills/adjustments?studentId=${studentId}`);
+    if (!res.ok) throw new Error('조정 이력 조회 실패');
+    return res.json();
   },
 }));

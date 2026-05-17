@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/students/[id]/siblings — 형제/자매 목록 전체 교체 (sync)
 export async function POST(
@@ -8,8 +9,9 @@ export async function POST(
 ) {
   try {
     const { id } = await ctx.params;
-    const academyId = req.headers.get('x-academy-id');
-    if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+    const { academyId } = auth;
 
     const { siblingIds } = await req.json() as { siblingIds: string[] };
     if (!Array.isArray(siblingIds)) {

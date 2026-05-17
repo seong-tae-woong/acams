@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function mapConsultation(c: {
   id: string; studentId: string; teacherId: string; date: Date; time: string;
@@ -36,8 +37,9 @@ const CONSULT_INCLUDE = {
 
 // GET /api/communication/consultations?studentId=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const studentId = searchParams.get('studentId');
@@ -61,8 +63,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/communication/consultations
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { studentId, teacherId, date, time, duration, type, topic, content, followUp } = await req.json();

@@ -32,15 +32,13 @@ export default function SettingsPage() {
   const { classes, fetchClasses } = useClassStore();
   const [selectedId, setSelectedId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'teachers' | 'academy' | 'profile' | 'tablet'>('teachers');
-  const [academyName, setAcademyName] = useState('세계로학원');
-  const [academyPhone, setAcademyPhone] = useState('02-1234-5678');
   const [savingPerm, setSavingPerm] = useState(false);
   const [kioskSlug, setKioskSlug] = useState('');
 
   // 강사 추가 모달
   const [registerOpen, setRegisterOpen] = useState(false);
   const [regForm, setRegForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
-  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string } | null>(null);
+  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
 
   // 강사 정보 수정 모달
   const [editOpen, setEditOpen] = useState(false);
@@ -50,7 +48,7 @@ export default function SettingsPage() {
   // 비밀번호 초기화
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<{ loginId: string } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string } | null>(null);
 
   // 태블릿 계정 관리
   type TabletUser = { id: string; name: string; loginId: string; isActive: boolean; createdAt: string };
@@ -335,7 +333,7 @@ export default function SettingsPage() {
     if (!regForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
     if (!regForm.email.trim()) { toast('이메일을 입력해주세요.', 'error'); return; }
     try {
-      await addTeacher({
+      const { tempPassword } = await addTeacher({
         name: regForm.name.trim(),
         subject: regForm.subject.trim(),
         phone: regForm.phone.trim(),
@@ -346,7 +344,7 @@ export default function SettingsPage() {
         avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
       });
       setRegisterOpen(false);
-      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim() });
+      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim(), tempPassword });
       setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
     } catch { /* store handles error */ }
   };
@@ -541,29 +539,14 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
-                <div className="text-[13px] font-semibold text-[#111827] mb-2">학원 기본 정보</div>
-                {[
-                  { label: '학원명', value: academyName, setter: setAcademyName },
-                  { label: '대표 전화', value: academyPhone, setter: setAcademyPhone },
-                ].map(({ label, value, setter }) => (
-                  <div key={label}>
-                    <label className="text-[11.5px] text-[#6b7280] block mb-1">{label}</label>
-                    <input
-                      type="text"
-                      value={value}
-                      onChange={(e) => setter(e.target.value)}
-                      className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]"
-                    />
-                  </div>
-                ))}
-                <div className="pt-2">
-                  <Button variant="dark" size="md" onClick={() => toast('학원 정보가 저장되었습니다.', 'success')}>저장</Button>
-                </div>
-              </div>
-
               <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
-                <div className="text-[13px] font-semibold text-[#111827] mb-3">알림 설정</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[13px] font-semibold text-[#111827]">알림 설정</span>
+                  <span className="text-[10.5px] font-medium text-[#92400E] bg-[#FEF3C7] rounded-[20px] px-2 py-0.5">준비중</span>
+                </div>
+                <p className="text-[11.5px] text-[#9ca3af] mb-3">
+                  자동 알림 기능은 아직 준비 중입니다. 현재는 어떤 알림도 자동으로 발송되지 않습니다.
+                </p>
                 {[
                   { label: '결석 시 학부모 자동 알림', desc: '출결 저장 20분 후 발송' },
                   { label: '수강료 미납 자동 알림', desc: '납부기한 다음날 발송' },
@@ -571,11 +554,11 @@ export default function SettingsPage() {
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-[#f1f5f9] last:border-0">
                     <div>
-                      <div className="text-[12.5px] font-medium text-[#111827]">{item.label}</div>
+                      <div className="text-[12.5px] font-medium text-[#9ca3af]">{item.label}</div>
                       <div className="text-[11px] text-[#9ca3af]">{item.desc}</div>
                     </div>
-                    <div className="w-9 h-5 rounded-full bg-[#4fc3a1] relative cursor-pointer">
-                      <div className="absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] left-[19px]" />
+                    <div className="w-9 h-5 rounded-full bg-[#e2e8f0] relative cursor-not-allowed" title="준비중">
+                      <div className="absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] left-[3px]" />
                     </div>
                   </div>
                 ))}
@@ -1005,10 +988,10 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
-              <span className="text-[#4fc3a1] font-medium">강사 연락처로 SMS 발송됨</span>
+              <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 강사 연락처로 SMS 발송되었습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
         </div>
       </Modal>
 
@@ -1102,10 +1085,10 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="text-[#4fc3a1] font-medium">강사 연락처로 SMS 발송됨</span>
+              <span className="font-mono font-semibold text-[#111827]">{credentialModal?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 강사 연락처로 SMS 발송되었습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
         </div>
       </Modal>
     </div>

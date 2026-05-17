@@ -7,9 +7,9 @@ interface TeacherStore {
   teachers: Teacher[];
   loading: boolean;
   fetchTeachers: () => Promise<void>;
-  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<void>;
+  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<{ tempPassword: string }>;
   updateTeacher: (id: string, updates: Partial<Omit<Teacher, 'id'>>) => Promise<void>;
-  resetPassword: (id: string) => Promise<{ loginId: string }>;
+  resetPassword: (id: string) => Promise<{ loginId: string; tempPassword: string }>;
 }
 
 export const useTeacherStore = create<TeacherStore>((set, get) => ({
@@ -42,9 +42,10 @@ export const useTeacherStore = create<TeacherStore>((set, get) => ({
         const err = await res.json();
         throw new Error(err.error ?? '강사 등록 실패');
       }
-      const teacher: Teacher = await res.json();
+      const { tempPassword, ...teacher }: Teacher & { tempPassword: string } = await res.json();
       set((state) => ({ teachers: [...state.teachers, teacher] }));
-      toast('강사가 등록되었습니다. 임시 비밀번호가 SMS로 발송되었습니다.', 'success');
+      toast('강사가 등록되었습니다.', 'success');
+      return { tempPassword };
     } catch (err) {
       const msg = err instanceof Error ? err.message : '강사 등록에 실패했습니다.';
       toast(msg, 'error');
@@ -86,7 +87,7 @@ export const useTeacherStore = create<TeacherStore>((set, get) => ({
         throw new Error(err.error ?? '비밀번호 초기화 실패');
       }
       const data = await res.json();
-      return { loginId: data.loginId };
+      return { loginId: data.loginId, tempPassword: data.tempPassword };
     } catch (err) {
       const msg = err instanceof Error ? err.message : '비밀번호 초기화에 실패했습니다.';
       toast(msg, 'error');

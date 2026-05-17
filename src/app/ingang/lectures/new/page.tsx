@@ -275,7 +275,7 @@ function LectureNewForm() {
             {/* 직접 업로드 (Cloudflare Stream) 패널 */}
             {videoMode === 'cloudflare' && (
               <div className="px-4 py-3.5">
-                <VideoUpload onComplete={(uid, name) => { setCfVideoId(uid); console.log('Video UID:', uid, name); }} />
+                <VideoUpload onComplete={(uid) => setCfVideoId(uid)} />
               </div>
             )}
           </div>

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db/prisma';
 import type { TeacherPermissions } from '@/lib/types/teacher';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import { sendSms } from '@/lib/sms/solapi';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -36,8 +37,9 @@ function mapTeacher(t: {
 
 // GET /api/teachers
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const teachers = await prisma.teacher.findMany({
@@ -55,8 +57,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/teachers
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body = await req.json();
@@ -103,7 +106,7 @@ export async function POST(req: NextRequest) {
       await sendSms(phone, `[AcaMS] 강사 계정\nID: ${email}\n임시PW: ${tempPassword}`);
     }
 
-    return NextResponse.json(mapTeacher(teacher), { status: 201 });
+    return NextResponse.json({ ...mapTeacher(teacher), tempPassword }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/teachers]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

@@ -30,6 +30,7 @@ export default function ClassAttendancePage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [attMap, setAttMap] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [loadingAtt, setLoadingAtt] = useState(false);
 
   const loadAttendance = useCallback(async (classId: string, date: string) => {
@@ -37,14 +38,15 @@ export default function ClassAttendancePage() {
     try {
       const res = await fetch(`/api/attendance?classId=${classId}&date=${date}`);
       const data = await res.json();
-      if (data.records) {
-        const map: Record<string, AttendanceStatus> = {};
-        data.records.forEach((r: { studentId: string; status: string }) => {
-          map[r.studentId] = r.status as AttendanceStatus;
-        });
-        setAttMap(map);
-        setSaved(false);
-      }
+      const records: { studentId: string; status: string }[] = Array.isArray(data)
+        ? data
+        : (data.records ?? []);
+      const map: Record<string, AttendanceStatus> = {};
+      records.forEach((r) => {
+        map[r.studentId] = r.status as AttendanceStatus;
+      });
+      setAttMap(map);
+      setSaved(false);
     } finally {
       setLoadingAtt(false);
     }
@@ -78,10 +80,31 @@ export default function ClassAttendancePage() {
 
   const absentCount = Object.values(attMap).filter((v) => v === AttendanceStatus.ABSENT).length;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!allFilled) { toast('모든 학생의 출결을 입력해주세요.', 'error'); return; }
-    setSaved(true);
-    toast(`출결 저장 완료. 결석 ${absentCount}명에게 알림톡 발송 예정 (20분 후)`, 'success');
+    if (!selectedClassId) { toast('수업을 선택해주세요.', 'error'); return; }
+    setSaving(true);
+    try {
+      const records = classStudents.map((s) => ({
+        studentId: s.id,
+        status: attMap[s.id],
+      }));
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classId: selectedClassId, date: selectedDate, records }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '출결 저장에 실패했습니다.');
+      }
+      setSaved(true);
+      toast(`출결 저장 완료. 결석 ${absentCount}명에게 알림톡 발송 예정 (20분 후)`, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '출결 저장에 실패했습니다.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -246,10 +269,10 @@ export default function ClassAttendancePage() {
                 variant={saved ? 'default' : 'dark'}
                 size="md"
                 onClick={handleSave}
-                disabled={saved}
+                disabled={saved || saving}
               >
                 <Save size={13} />
-                {saved ? '저장 완료' : '출결 저장'}
+                {saved ? '저장 완료' : saving ? '저장 중...' : '출결 저장'}
               </Button>
             </div>
           </div>

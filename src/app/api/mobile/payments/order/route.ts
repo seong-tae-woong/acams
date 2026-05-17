@@ -1,17 +1,14 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveStudentId } from '@/lib/mobile/resolveStudent';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/mobile/payments/order
 // 결제 주문 생성 — orderId(= PaymentOrder.id)를 토스페이먼츠에 전달하기 위해 사용
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId    = req.headers.get('x-user-id');
-  const role      = req.headers.get('x-user-role');
-
-  if (!academyId || !userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
 
   try {
     if (role !== 'student' && role !== 'parent') {

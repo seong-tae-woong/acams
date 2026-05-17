@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function onlyDirector(req: NextRequest) {
   const role = req.headers.get('x-user-role');
@@ -10,8 +11,9 @@ function onlyDirector(req: NextRequest) {
 // GET /api/settings/tablets — 학원 태블릿 계정 목록
 export async function GET(req: NextRequest) {
   if (!onlyDirector(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const tablets = await prisma.user.findMany({
@@ -29,8 +31,9 @@ export async function GET(req: NextRequest) {
 // POST /api/settings/tablets — 태블릿 계정 생성
 export async function POST(req: NextRequest) {
   if (!onlyDirector(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body = await req.json();

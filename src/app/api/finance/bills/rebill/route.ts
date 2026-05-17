@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS } from '@/generated/prisma/client';
 import { calcPerLessonAmount } from '@/lib/utils/billing';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 /**
  * POST /api/finance/bills/rebill
@@ -20,10 +21,10 @@ function toKSTDate(d: Date): string {
 }
 
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const role      = req.headers.get('x-user-role');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
 
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (role !== 'director' && role !== 'super_admin') {
     return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
   }
@@ -174,10 +175,15 @@ export async function POST(req: NextRequest) {
 
     // ── 재청구 알림 발송 ─────────────────────────────────────────────────
     if (sendNotification && studentNotifMap.size > 0) {
+      const academy = await prisma.academy.findUnique({
+        where: { id: academyId },
+        select: { name: true },
+      });
+      const academyName = academy?.name ?? '학원';
       for (const { studentId, studentName, lines } of studentNotifMap.values()) {
         const total = createdBills.length; // 상세 합계는 클라이언트가 알고 있음
         const content = [
-          `안녕하세요, 학원입니다.`,
+          `안녕하세요, ${academyName}입니다.`,
           ``,
           `${studentName} 학부모님께,`,
           `이전 결제가 취소되어 실출결 기준으로 수강료가 재청구되었습니다.`,

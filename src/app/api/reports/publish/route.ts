@@ -4,15 +4,16 @@ import { ReportTemplateKind } from '@/generated/prisma/client';
 import { renderBody } from '@/lib/reports/tokens';
 import { buildPerExamContexts } from '@/lib/reports/buildContext';
 import { sendPushToStudents } from '@/lib/push/sendPush';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/reports/publish
 // body: { templateId, examId, classIds?: string[], studentIds?: string[], passThreshold?: number, summary?: string }
 //   - 둘 중 하나 이상 필수: classIds(반 전체) 또는 studentIds(개별)
 //   - 둘 다 주면 합집합
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId } = auth;
 
   try {
     const body = await req.json();

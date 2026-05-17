@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function mapExpense(e: {
   id: string; category: string; description: string;
@@ -17,8 +18,9 @@ function mapExpense(e: {
 
 // GET /api/finance/expenses?month=YYYY-MM
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month');
@@ -51,8 +53,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/finance/expenses
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { category, description, amount, date, memo } = await req.json();

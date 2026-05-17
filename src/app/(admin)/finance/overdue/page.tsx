@@ -4,6 +4,7 @@ import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { BillStatus } from '@/lib/types/finance';
 import type { Bill } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
@@ -39,14 +40,14 @@ function formatMonth(m: string) {
   return `${y}년 ${parseInt(mo)}월`;
 }
 
-function generateOverdueContent(studentName: string, unpaidBills: Bill[]): string {
+function generateOverdueContent(academyName: string, studentName: string, unpaidBills: Bill[]): string {
   const lines = unpaidBills.map((b) => {
     const due = b.amount - b.paidAmount;
     return `• ${formatMonth(b.month)} | ${b.className} | ${due.toLocaleString()}원`;
   });
   const total = unpaidBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
   return [
-    `안녕하세요, 세계로학원입니다.`,
+    `안녕하세요, ${academyName}입니다.`,
     ``,
     `${studentName} 학부모님, 현재 아래와 같이 수강료가 미납되어 있습니다.`,
     ``,
@@ -62,6 +63,7 @@ function generateOverdueContent(studentName: string, unpaidBills: Bill[]): strin
 
 export default function OverduePage() {
   const { bills, loading, payBill, getBillsByStudent, fetchBills } = useFinanceStore();
+  const academyName = useAuthStore((s) => s.currentUser?.academyName) || '학원';
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -115,7 +117,7 @@ export default function OverduePage() {
         body: JSON.stringify({
           type: '수납알림',
           title: `미납 수강료 안내`,
-          content: generateOverdueContent(studentName, studentBills),
+          content: generateOverdueContent(academyName, studentName, studentBills),
           recipients: [studentId],
         }),
       });
@@ -152,7 +154,7 @@ export default function OverduePage() {
             body: JSON.stringify({
               type: '수납알림',
               title: `미납 수강료 안내`,
-              content: generateOverdueContent(studentName, studentBills),
+              content: generateOverdueContent(academyName, studentName, studentBills),
               recipients: [studentId],
             }),
           });

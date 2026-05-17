@@ -7,6 +7,7 @@ import { ChevronLeft, CheckCircle, AlertCircle, Loader2, CreditCard, Building2 }
 import { toast } from '@/lib/stores/toastStore';
 import Link from 'next/link';
 import { useMobileChild } from '@/contexts/MobileChildContext';
+import { requestTossPayment } from '@/lib/mobile/toss';
 import clsx from 'clsx';
 
 type BillStatus = 'PAID' | 'UNPAID' | 'PARTIAL';
@@ -29,56 +30,6 @@ const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string
   UNPAID:  { label: '미납',   bg: '#FEE2E2', text: '#991B1B', icon: AlertCircle },
   PARTIAL: { label: '부분납', bg: '#FEF3C7', text: '#92400E', icon: AlertCircle },
 };
-
-async function requestTossPayment(
-  billId: string,
-  amount: number,
-  orderName: string,
-  method: PayMethod,
-  studentId: string | null,
-) {
-  // 1. 학원별 Client Key 조회
-  const keyRes = await fetch('/api/mobile/payments/toss-client-key');
-  if (!keyRes.ok) {
-    const err = await keyRes.json();
-    throw new Error(err.error ?? '결제 설정을 불러오지 못했습니다.');
-  }
-  const { clientKey } = await keyRes.json();
-
-  // 2. PaymentOrder 생성
-  const orderRes = await fetch('/api/mobile/payments/order', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ billIds: [billId], amount, studentId }),
-  });
-
-  if (!orderRes.ok) {
-    const err = await orderRes.json();
-    throw new Error(err.error ?? '주문 생성에 실패했습니다.');
-  }
-
-  const { orderId } = await orderRes.json();
-
-  // 3. 토스페이먼츠 SDK 동적 로드
-  const { loadTossPayments, ANONYMOUS } = await import('@tosspayments/tosspayments-sdk');
-  const tossPayments = await loadTossPayments(clientKey);
-  const payment = tossPayments.payment({ customerKey: ANONYMOUS });
-
-  const baseParams = {
-    amount: { currency: 'KRW' as const, value: amount },
-    orderId,
-    orderName,
-    successUrl: `${window.location.origin}/mobile/payments/success`,
-    failUrl: `${window.location.origin}/mobile/payments/fail`,
-  };
-
-  // 4. 결제 요청 — 카드 vs 계좌이체 분기
-  if (method === 'TRANSFER') {
-    await payment.requestPayment({ method: 'TRANSFER', ...baseParams });
-  } else {
-    await payment.requestPayment({ method: 'CARD', ...baseParams });
-  }
-}
 
 export default function MobilePaymentsPage() {
   const { selectedChildId } = useMobileChild();
@@ -113,7 +64,7 @@ export default function MobilePaymentsPage() {
     const method    = getPayMethod(bill.id);
     setPayingId(bill.id);
     try {
-      await requestTossPayment(bill.id, remaining, `${bill.className} 수강료`, method, selectedChildId);
+      await requestTossPayment({ billIds: [bill.id], amount: remaining, orderName: `${bill.className} 수강료`, method, studentId: selectedChildId });
       // 결제 성공 시 successUrl로 리다이렉트됨
     } catch (err) {
       const msg = err instanceof Error ? err.message : '결제 중 오류가 발생했습니다.';

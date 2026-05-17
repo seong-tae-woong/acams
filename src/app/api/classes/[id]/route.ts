@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const CLASS_INCLUDE = {
   teachers: {
@@ -45,13 +46,40 @@ function mapClass(c: {
   };
 }
 
+// GET /api/classes/[id] — 반 상세
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
+
+  const { id } = await ctx.params;
+
+  try {
+    const cls = await prisma.class.findUnique({
+      where: { id },
+      include: CLASS_INCLUDE,
+    });
+    if (!cls || cls.academyId !== academyId) {
+      return NextResponse.json({ error: '반을 찾을 수 없습니다.' }, { status: 404 });
+    }
+    return NextResponse.json(mapClass(cls));
+  } catch (err) {
+    console.error('[GET /api/classes/[id]]', err);
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}
+
 // PATCH /api/classes/[id]
 export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 
@@ -120,8 +148,9 @@ export async function DELETE(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 

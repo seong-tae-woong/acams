@@ -69,7 +69,7 @@ export default function TeachersPage() {
   const [regForm, setRegForm] = useState({
     name: '', subject: '', phone: '', email: '', classes: [] as string[],
   });
-  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string } | null>(null);
+  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
 
   const openRegister = () => {
     setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
@@ -90,7 +90,7 @@ export default function TeachersPage() {
     if (!regForm.email.trim()) { toast('이메일을 입력해주세요.', 'error'); return; }
     if (regForm.phone.includes('-')) { toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error'); return; }
     try {
-      await addTeacher({
+      const { tempPassword } = await addTeacher({
         name: regForm.name.trim(),
         subject: regForm.subject.trim(),
         phone: regForm.phone.trim(),
@@ -101,7 +101,7 @@ export default function TeachersPage() {
         avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
       });
       setRegisterOpen(false);
-      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim() });
+      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim(), tempPassword });
       setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
     } catch {
       // 에러는 store에서 toast 처리
@@ -370,10 +370,10 @@ export default function TeachersPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="text-[#4fc3a1] font-medium">강사 연락처로 SMS 발송됨</span>
+              <span className="font-mono font-semibold text-[#111827]">{credentialModal?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호가 강사 연락처로 SMS 발송되었습니다.</p>
+          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
         </div>
       </Modal>
 

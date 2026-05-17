@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -7,8 +8,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 // - 하위 카테고리(children)도 함께 삭제
 // - 이 카테고리를 사용하는 시험의 해당 슬롯은 null로 끊음
 export async function DELETE(req: NextRequest, ctx: RouteContext) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id } = await ctx.params;
 

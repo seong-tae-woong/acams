@@ -15,9 +15,9 @@ interface ClassStore {
   addClass: (cls: Omit<ClassInfo, 'id' | 'currentStudents'>) => Promise<void>;
   updateClass: (id: string, updates: Partial<ClassInfo>) => Promise<void>;
   deleteClass: (id: string) => Promise<void>;
-  // ClassEvent (로컬만, DB 스코프 밖)
-  addClassEvent: (event: Omit<ClassEvent, 'id'>) => void;
-  removeClassEvent: (id: string) => void;
+  // ClassEvent — 일회성 수업 일정 (DB 연동)
+  fetchClassEvents: () => Promise<void>;
+  addClassEvent: (event: Omit<ClassEvent, 'id'>) => Promise<void>;
 }
 
 export const useClassStore = create<ClassStore>((set, get) => ({
@@ -104,12 +104,34 @@ export const useClassStore = create<ClassStore>((set, get) => ({
     }
   },
 
-  addClassEvent: (event) => {
-    const id = `ce${Date.now()}`;
-    set((state) => ({ classEvents: [...state.classEvents, { ...event, id }] }));
+  fetchClassEvents: async () => {
+    try {
+      const res = await fetch('/api/class-events');
+      if (!res.ok) throw new Error('일정 조회 실패');
+      const data: ClassEvent[] = await res.json();
+      set({ classEvents: data });
+    } catch (err) {
+      console.error('[classStore.fetchClassEvents]', err);
+    }
   },
 
-  removeClassEvent: (id) => {
-    set((state) => ({ classEvents: state.classEvents.filter((e) => e.id !== id) }));
+  addClassEvent: async (event) => {
+    try {
+      const res = await fetch('/api/class-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(event),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '일정 추가 실패');
+      }
+      const created: ClassEvent = await res.json();
+      set((state) => ({ classEvents: [...state.classEvents, created] }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '일정 추가에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
   },
 }));

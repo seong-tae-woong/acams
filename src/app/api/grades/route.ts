@@ -1,10 +1,12 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/grades?examId=xxx — 시험별 성적 목록
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const examId = searchParams.get('examId');
@@ -37,8 +39,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/grades — 성적 레코드 일괄 upsert (시험 등록 시 빈 레코드 생성)
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body: { examId: string; studentId: string; score: number | null; rank: number | null; memo: string }[] =

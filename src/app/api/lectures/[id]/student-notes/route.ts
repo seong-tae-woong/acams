@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function allowedRole(req: NextRequest) {
   const role = req.headers.get('x-user-role');
@@ -18,8 +19,9 @@ function allowedRole(req: NextRequest) {
 // GET — 강의별 전체 학생 코멘트 목록
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!allowedRole(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id: lectureId } = await ctx.params;
 
@@ -73,9 +75,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 // PUT — 코멘트 upsert
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!allowedRole(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  const authorId = req.headers.get('x-user-id');
-  if (!academyId || !authorId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId: authorId } = auth;
 
   const { id: lectureId } = await ctx.params;
   const { studentId, note } = await req.json();
@@ -104,8 +106,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 // DELETE — 코멘트 삭제
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   if (!allowedRole(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { id: lectureId } = await ctx.params;
   const studentId = new URL(req.url).searchParams.get('studentId');

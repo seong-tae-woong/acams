@@ -14,9 +14,14 @@ import {
 ───────────────────────────────────────────────── */
 type ClassItem = {
   id: string; name: string; subject: string; grade: string;
-  fee: number | null; color: string; schedule: string;
+  fee: number | null; feeType: string; color: string; schedule: string;
   description?: string;
 };
+
+// 수강료 단위 표기 — per-lesson(수업 단위)은 "수업", 그 외는 "월"
+function feeUnit(feeType: string): string {
+  return feeType === 'per-lesson' ? '수업' : '월';
+}
 type CurriculumUnitType = 'MONTH' | 'WEEK' | 'SESSION';
 type CurriculumDetail = {
   id: string; unitType: CurriculumUnitType;
@@ -32,7 +37,7 @@ type TextbookDetail = {
 type CurriculumPalette = 'red' | 'orange' | 'green' | 'custom';
 type ClassDetail = {
   id: string; name: string; subject: string; grade: string;
-  fee: number | null; color: string; schedule: string;
+  fee: number | null; feeType: string; color: string; schedule: string;
   description: string;
   curriculumPalette: CurriculumPalette;
   curriculum: CurriculumDetail[];
@@ -239,7 +244,7 @@ function ClassCard({ cls, showFee, onClick }: { cls: ClassItem; showFee: boolean
           )}
           {cls.schedule && <Row label="일정" value={cls.schedule} />}
           {showFee && cls.fee !== null && (
-            <Row label="수강료" value={`${cls.fee.toLocaleString()}원 / 월`} bold />
+            <Row label="수강료" value={`${cls.fee.toLocaleString()}원 / ${feeUnit(cls.feeType)}`} bold />
           )}
         </div>
         {onClick && (
@@ -333,7 +338,7 @@ function ClassDetailModal({
             {data && (data.subject || data.grade || data.schedule) && (
               <p style={{ fontSize: 12.5, color: C.sub, marginTop: 4 }}>
                 {[data.subject, data.grade, data.schedule].filter(Boolean).join(' · ')}
-                {data.fee !== null && <> · <span style={{ color: C.accent, fontWeight: 700 }}>{data.fee.toLocaleString()}원/월</span></>}
+                {data.fee !== null && <> · <span style={{ color: C.accent, fontWeight: 700 }}>{data.fee.toLocaleString()}원/{feeUnit(data.feeType)}</span></>}
               </p>
             )}
           </div>

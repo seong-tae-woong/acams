@@ -1,13 +1,15 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const VALID_TYPES = ['subject', 'level', 'grade', 'etc'] as const;
 type TagType = (typeof VALID_TYPES)[number];
 
 // GET /api/lectures/tags  — 현재 학원의 커스텀 태그 목록
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const tags = await prisma.academyTag.findMany({
@@ -23,8 +25,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/lectures/tags  — 커스텀 태그 추가
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { label, tagType } = await req.json();

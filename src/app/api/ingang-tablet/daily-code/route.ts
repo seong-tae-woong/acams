@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function todayUTC(): Date {
   const d = new Date();
@@ -32,11 +33,10 @@ async function getOrCreate(academyId: string, userId: string): Promise<string> {
 
 // GET — 오늘 코드 조회 (없으면 자동 발급)
 export async function GET(req: NextRequest) {
-  const role = req.headers.get('x-user-role');
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  if (!academyId || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!['tablet', 'teacher', 'director'].includes(role ?? '')) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
+  if (!['tablet', 'teacher', 'director'].includes(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -51,11 +51,10 @@ export async function GET(req: NextRequest) {
 
 // POST — 코드 즉시 재발급 (강사/원장 전용)
 export async function POST(req: NextRequest) {
-  const role = req.headers.get('x-user-role');
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  if (!academyId || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!['teacher', 'director'].includes(role ?? '')) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
+  if (!['teacher', 'director'].includes(role)) {
     return NextResponse.json({ error: '강사 또는 원장만 코드를 재발급할 수 있습니다.' }, { status: 403 });
   }
 

@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { PaymentMethod as PrismaPM } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const METHOD_TO_UI: Record<PrismaPM, string> = {
   [PrismaPM.CARD]: '카드',
@@ -47,8 +48,9 @@ function monthRange(m: string) {
 
 // GET /api/finance/receipts?month=YYYY-MM&months=&studentId=&q=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month');
@@ -84,8 +86,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/finance/receipts — 수동 영수증 발행
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { billId, amount, issuedDate, method, memo } = await req.json();

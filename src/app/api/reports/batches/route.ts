@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/reports/batches
 // 발행 묶음(batchId) 단위로 그룹핑된 발행 이력
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   // take 파라미터가 있으면 발행 묶음(batch) 단위 페이지네이션, 없으면 기존 전체 조회
   const { searchParams } = new URL(req.url);

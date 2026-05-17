@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { ReportTemplateKind } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/communication/report-templates?kind=PER_EXAM
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const kindParam = req.nextUrl.searchParams.get('kind');
   const where: { academyId: string; kind?: ReportTemplateKind } = { academyId };
@@ -34,8 +36,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/communication/report-templates
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body = await req.json();

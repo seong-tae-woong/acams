@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { NotificationType as PrismaType } from '@/generated/prisma/client';
 import { sendPushToStudents } from '@/lib/push/sendPush';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const TYPE_TO_UI: Record<PrismaType, string> = {
   ANNOUNCEMENT: '공지',
@@ -21,8 +22,9 @@ const TYPE_TO_PRISMA: Record<string, PrismaType> = {
 
 // GET /api/communication/notifications?month=YYYY-MM
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const month = new URL(req.url).searchParams.get('month');
   const monthFilter = (() => {
@@ -40,18 +42,22 @@ export async function GET(req: NextRequest) {
       orderBy: { sentAt: 'desc' },
     });
 
-    const result = notifications.map((n) => ({
-      id: n.id,
-      type: TYPE_TO_UI[n.type],
-      title: n.title,
-      content: n.content,
-      sentAt: n.sentAt.toISOString(),
-      sentBy: n.sentById,
-      recipients: n.recipients.map((r) => r.studentId),
-      readCount: n.recipients.filter((r) => r.readAt !== null).length,
-      totalCount: n.recipients.length,
-      readRecipients: n.recipients.filter((r) => r.readAt !== null).map((r) => r.studentId),
-    }));
+    const result = notifications.map((n) => {
+      const meta = n.metadata as { billIds?: string[] } | null;
+      return {
+        id: n.id,
+        type: TYPE_TO_UI[n.type],
+        title: n.title,
+        content: n.content,
+        sentAt: n.sentAt.toISOString(),
+        sentBy: n.sentById,
+        recipients: n.recipients.map((r) => r.studentId),
+        readCount: n.recipients.filter((r) => r.readAt !== null).length,
+        totalCount: n.recipients.length,
+        readRecipients: n.recipients.filter((r) => r.readAt !== null).map((r) => r.studentId),
+        billIds: meta?.billIds ?? [],
+      };
+    });
 
     return NextResponse.json(result);
   } catch (err) {
@@ -62,10 +68,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/communication/notifications
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const userId = req.headers.get('x-user-id') ?? '';
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId } = auth;
 
   try {
     const { type, title, content, recipients, billIds } = await req.json();

@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { NotificationType as PrismaType } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const TYPE_TO_UI: Record<PrismaType, string> = {
   ANNOUNCEMENT:       '공지',
@@ -20,8 +21,9 @@ const TYPE_TO_PRISMA: Record<string, PrismaType> = {
 
 // GET /api/communication/notification-templates
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const templates = await prisma.notificationTemplate.findMany({
@@ -46,8 +48,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/communication/notification-templates
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { category, title, content } = await req.json();

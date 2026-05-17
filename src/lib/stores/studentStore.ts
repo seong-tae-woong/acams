@@ -19,7 +19,11 @@ interface StudentStore {
   setSearch: (search: string) => void;
   // Async API actions
   fetchStudents: () => Promise<void>;
-  addStudent: (student: Omit<Student, 'id' | 'qrCode'>) => Promise<{ studentLoginId: string | null }>;
+  addStudent: (student: Omit<Student, 'id' | 'qrCode'>) => Promise<{
+    studentLoginId: string | null;
+    studentTempPassword: string | null;
+    parentTempPassword: string | null;
+  }>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<void>;
   changeStatus: (id: string, status: StudentStatus) => Promise<void>;
   addStudentToClass: (studentId: string, classId: string) => Promise<void>;
@@ -76,10 +80,20 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         const err = await res.json();
         throw new Error(err.error ?? '학생 등록 실패');
       }
-      const { studentLoginId, ...student }: Student & { studentLoginId: string | null } = await res.json();
+      const {
+        studentLoginId, studentTempPassword, parentTempPassword, ...student
+      }: Student & {
+        studentLoginId: string | null;
+        studentTempPassword: string | null;
+        parentTempPassword: string | null;
+      } = await res.json();
       set((state) => ({ students: [...state.students, student] }));
       toast('학생이 등록되었습니다.', 'success');
-      return { studentLoginId: studentLoginId ?? null };
+      return {
+        studentLoginId: studentLoginId ?? null,
+        studentTempPassword: studentTempPassword ?? null,
+        parentTempPassword: parentTempPassword ?? null,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : '학생 등록에 실패했습니다.';
       toast(msg, 'error');

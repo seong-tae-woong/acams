@@ -111,11 +111,6 @@ export function getTokenGroups(kind: 'PER_EXAM' | 'PERIODIC'): TokenGroup[] {
   return kind === 'PERIODIC' ? PERIODIC_GROUPS : PER_EXAM_GROUPS;
 }
 
-// 하위호환 — 기본은 PER_EXAM
-export const TOKEN_GROUPS: TokenGroup[] = PER_EXAM_GROUPS;
-
-const ALL_TOKENS = [...PER_EXAM_GROUPS, ...PERIODIC_GROUPS].flatMap((g) => g.tokens.map((t) => t.token));
-
 function fmt(v: unknown): string {
   if (v === null || v === undefined) return '-';
   if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(1);
@@ -159,16 +154,3 @@ export function renderBody(body: string, ctx: TokenContext): string {
   });
 }
 
-// 본문에 사용된 모든 토큰 추출 (검증용)
-export function extractTokens(body: string): string[] {
-  const out: string[] = [];
-  const re = /\{\{([^}]+)\}\}/g;
-  let m;
-  while ((m = re.exec(body)) !== null) out.push(m[1].trim());
-  return out;
-}
-
-// 등록되지 않은 토큰 찾기
-export function findUnknownTokens(body: string): string[] {
-  return extractTokens(body).filter((t) => !ALL_TOKENS.includes(t));
-}

@@ -1,10 +1,12 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/lectures/upload-url
 // Cloudflare Stream direct creator upload URL 발급
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const accountId = process.env.CF_ACCOUNT_ID;
   const apiToken  = process.env.CF_STREAM_API_TOKEN;

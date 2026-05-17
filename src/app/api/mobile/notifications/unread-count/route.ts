@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveStudentId } from '@/lib/mobile/resolveStudent';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/mobile/notifications/unread-count?studentId=
 // studentId 지정 → 해당 학생의 미읽음 (학생 본인이 학부모를 흉내내지 못하도록 resolveStudentId가 검증)
 // studentId 미지정 + 학부모 → 모든 자녀의 미읽음 합산 (BottomTabBar 배지용)
 // studentId 미지정 + 학생 → 본인의 미읽음
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  const role = req.headers.get('x-user-role');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
 
-  if (!academyId || !userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   if (role !== 'student' && role !== 'parent') {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }

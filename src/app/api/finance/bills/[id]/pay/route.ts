@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
-import { validateSession } from '@/lib/auth/validateSession';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const METHOD_TO_PRISMA: Record<string, PrismaPM> = {
   '카드': PrismaPM.CARD,
@@ -31,12 +31,9 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId    = req.headers.get('x-user-id') ?? '';
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const sessionError = await validateSession(req);
-  if (sessionError) return sessionError;
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId } = auth;
 
   const { id } = await ctx.params;
 
@@ -89,6 +86,7 @@ export async function POST(
         include: {
           student: { select: { name: true } },
           class: { select: { name: true, feeType: true } },
+          _count: { select: { adjustments: true } },
         },
       });
 
@@ -122,6 +120,9 @@ export async function POST(
       paidDate: updated.paidDate ? toKSTDate(updated.paidDate) : null,
       method: updated.method ? METHOD_TO_UI[updated.method] : null,
       memo: updated.memo,
+      adjustAmount: updated.adjustAmount,
+      adjustMemo: updated.adjustMemo,
+      adjustCount: updated._count.adjustments,
       feeType: updated.class.feeType,
       notifiedAt: null,
     });

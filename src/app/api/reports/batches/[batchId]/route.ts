@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/reports/batches/[batchId]
 // 발행 묶음에 포함된 학생별 리포트 목록 (열람 여부 포함)
 export async function GET(req: NextRequest, ctx: { params: Promise<{ batchId: string }> }) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { batchId } = await ctx.params;
 

@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { put, del } from '@vercel/blob';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const MAX_SIZE = 1 * 1024 * 1024; // 1MB 서버 측 안전 제한
 
@@ -11,9 +12,9 @@ function toProxyUrl(blobUrl: string): string {
 
 // POST /api/settings/gallery — 학원 사진 업로드
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const role = req.headers.get('x-user-role');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
   if (role !== 'director') return NextResponse.json({ error: '원장만 업로드할 수 있습니다.' }, { status: 403 });
 
   const formData = await req.formData();
@@ -71,9 +72,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/settings/gallery?index=N — 학원 사진 삭제
 export async function DELETE(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const role = req.headers.get('x-user-role');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
   if (role !== 'director') return NextResponse.json({ error: '원장만 삭제할 수 있습니다.' }, { status: 403 });
 
   const index = parseInt(new URL(req.url).searchParams.get('index') ?? '');

@@ -4,6 +4,7 @@ import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
 import { sendSms } from '@/lib/sms/solapi';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -67,8 +68,9 @@ const STUDENT_INCLUDE = {
 
 // GET /api/students?status=&q=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const statusStr = searchParams.get('status');
@@ -103,8 +105,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/students — 학생 등록
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const body = await req.json();
@@ -258,6 +261,8 @@ export async function POST(req: NextRequest) {
       {
         ...mapStudent(created!),
         studentLoginId: studentLoginId ?? null,
+        studentTempPassword: studentLoginId ? studentTempPassword : null,
+        parentTempPassword: isNewParent ? parentTempPassword : null,
       },
       { status: 201 }
     );

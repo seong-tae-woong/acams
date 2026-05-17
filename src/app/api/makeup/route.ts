@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const STATUS_TO_UI: Record<PrismaStatus, '출석' | '결석' | '지각' | '조퇴'> = {
   [PrismaStatus.PRESENT]: '출석',
@@ -47,8 +48,9 @@ function mapMakeup(m: MakeupForMap) {
 
 // GET /api/makeup?classId=&month=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
@@ -84,8 +86,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/makeup
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { originalClassId, originalDate, makeupDate, makeupTime, teacherId, reason, targetStudents } =

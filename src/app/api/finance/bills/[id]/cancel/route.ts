@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS } from '@/generated/prisma/client';
 import { decryptTossKey } from '@/lib/crypto/tossKey';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 /**
  * POST /api/finance/bills/[id]/cancel
@@ -16,10 +17,10 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const academyId = req.headers.get('x-academy-id');
-  const role      = req.headers.get('x-user-role');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role } = auth;
 
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (role !== 'director' && role !== 'super_admin') {
     return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
   }

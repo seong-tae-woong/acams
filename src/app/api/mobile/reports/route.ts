@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveStudentId } from '@/lib/mobile/resolveStudent';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/mobile/reports?studentId=
 // 학생/학부모: 본인 자녀의 발행된 레포트 목록 (최신순)
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  const userId = req.headers.get('x-user-id');
-  const role = req.headers.get('x-user-role');
-  if (!academyId || !userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role } = auth;
   if (role !== 'student' && role !== 'parent') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const requestedStudentId = new URL(req.url).searchParams.get('studentId');

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { renderBody } from '@/lib/reports/tokens';
 import { buildPerExamContexts } from '@/lib/reports/buildContext';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // POST /api/reports/preview
 // body: { examId, studentId, passThreshold?, templateId?, bodyMarkdown? }
@@ -9,8 +10,9 @@ import { buildPerExamContexts } from '@/lib/reports/buildContext';
 //   - 없으면 templateId로 양식 조회
 // → { renderedBody, raw, context }
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { templateId, examId, studentId, passThreshold, bodyMarkdown } = await req.json();

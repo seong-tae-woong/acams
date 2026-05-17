@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Delete, AlertCircle, CheckCircle, Play, ChevronLeft, ChevronRight, LogOut, RefreshCw, Eye, EyeOff, X } from 'lucide-react';
+import { Delete, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, LogOut, Eye, EyeOff, X } from 'lucide-react';
 
 // ────────────────────────────────────────────
 // 타입

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 type Ctx = { params: Promise<{ lectureId: string }> };
 
 // GET /api/ingang/quizzes/[lectureId]
 // 해당 강의의 퀴즈(문제 포함) 반환. 퀴즈 없으면 null.
 export async function GET(req: NextRequest, ctx: Ctx) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { lectureId } = await ctx.params;
 
@@ -38,8 +40,9 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 // PUT /api/ingang/quizzes/[lectureId]
 // 퀴즈 전체 저장 (upsert). 기존 문제는 삭제 후 재생성.
 export async function PUT(req: NextRequest, ctx: Ctx) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { lectureId } = await ctx.params;
 
@@ -109,8 +112,9 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 // PATCH /api/ingang/quizzes/[lectureId]
 // 이수 조건(합격 기준·응시 횟수·응시 조건)만 갱신. 문제는 건드리지 않음.
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { lectureId } = await ctx.params;
 

@@ -11,7 +11,7 @@ import { StudentStatus } from '@/lib/types/student';
 import type { DayOfWeek, FeeType, CurriculumPalette } from '@/lib/types/class';
 import { FEE_TYPE_LABELS, FEE_TYPE_NAMES, CURRICULUM_PALETTES } from '@/lib/types/class';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, ChevronLeft, ChevronRight, X, BookOpen, Minus, Pencil, Phone, Mail, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, BookOpen, Pencil, Phone, Mail, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -69,7 +69,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 };
 
 export default function ClassesPage() {
-  const { classes, selectedClassId, loading, setSelectedClass, addClass, updateClass, classEvents, addClassEvent, fetchClasses } = useClassStore();
+  const { classes, selectedClassId, loading, setSelectedClass, addClass, updateClass, classEvents, addClassEvent, fetchClasses, fetchClassEvents } = useClassStore();
   const { students, addStudentToClass, removeStudentFromClass, fetchStudents } = useStudentStore();
   const { teachers, fetchTeachers } = useTeacherStore();
 
@@ -77,6 +77,7 @@ export default function ClassesPage() {
     fetchClasses();
     fetchStudents();
     fetchTeachers();
+    fetchClassEvents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = classes.find((c) => c.id === selectedClassId);
@@ -419,7 +420,7 @@ export default function ClassesPage() {
     setScheduleOpen(true);
   };
 
-  const handleAddSchedule = () => {
+  const handleAddSchedule = async () => {
     const { date, classId, startTime, endTime, mode } = scheduleForm;
     if (!date) { toast('날짜를 선택해주세요.', 'error'); return; }
     if (!classId) { toast('반을 선택해주세요.', 'error'); return; }
@@ -428,7 +429,11 @@ export default function ClassesPage() {
     const targetClass = classes.find((c) => c.id === classId);
     if (!targetClass) return;
     if (mode === 'once') {
-      addClassEvent({ classId, date, startTime, endTime });
+      try {
+        await addClassEvent({ classId, date, startTime, endTime });
+      } catch {
+        return;
+      }
       toast(`${targetClass.name} 일정이 추가되었습니다.`, 'success');
     } else {
       const d = new Date(date + 'T00:00:00');

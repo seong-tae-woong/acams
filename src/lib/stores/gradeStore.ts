@@ -12,7 +12,6 @@ interface GradeStore {
   // 조회
   getExamsByClass: (classId: string) => Exam[];
   getGradesByExam: (examId: string) => GradeRecord[];
-  getGradesByStudent: (studentId: string) => GradeRecord[];
   setSelectedExam: (id: string | null) => void;
 
   // API 연동 (async)
@@ -50,7 +49,6 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
 
   getExamsByClass: (classId) => get().exams.filter((e) => e.classId === classId),
   getGradesByExam: (examId) => get().grades.filter((g) => g.examId === examId),
-  getGradesByStudent: (studentId) => get().grades.filter((g) => g.studentId === studentId),
   setSelectedExam: (id) => set({ selectedExamId: id }),
 
   fetchExams: async (classId, opts) => {

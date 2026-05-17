@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const STATUS_TO_PRISMA: Record<string, PrismaStatus> = {
   '출석': PrismaStatus.PRESENT,
@@ -49,8 +50,9 @@ function mapRecord(r: {
 
 // GET /api/attendance?classId=&date=&studentId=&month=
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
@@ -140,11 +142,9 @@ export async function GET(req: NextRequest) {
 // POST /api/attendance — bulk upsert
 // body: { classId, date, records: [{ studentId, status, checkInTime?, checkOutTime?, memo? }] }
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const userId = req.headers.get('x-user-id');
-  const userRole = req.headers.get('x-user-role');
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, userId, role: userRole } = auth;
 
   // checkedById is Teacher.id — only set when a teacher is checking in
   let checkedById: string | null = null;

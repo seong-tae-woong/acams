@@ -7,8 +7,9 @@ import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useCommunicationStore } from '@/lib/stores/communicationStore';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { BillStatus } from '@/lib/types/finance';
-import type { Bill, PaymentMethod } from '@/lib/types/finance';
+import type { Bill, PaymentMethod, BillAdjustment } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Send, ChevronDown, Check, Pencil, Phone, RotateCcw, Ban, Loader2 } from 'lucide-react';
@@ -16,14 +17,14 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import SearchInput from '@/components/shared/SearchInput';
 import clsx from 'clsx';
 
-function generateBillingContent(studentName: string, bills: Bill[], monthStr: string): string {
+function generateBillingContent(academyName: string, studentName: string, bills: Bill[], monthStr: string): string {
   const lines = bills.map((b) => {
     const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
     return `• ${b.className} | ${effectiveAmt.toLocaleString()}원${b.adjustMemo ? ` (${b.adjustMemo})` : ''}`;
   });
   const total = bills.reduce((s, b) => s + b.amount - (b.adjustAmount ?? 0), 0);
   return [
-    `안녕하세요, 세계로학원입니다.`,
+    `안녕하세요, ${academyName}입니다.`,
     ``,
     `${studentName} 학부모님, ${monthStr} 수강료가 청구되었습니다.`,
     ``,
@@ -79,14 +80,14 @@ function formatMonth(m: string) {
   return `${y}년 ${parseInt(mo)}월`;
 }
 
-function generateOverdueContent(studentName: string, unpaidBills: Bill[]): string {
+function generateOverdueContent(academyName: string, studentName: string, unpaidBills: Bill[]): string {
   const lines = unpaidBills.map((b) => {
     const due = b.amount - b.paidAmount;
     return `• ${formatMonth(b.month)} | ${b.className} | ${due.toLocaleString()}원`;
   });
   const total = unpaidBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
   return [
-    `안녕하세요, 세계로학원입니다.`,
+    `안녕하세요, ${academyName}입니다.`,
     ``,
     `${studentName} 학부모님, 현재 아래와 같이 수강료가 미납되어 있습니다.`,
     ``,
@@ -109,7 +110,7 @@ const FINANCE_TABS = [
 export default function BillingPage() {
   const {
     bills, paidBillsView, loading,
-    payBill, adjustBill, generateBills, getBillsByStudent,
+    payBill, adjustBill, fetchBillAdjustments, generateBills, getBillsByStudent,
     cancelBill, previewRebill, rebill,
     fetchBills, fetchPaidBills,
     fetchAvailableMonths, fetchAvailablePaidMonths,
@@ -117,6 +118,7 @@ export default function BillingPage() {
   } = useFinanceStore();
   const { classes, fetchClasses } = useClassStore();
   const { addNotification } = useCommunicationStore();
+  const academyName = useAuthStore((s) => s.currentUser?.academyName) || '학원';
 
   useEffect(() => {
     fetchAvailableMonths();
@@ -150,6 +152,13 @@ export default function BillingPage() {
   const [adjustTarget, setAdjustTarget] = useState<Bill | null>(null);
   const [adjustAmt, setAdjustAmt] = useState('');
   const [adjustMemoVal, setAdjustMemoVal] = useState('');
+  const [adjustSaving, setAdjustSaving] = useState(false);
+
+  // ── 청구액 조정 이력 모달 상태 ─────────────────────────
+  const [adjustHistOpen, setAdjustHistOpen] = useState(false);
+  const [adjustHistStudent, setAdjustHistStudent] = useState<{ id: string; name: string } | null>(null);
+  const [adjustHistRows, setAdjustHistRows] = useState<BillAdjustment[]>([]);
+  const [adjustHistLoading, setAdjustHistLoading] = useState(false);
 
   // ── 청구서 발송 모달 상태 ─────────────────────────────
   const [billingNotifOpen, setBillingNotifOpen] = useState(false);
@@ -339,14 +348,35 @@ export default function BillingPage() {
     setPayOpen(false);
   };
   const openAdjust = (b: Bill) => { setAdjustTarget(b); setAdjustAmt(String(b.adjustAmount ?? '')); setAdjustMemoVal(b.adjustMemo ?? ''); setAdjustOpen(true); };
-  const handleAdjust = () => {
+  const handleAdjust = async () => {
     if (!adjustTarget) return;
     const amt = Number(adjustAmt || 0);
     if (amt < 0) { toast('차감 금액은 0 이상이어야 합니다.', 'error'); return; }
     if (amt >= adjustTarget.amount) { toast('차감 금액이 청구액 이상일 수 없습니다.', 'error'); return; }
-    adjustBill(adjustTarget.id, amt, adjustMemoVal);
+    setAdjustSaving(true);
+    try {
+      await adjustBill(adjustTarget.id, amt, adjustMemoVal);
+    } catch {
+      return;
+    } finally {
+      setAdjustSaving(false);
+    }
     toast(`조정 저장 완료 (차감 ${amt.toLocaleString()}원)`);
     setAdjustOpen(false);
+  };
+
+  const openAdjustHistory = async (b: Bill) => {
+    setAdjustHistStudent({ id: b.studentId, name: b.studentName });
+    setAdjustHistRows([]);
+    setAdjustHistLoading(true);
+    setAdjustHistOpen(true);
+    try {
+      setAdjustHistRows(await fetchBillAdjustments(b.studentId));
+    } catch {
+      toast('조정 이력을 불러오지 못했습니다.', 'error');
+    } finally {
+      setAdjustHistLoading(false);
+    }
   };
 
   // ── 청구서 발송 핸들러 ────────────────────────────────
@@ -357,7 +387,7 @@ export default function BillingPage() {
         await addNotification({
           type: '수납알림',
           title: `${monthLabel} 수강료 청구 안내`,
-          content: generateBillingContent(studentName, bills, monthLabel),
+          content: generateBillingContent(academyName, studentName, bills, monthLabel),
           recipients: [studentId],
           sentBy: '',
           billIds: bills.map((b) => b.id),
@@ -378,7 +408,7 @@ export default function BillingPage() {
     await addNotification({
       type: '수납알림',
       title: `미납 수강료 안내`,
-      content: generateOverdueContent(studentName, studentBills),
+      content: generateOverdueContent(academyName, studentName, studentBills),
       recipients: [studentId],
       sentBy: '',
       billIds: studentBills.map((b) => b.id),
@@ -409,7 +439,7 @@ export default function BillingPage() {
             body: JSON.stringify({
               type: '수납알림',
               title: `미납 수강료 안내`,
-              content: generateOverdueContent(studentName, studentBills),
+              content: generateOverdueContent(academyName, studentName, studentBills),
               recipients: [studentId],
               billIds: studentBills.map((b) => b.id),
             }),
@@ -647,6 +677,15 @@ export default function BillingPage() {
                             <button onClick={() => openAdjust(b)} className="text-[#9ca3af] hover:text-[#4fc3a1] transition-colors cursor-pointer" title="조정금액 설정"><Pencil size={11} /></button>
                           </div>
                           {adj > 0 && <div className="text-[11px] text-[#991B1B] mt-0.5">차감 -{adj.toLocaleString()}원</div>}
+                          {(b.adjustCount ?? 0) > 0 && (
+                            <button
+                              onClick={() => openAdjustHistory(b)}
+                              className="block ml-auto text-[10.5px] text-[#5B4FBE] hover:underline mt-0.5 cursor-pointer"
+                              title="조정 이력 보기"
+                            >
+                              변경 {b.adjustCount}건
+                            </button>
+                          )}
                           {b.feeType === 'per-lesson' && b.scheduledCount != null && (
                             <div className="text-[10.5px] text-[#6b7280] mt-0.5">
                               배정 {b.scheduledCount}회
@@ -884,7 +923,7 @@ export default function BillingPage() {
 
       {/* ── 청구액 조정 모달 ── */}
       <Modal open={adjustOpen} onClose={() => setAdjustOpen(false)} title="청구액 조정" size="sm"
-        footer={<><Button variant="default" size="md" onClick={() => setAdjustOpen(false)}>취소</Button><Button variant="dark" size="md" onClick={handleAdjust}>저장</Button></>}
+        footer={<><Button variant="default" size="md" onClick={() => setAdjustOpen(false)}>취소</Button><Button variant="dark" size="md" onClick={handleAdjust} disabled={adjustSaving}>{adjustSaving ? '저장 중...' : '저장'}</Button></>}
       >
         {adjustTarget && (
           <div className="space-y-3">
@@ -896,6 +935,38 @@ export default function BillingPage() {
             </div>
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">조정 사유</label><input type="text" placeholder="예) 3/15 수업 결석으로 인한 차감" value={adjustMemoVal} onChange={(e) => setAdjustMemoVal(e.target.value)} className={fieldClass} /></div>
           </div>
+        )}
+      </Modal>
+
+      {/* ── 청구액 조정 이력 모달 ── */}
+      <Modal open={adjustHistOpen} onClose={() => setAdjustHistOpen(false)} title={`${adjustHistStudent?.name ?? ''} 청구액 조정 이력`} size="md"
+        footer={<Button variant="default" size="md" onClick={() => setAdjustHistOpen(false)}>닫기</Button>}
+      >
+        {adjustHistLoading ? (
+          <div className="text-center text-[13px] text-[#9ca3af] py-6">불러오는 중...</div>
+        ) : adjustHistRows.length === 0 ? (
+          <div className="text-center text-[13px] text-[#9ca3af] py-6">조정 이력이 없습니다.</div>
+        ) : (
+          <table className="w-full text-[12.5px]">
+            <thead>
+              <tr className="bg-[#f4f6f8]">
+                {['일시', '청구 월 · 반', '차감액', '사유', '처리자'].map((h) => (
+                  <th key={h} className="px-3 py-2 text-left text-[#6b7280] font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#f1f5f9]">
+              {adjustHistRows.map((a) => (
+                <tr key={a.id} className="hover:bg-[#f9fafb]">
+                  <td className="px-3 py-2.5 text-[#374151] whitespace-nowrap">{new Date(a.createdAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                  <td className="px-3 py-2.5 text-[#374151]">{formatMonth(a.month)} · {a.className}</td>
+                  <td className="px-3 py-2.5 text-right text-[#991B1B]">-{a.amount.toLocaleString()}원</td>
+                  <td className="px-3 py-2.5 text-[#374151]">{a.memo || <span className="text-[#9ca3af]">-</span>}</td>
+                  <td className="px-3 py-2.5 text-[#6b7280]">{a.createdByName || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </Modal>
 
@@ -992,7 +1063,7 @@ export default function BillingPage() {
             <div className="text-[11.5px] font-semibold text-[#374151] mb-2">알림 내용 미리보기 (첫 번째 학생 기준)</div>
             <div className="p-3.5 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#374151] leading-relaxed whitespace-pre-line border border-[#e2e8f0]">
               {billingNotifTargets.length > 0
-                ? generateBillingContent(billingNotifTargets[0].studentName, billingNotifTargets[0].bills, monthLabel)
+                ? generateBillingContent(academyName, billingNotifTargets[0].studentName, billingNotifTargets[0].bills, monthLabel)
                 : ''}
             </div>
             <div className="mt-2 flex">

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 // GET /api/exam-categories — 학원의 시험 카테고리 전체 목록 (level 1/2/3 평탄)
 export async function GET(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const rows = await prisma.examCategory.findMany({
@@ -23,8 +25,9 @@ export async function GET(req: NextRequest) {
 // body: { name, level: 1|2|3, parentId?: string }
 // 규칙: level 1은 parentId null, level 2는 parentId의 level이 1이어야 함, level 3은 2.
 export async function POST(req: NextRequest) {
-  const academyId = req.headers.get('x-academy-id');
-  if (!academyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId } = auth;
 
   try {
     const { name, level, parentId } = await req.json();

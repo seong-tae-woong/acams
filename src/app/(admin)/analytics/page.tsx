@@ -57,7 +57,10 @@ export default function AnalyticsPage() {
   const onLeaveCount = students.filter((s) => s.status === StudentStatus.ON_LEAVE).length;
   const withdrawnCount = students.filter((s) => s.status === StudentStatus.WITHDRAWN).length;
 
-  const totalRevenue = bills.filter((b) => b.status !== BillStatus.UNPAID).reduce((s, b) => s + b.paidAmount, 0);
+  // 수납액 집계 — 취소된 청구서(CANCELLED)는 제외 (취소 시 영수증 cancelledAt 기록됨)
+  const totalRevenue = bills
+    .filter((b) => b.status === BillStatus.PAID || b.status === BillStatus.PARTIAL)
+    .reduce((s, b) => s + b.paidAmount, 0);
   const collectionRate = bills.length > 0
     ? Math.round((bills.filter((b) => b.status === BillStatus.PAID).length / bills.length) * 100)
     : 0;
@@ -66,6 +69,9 @@ export default function AnalyticsPage() {
   const totalEnrolled = activeCount + withdrawnCount;
   const reRegistrationRate = totalEnrolled > 0 ? Math.round((activeCount / totalEnrolled) * 100) : 0;
   const leaveRate = 100 - reRegistrationRate;
+
+  const now = new Date();
+  const currentMonthLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
 
   const byClassData = classes.map((c) => ({
     name: c.name.slice(0, 6),
@@ -81,7 +87,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <Topbar title="통계 및 분석" badge="2026년 4월" />
+      <Topbar title="통계 및 분석" badge={currentMonthLabel} />
       {loading ? <LoadingSpinner /> : <div className="flex-1 overflow-y-auto">
         {/* 탭 */}
         <div className="bg-white border-b border-[#e2e8f0] px-5 flex gap-4">
