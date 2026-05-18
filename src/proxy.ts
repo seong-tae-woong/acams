@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   '/api/gallery-proxy', // Private Blob 이미지 프록시
   '/api/kiosk/session', // 키오스크 QR 토큰 발급 (인증 불필요)
   '/api/kiosk/recent',  // 키오스크 최근 체크인 조회 (인증 불필요)
+  '/api/webhooks/toss', // 토스 결제 웹훅 — 쿠키 없이 호출됨, 핸들러가 HMAC 서명 자체 검증
 ];
 
 // tablet 역할이 접근 가능한 경로
