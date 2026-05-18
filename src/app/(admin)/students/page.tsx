@@ -32,7 +32,7 @@ import ConsultTab from './_tabs/ConsultTab';
 export default function StudentsPage() {
   const { students, selectedStudentId, filterStatus, search, loading, getFilteredStudents, getStudent,
     setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus,
-    addSiblingLink, fetchStudents } = useStudentStore();
+    syncSiblings, fetchStudents } = useStudentStore();
   const { fetchClasses } = useClassStore();
 
   useEffect(() => {
@@ -111,13 +111,18 @@ export default function StudentsPage() {
     }
   };
 
-  const handleSiblingLink = () => {
+  const handleSiblingLink = async () => {
     if (!postRegister) return;
-    postRegister.siblingCandidates.forEach((sibling) => {
-      addSiblingLink(postRegister.newStudentId, sibling.id);
-    });
-    setPostRegister(null);
-    toast('형제/자매 연결이 완료되었습니다.', 'success');
+    try {
+      await syncSiblings(
+        postRegister.newStudentId,
+        postRegister.siblingCandidates.map((s) => s.id),
+      );
+      setPostRegister(null);
+      toast('형제/자매 연결이 완료되었습니다.', 'success');
+    } catch {
+      // syncSiblings에서 실패 토스트 처리 — 모달 유지하여 재시도 가능
+    }
   };
 
   const handleEdit = () => {

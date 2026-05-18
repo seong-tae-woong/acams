@@ -28,7 +28,6 @@ interface StudentStore {
   changeStatus: (id: string, status: StudentStatus) => Promise<void>;
   addStudentToClass: (studentId: string, classId: string) => Promise<void>;
   removeStudentFromClass: (studentId: string, classId: string) => Promise<void>;
-  addSiblingLink: (studentAId: string, studentBId: string) => Promise<void>;
   syncSiblings: (studentId: string, newSiblingIds: string[]) => Promise<void>;
 }
 
@@ -140,29 +139,6 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
     if (!student) return;
     const newClasses = student.classes.filter((id) => id !== classId);
     await get().updateStudent(studentId, { classes: newClasses });
-  },
-
-  addSiblingLink: async (studentAId, studentBId) => {
-    const current = get().students.find((s) => s.id === studentAId)?.siblingIds ?? [];
-    const newSiblingIds = [...new Set([...current, studentBId])];
-    try {
-      await fetch(`/api/students/${studentAId}/siblings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siblingIds: newSiblingIds }),
-      });
-    } catch (err) {
-      console.error('[studentStore.addSiblingLink]', err);
-    }
-    set((state) => ({
-      students: state.students.map((s) => {
-        if (s.id === studentAId && !s.siblingIds.includes(studentBId))
-          return { ...s, siblingIds: [...s.siblingIds, studentBId] };
-        if (s.id === studentBId && !s.siblingIds.includes(studentAId))
-          return { ...s, siblingIds: [...s.siblingIds, studentAId] };
-        return s;
-      }),
-    }));
   },
 
   syncSiblings: async (studentId, newSiblingIds) => {
