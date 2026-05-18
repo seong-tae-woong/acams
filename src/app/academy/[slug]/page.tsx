@@ -531,7 +531,7 @@ export default function AcademyPublicPage() {
             <a href="#" style={{ fontSize: 11.5, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>개인정보 처리방침</a>
           </div>
 
-          <p style={{ fontSize: 11, color: C.border }}>Powered by AcaMS</p>
+          <p style={{ fontSize: 11, color: C.border }}>Powered by HwLog</p>
         </footer>
       </div>
 

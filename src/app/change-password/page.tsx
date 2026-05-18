@@ -48,9 +48,9 @@ export default function ChangePasswordPage() {
         {/* 로고 */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-[16px] bg-[#1a2535] mb-4">
-            <span className="text-[#4fc3a1] text-[22px] font-bold">A</span>
+            <span className="text-[#4fc3a1] text-[22px] font-bold">H</span>
           </div>
-          <h1 className="text-[22px] font-bold text-[#111827]">AcaMS</h1>
+          <h1 className="text-[22px] font-bold text-[#111827]">HwLog</h1>
           <p className="text-[13px] text-[#6b7280] mt-1">학원 관리 시스템</p>
         </div>
 
@@ -127,7 +127,7 @@ export default function ChangePasswordPage() {
         </div>
 
         <p className="text-center text-[12px] text-[#9ca3af] mt-6">
-          © 2026 AcaMS. All rights reserved.
+          © 2026 HwLog. All rights reserved.
         </p>
       </div>
     </div>

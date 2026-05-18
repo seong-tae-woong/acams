@@ -250,10 +250,10 @@ export async function POST(req: NextRequest) {
     // 비밀번호 SMS 발송 (응답에서 제외)
     const smsPromises: Promise<void>[] = [];
     if (studentLoginId && phone) {
-      smsPromises.push(sendSms(phone, `[AcaMS] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`));
+      smsPromises.push(sendSms(phone, `[HwLog] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`));
     }
     if (isNewParent && parentPhone) {
-      smsPromises.push(sendSms(parentPhone, `[AcaMS] 학부모 계정\nID: ${parentPhone}\n임시PW: ${parentTempPassword}`));
+      smsPromises.push(sendSms(parentPhone, `[HwLog] 학부모 계정\nID: ${parentPhone}\n임시PW: ${parentTempPassword}`));
     }
     await Promise.all(smsPromises);
 
