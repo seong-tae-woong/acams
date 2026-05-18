@@ -281,7 +281,7 @@ function TargetEditor({
 
   return (
     <div className="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
-      <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
+      <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden shrink-0">
         <div className="px-4 py-2.5 border-b border-[#f1f5f9] flex items-center gap-2 flex-wrap">
           <span className="text-[13px] font-semibold text-[#1a2535]">{title} — 수강 대상</span>
           {isSeries && (
@@ -365,7 +365,7 @@ function TargetEditor({
             ) : filteredStudents.length === 0 ? (
               <p className="text-[12px] text-[#9ca3af] text-center py-8">검색 결과가 없습니다</p>
             ) : (
-              <div className="flex flex-col gap-1.5 max-h-[440px] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-1.5">
                 {filteredStudents.map((s) => {
                   const checked  = checkedStudents.includes(s.id);
                   const clsNames = studentClassNames(s);
@@ -373,17 +373,15 @@ function TargetEditor({
                     <div
                       key={s.id}
                       onClick={() => { setCheckedStudents((prev) => prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id]); setSaved(false); }}
-                      className="flex items-center gap-2.5 px-3.5 py-2.5 border-[1.5px] rounded-[8px] cursor-pointer transition-colors"
+                      className="flex items-center gap-2.5 px-3.5 py-2 border-[1.5px] rounded-[8px] cursor-pointer transition-colors"
                       style={checked ? { background: '#EEEDFE', borderColor: '#a78bfa' } : { borderColor: '#e2e8f0' }}
                     >
                       <div className="rounded flex items-center justify-center text-[10px] shrink-0"
                         style={checked ? { background: '#a78bfa', border: '1.5px solid #a78bfa', color: '#fff', width: 17, height: 17 } : { border: '1.5px solid #e2e8f0', width: 17, height: 17 }}>
                         {checked ? '✓' : ''}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] font-semibold" style={checked ? { color: '#534AB7' } : { color: '#111827' }}>{s.name}</p>
-                        <p className="text-[10.5px] text-[#9ca3af] truncate">{clsNames.length > 0 ? clsNames.join(', ') : '미배정'}</p>
-                      </div>
+                      <span className="text-[12.5px] font-semibold shrink-0" style={checked ? { color: '#534AB7' } : { color: '#111827' }}>{s.name}</span>
+                      <span className="text-[11px] text-[#9ca3af] truncate flex-1 min-w-0">{clsNames.length > 0 ? clsNames.join(', ') : '미배정'}</span>
                       <span className="text-[11px] text-[#9ca3af] shrink-0">{gradeLabel(s.grade)}</span>
                     </div>
                   );

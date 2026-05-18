@@ -15,7 +15,7 @@ const NAV = [
     ],
   },
   {
-    group: '이수 관리',
+    group: '이수 관리 (준비 중)',
     items: [
       { label: '시청 현황',      href: '/ingang/completion' },
       { label: '시험 응시 현황',  href: '/ingang/completion', tab: 'exam' },
