@@ -14,10 +14,10 @@ export default function LoginPage() {
         {/* 로고 */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-[16px] bg-[#1a2535] mb-4">
-            <span className="text-[#4fc3a1] text-[22px] font-bold">H</span>
+            <span className="text-[#4fc3a1] text-[22px] font-bold">HL</span>
           </div>
-          <h1 className="text-[22px] font-bold text-[#111827]">HwLog</h1>
-          <p className="text-[13px] text-[#6b7280] mt-1">학원 관리 시스템</p>
+          <h1 className="text-[22px] font-bold text-[#111827]">학원로그</h1>
+          <p className="text-[13px] text-[#6b7280] mt-1">기록이 만드는 성장</p>
         </div>
 
         {/* 로그인 카드 */}
@@ -73,7 +73,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-[12px] text-[#9ca3af] mt-6">
-          © 2026 HwLog. All rights reserved.
+          © 2026 학원로그. All rights reserved.
         </p>
       </div>
     </div>
