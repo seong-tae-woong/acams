@@ -3,6 +3,7 @@ import { useAuthStore } from '@/lib/stores/authStore';
 import { useEffect, useState } from 'react';
 import { LogOut, KeyRound, X } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
+import Wordmark from '@/components/shared/Wordmark';
 
 export default function SuperAdminHeader() {
   const { currentUser, hydrate, logout } = useAuthStore();
@@ -51,7 +52,7 @@ export default function SuperAdminHeader() {
     <>
       <header className="bg-[#1a2535] h-[50px] flex items-center px-6 justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[#4fc3a1] text-[16px] font-bold">HwLog</span>
+          <Wordmark size={16} />
           <span className="text-[#6b7280] text-[12px] ml-2">슈퍼 관리자</span>
         </div>
         <div className="flex items-center gap-4">

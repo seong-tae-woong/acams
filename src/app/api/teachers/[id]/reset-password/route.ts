@@ -48,7 +48,7 @@ export async function POST(
     });
 
     if (teacher.phone) {
-      await sendSms(teacher.phone, `[HwLog] 비밀번호 초기화\nID: ${teacher.user.loginId ?? teacher.email}\n임시PW: ${tempPassword}`);
+      await sendSms(teacher.phone, `[학원로그] 비밀번호 초기화\nID: ${teacher.user.loginId ?? teacher.email}\n임시PW: ${tempPassword}`);
     }
 
     await writeAuditLog({

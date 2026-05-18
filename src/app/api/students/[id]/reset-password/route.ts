@@ -53,7 +53,7 @@ export async function POST(
         data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
       });
       if (parentPhone) {
-        await sendSms(parentPhone, `[HwLog] 비밀번호 초기화\nID: ${parentUser.loginId}\n임시PW: ${tempPassword}`);
+        await sendSms(parentPhone, `[학원로그] 비밀번호 초기화\nID: ${parentUser.loginId}\n임시PW: ${tempPassword}`);
       }
       await writeAuditLog({
         action: 'PASSWORD_RESET',
@@ -73,7 +73,7 @@ export async function POST(
         data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
       });
       if (student.phone) {
-        await sendSms(student.phone, `[HwLog] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`);
+        await sendSms(student.phone, `[학원로그] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`);
       }
       await writeAuditLog({
         action: 'PASSWORD_RESET',

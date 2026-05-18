@@ -5,6 +5,7 @@ import { useAuthStore } from '@/lib/stores/authStore';
 import { useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 import clsx from 'clsx';
+import Wordmark from '@/components/shared/Wordmark';
 
 export default function GNB() {
   const pathname = usePathname();
@@ -22,12 +23,7 @@ export default function GNB() {
     >
       {/* Logo + Tab Navigation */}
       <div className="flex items-center gap-6">
-        <span
-          className="text-[19px] font-bold text-white select-none"
-          style={{ letterSpacing: '-0.03em' }}
-        >
-          Hw<span style={{ color: '#4fc3a1' }}>Log</span>
-        </span>
+        <Wordmark size={22} className="select-none" />
 
         <nav className="flex items-center gap-1">
           <Link

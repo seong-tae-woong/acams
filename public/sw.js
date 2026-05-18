@@ -48,7 +48,7 @@ self.addEventListener('fetch', (event) => {
 
 // Web Push 수신 — 서버에서 webpush.sendNotification 호출 시 트리거
 self.addEventListener('push', (event) => {
-  let payload = { title: 'HwLog', body: '새 알림이 도착했습니다.', url: '/mobile/notifications', studentId: null };
+  let payload = { title: '학원로그', body: '새 알림이 도착했습니다.', url: '/mobile/notifications', studentId: null };
   if (event.data) {
     try { payload = { ...payload, ...event.data.json() }; } catch { /* keep defaults */ }
   }

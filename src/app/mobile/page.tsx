@@ -97,7 +97,7 @@ export default function MobileHomePage() {
       <div className="bg-[#1a2535] px-4 pt-12 pb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-[13px] text-[#4fc3a1] font-medium">HwLog</div>
+            <div className="text-[13px] text-[#4fc3a1] font-medium">학원로그</div>
             {/* 이름 + 자녀 전환 버튼 */}
             <button
               onClick={() => hasMultipleChildren && setShowChildModal(true)}

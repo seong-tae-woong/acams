@@ -146,7 +146,7 @@ function SidebarInner() {
         className="px-4 py-3 text-[10px] border-t"
         style={{ color: 'rgba(255,255,255,0.2)', borderColor: 'rgba(167,139,250,0.1)' }}
       >
-        HwLog 고객센터
+        학원로그 고객센터
       </div>
     </aside>
   );

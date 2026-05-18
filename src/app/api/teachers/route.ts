@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (phone) {
-      await sendSms(phone, `[HwLog] 강사 계정\nID: ${email}\n임시PW: ${tempPassword}`);
+      await sendSms(phone, `[학원로그] 강사 계정\nID: ${email}\n임시PW: ${tempPassword}`);
     }
 
     return NextResponse.json({ ...mapTeacher(teacher), tempPassword }, { status: 201 });

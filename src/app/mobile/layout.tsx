@@ -4,10 +4,10 @@ import SwRegister from '@/components/mobile/SwRegister';
 import MobileProviders from '@/components/mobile/MobileProviders';
 
 export const metadata: Metadata = {
-  title: 'HwLog — 학부모·학생 앱',
+  title: '학원로그 — 학부모·학생 앱',
   description: '학원 성적 리포트, 공지사항, 일정을 한눈에',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'HwLog' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: '학원로그' },
 };
 
 export const viewport: Viewport = {
