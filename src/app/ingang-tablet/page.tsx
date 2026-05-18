@@ -33,14 +33,14 @@ function Numpad({ value, onChange }: { value: string; onChange: (v: string) => v
       {KEYS.map((k, i) => (
         k === '' ? <div key={i} /> :
         k === '⌫' ? (
-          <button key={k}
+          <button key={i}
             onClick={() => onChange(value.slice(0, -1))}
             className="flex items-center justify-center h-14 rounded-[12px] bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition-colors cursor-pointer"
           >
             <Delete size={18} />
           </button>
         ) : (
-          <button key={k}
+          <button key={i}
             onClick={() => value.length < 10 && onChange(value + k)}
             className="h-14 rounded-[12px] bg-white/10 hover:bg-white/20 active:bg-white/25 text-white text-[20px] font-semibold transition-colors cursor-pointer"
           >
