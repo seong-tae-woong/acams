@@ -1,124 +1,33 @@
 'use client';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Tabs from '@/components/shared/Tabs';
-import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { useClassStore } from '@/lib/stores/classStore';
-import { useCommunicationStore } from '@/lib/stores/communicationStore';
-import { useAuthStore } from '@/lib/stores/authStore';
 import { BillStatus } from '@/lib/types/finance';
-import type { Bill, PaymentMethod, BillAdjustment } from '@/lib/types/finance';
-import { formatKoreanDate } from '@/lib/utils/format';
-import { toast } from '@/lib/stores/toastStore';
-import { Send, ChevronDown, Check, Pencil, Phone, RotateCcw, Ban, Loader2 } from 'lucide-react';
+import type { Bill } from '@/lib/types/finance';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import SearchInput from '@/components/shared/SearchInput';
-import clsx from 'clsx';
-
-function generateBillingContent(academyName: string, studentName: string, bills: Bill[], monthStr: string): string {
-  const lines = bills.map((b) => {
-    const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
-    return `• ${b.className} | ${effectiveAmt.toLocaleString()}원${b.adjustMemo ? ` (${b.adjustMemo})` : ''}`;
-  });
-  const total = bills.reduce((s, b) => s + b.amount - (b.adjustAmount ?? 0), 0);
-  return [
-    `안녕하세요, ${academyName}입니다.`,
-    ``,
-    `${studentName} 학부모님, ${monthStr} 수강료가 청구되었습니다.`,
-    ``,
-    `📋 반별 청구 내역`,
-    ...lines,
-    ``,
-    `청구 총액: ${total.toLocaleString()}원`,
-    ``,
-    `아래 [결제하기] 버튼을 눌러 납부를 진행해 주시기 바랍니다.`,
-    `납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.`,
-    ``,
-    `감사합니다.`,
-  ].join('\n');
-}
-
-const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string }> = {
-  [BillStatus.PAID]:      { label: '완납',   bg: '#D1FAE5', text: '#065f46' },
-  [BillStatus.UNPAID]:    { label: '미납',   bg: '#FEE2E2', text: '#991B1B' },
-  [BillStatus.PARTIAL]:   { label: '부분납', bg: '#FEF3C7', text: '#92400E' },
-  [BillStatus.CANCELLED]: { label: '취소됨', bg: '#F1F5F9', text: '#6b7280' },
-};
-
-const METHOD_STYLE: Record<string, { bg: string; text: string }> = {
-  '카드':    { bg: '#DBEAFE', text: '#1d4ed8' },
-  '계좌이체': { bg: '#E1F5EE', text: '#065f46' },
-  '현금':    { bg: '#FEF3C7', text: '#92400E' },
-};
-
-const RISK_STYLE: Record<string, { bg: string; text: string; border: string }> = {
-  '위험': { bg: '#FEE2E2', text: '#991B1B', border: '#FECACA' },
-  '주의': { bg: '#FEF3C7', text: '#92400E', border: '#FDE68A' },
-  '경고': { bg: '#DBEAFE', text: '#1d4ed8', border: '#BFDBFE' },
-};
-
-function getRiskLevel(bill: { status: BillStatus; memo: string }) {
-  if (bill.memo.includes('2개월') || bill.memo.includes('3월도')) return '위험';
-  if (bill.status === BillStatus.UNPAID) return '주의';
-  return '경고';
-}
-
-const today = new Date().toISOString().split('T')[0];
-const currentMonth = today.slice(0, 7);
-
-function prevMonth(): string {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return d.toISOString().slice(0, 7);
-}
-
-function formatMonth(m: string) {
-  const [y, mo] = m.split('-');
-  return `${y}년 ${parseInt(mo)}월`;
-}
-
-function generateOverdueContent(academyName: string, studentName: string, unpaidBills: Bill[]): string {
-  const lines = unpaidBills.map((b) => {
-    const due = b.amount - b.paidAmount;
-    return `• ${formatMonth(b.month)} | ${b.className} | ${due.toLocaleString()}원`;
-  });
-  const total = unpaidBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
-  return [
-    `안녕하세요, ${academyName}입니다.`,
-    ``,
-    `${studentName} 학부모님, 현재 아래와 같이 수강료가 미납되어 있습니다.`,
-    ``,
-    `📋 미납 내역`,
-    ...lines,
-    ``,
-    `미납 총액: ${total.toLocaleString()}원`,
-    ``,
-    `아래 [결제하기] 버튼을 눌러 납부를 진행해 주시기 바랍니다.`,
-    `빠른 납부에 감사드립니다.`,
-  ].join('\n');
-}
-
-const FINANCE_TABS = [
-  { value: 'billing', label: '청구 및 수납' },
-  { value: 'payments', label: '수납 내역' },
-  { value: 'overdue', label: '미납 관리' },
-];
+import { FINANCE_TABS, currentMonth, type BillingNotifTarget } from './_shared';
+import BillingTab from './_tabs/BillingTab';
+import PaymentsTab from './_tabs/PaymentsTab';
+import OverdueTab from './_tabs/OverdueTab';
+import PayModal from './_components/PayModal';
+import AdjustModal from './_components/AdjustModal';
+import AdjustHistoryModal from './_components/AdjustHistoryModal';
+import PaymentHistoryModal from './_components/PaymentHistoryModal';
+import BillingNotifModal from './_components/BillingNotifModal';
+import GenerateModal from './_components/GenerateModal';
+import CancelModal from './_components/CancelModal';
+import RebillModal from './_components/RebillModal';
 
 export default function BillingPage() {
   const {
-    bills, paidBillsView, loading,
-    payBill, adjustBill, fetchBillAdjustments, generateBills, getBillsByStudent,
-    cancelBill, previewRebill, rebill,
-    fetchBills, fetchPaidBills,
+    loading,
+    fetchBills,
     fetchAvailableMonths, fetchAvailablePaidMonths,
-    availableMonths, availablePaidMonths,
   } = useFinanceStore();
-  const { classes, fetchClasses } = useClassStore();
-  const { addNotification } = useCommunicationStore();
-  const academyName = useAuthStore((s) => s.currentUser?.academyName) || '학원';
+  const { fetchClasses } = useClassStore();
 
   useEffect(() => {
     fetchAvailableMonths();
@@ -129,69 +38,11 @@ export default function BillingPage() {
   // ── 탭 ──────────────────────────────────────────────
   const [financeTab, setFinanceTab] = useState('billing');
 
-  // ── 청구 탭 상태 ──────────────────────────────────────
+  // ── 청구 탭 필터 상태 (청구 생성/취소/재청구 후 재조회에 필요) ──
+  const [search, setSearch] = useState('');
+  const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
   const [filterStatus, setFilterStatus] = useState<BillStatus | 'all'>('all');
   const [filterClass, setFilterClass] = useState<string>('all');
-  const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
-  const [monthDropOpen, setMonthDropOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const monthDropRef = useRef<HTMLDivElement>(null);
-
-  // ── 청구 생성 모달 상태 ──────────────────────────────────
-  const [generateOpen, setGenerateOpen] = useState(false);
-  const [generateSaving, setGenerateSaving] = useState(false);
-  const [generateMonth, setGenerateMonth] = useState(prevMonth);
-
-  const [payOpen, setPayOpen] = useState(false);
-  const [payTarget, setPayTarget] = useState<Bill | null>(null);
-  const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState<PaymentMethod>('카드');
-  const [payDate, setPayDate] = useState(today);
-
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjustTarget, setAdjustTarget] = useState<Bill | null>(null);
-  const [adjustAmt, setAdjustAmt] = useState('');
-  const [adjustMemoVal, setAdjustMemoVal] = useState('');
-  const [adjustSaving, setAdjustSaving] = useState(false);
-
-  // ── 청구액 조정 이력 모달 상태 ─────────────────────────
-  const [adjustHistOpen, setAdjustHistOpen] = useState(false);
-  const [adjustHistStudent, setAdjustHistStudent] = useState<{ id: string; name: string } | null>(null);
-  const [adjustHistRows, setAdjustHistRows] = useState<BillAdjustment[]>([]);
-  const [adjustHistLoading, setAdjustHistLoading] = useState(false);
-
-  // ── 청구서 발송 모달 상태 ─────────────────────────────
-  const [billingNotifOpen, setBillingNotifOpen] = useState(false);
-  const [billingNotifSending, setBillingNotifSending] = useState(false);
-
-  // ── 다중 선택 상태 ────────────────────────────────────
-  const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
-
-  // ── 미납 알림 발송 상태 ───────────────────────────────
-  const [overdueNotifSending, setOverdueNotifSending] = useState(false);
-
-  // ── 취소 모달 상태 ────────────────────────────────────
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelTarget, setCancelTarget] = useState<Bill | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancelSaving, setCancelSaving] = useState(false);
-
-  // ── 재청구 모달 상태 ──────────────────────────────────
-  const [rebillOpen, setRebillOpen] = useState(false);
-  const [rebillItems, setRebillItems] = useState<
-    { billId: string; studentName: string; className: string; month: string; calculatedAmount: number; amount: number; dueDate: string; feeType: string }[]
-  >([]);
-  const [rebillLoading, setRebillLoading] = useState(false);
-  const [rebillSaving, setRebillSaving] = useState(false);
-  const [rebillSendNotif, setRebillSendNotif] = useState(true);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (monthDropRef.current && !monthDropRef.current.contains(e.target as Node)) setMonthDropOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   // ── 검색어 디바운스 (~300ms) ──────────────────────────
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -205,328 +56,59 @@ export default function BillingPage() {
     fetchBills(filterMonths, { q: debouncedSearch || undefined });
   }, [filterMonths, debouncedSearch, fetchBills]);
 
-  // ── 수납 내역 탭 상태 ─────────────────────────────────
-  const [payViewMode, setPayViewMode] = useState<'all' | 'card' | 'transfer' | 'cash'>('all');
-  const [payFilterMonths2, setPayFilterMonths2] = useState<string[]>([currentMonth]);
-  const [payMonthDropOpen2, setPayMonthDropOpen2] = useState(false);
-  const payMonthDropRef2 = useRef<HTMLDivElement>(null);
+  const refetchBills = () => fetchBills(filterMonths, { q: debouncedSearch || undefined });
 
-  // 수납 내역 탭: 선택 수납월(paidDate) 변경 시 서버 재조회
-  useEffect(() => {
-    fetchPaidBills(payFilterMonths2);
-  }, [payFilterMonths2, fetchPaidBills]);
+  // ── 다중 선택 상태 ────────────────────────────────────
+  const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
+  const clearSelection = () => setSelectedBillIds(new Set());
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (payMonthDropRef2.current && !payMonthDropRef2.current.contains(e.target as Node)) setPayMonthDropOpen2(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  // ── 모달 상태 ─────────────────────────────────────────
+  const [payOpen, setPayOpen] = useState(false);
+  const [payTarget, setPayTarget] = useState<Bill | null>(null);
 
-  // ── 미납 관리 탭 상태 ─────────────────────────────────
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState<Bill | null>(null);
+
+  const [adjustHistOpen, setAdjustHistOpen] = useState(false);
+  const [adjustHistStudent, setAdjustHistStudent] = useState<{ id: string; name: string } | null>(null);
+
+  const [billingNotifOpen, setBillingNotifOpen] = useState(false);
+  const [billingNotifTargets, setBillingNotifTargets] = useState<BillingNotifTarget[]>([]);
+  const [billingNotifMonthLabel, setBillingNotifMonthLabel] = useState('');
+
+  const [generateOpen, setGenerateOpen] = useState(false);
+
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Bill | null>(null);
+
+  const [rebillOpen, setRebillOpen] = useState(false);
+  const [rebillCancelledIds, setRebillCancelledIds] = useState<string[]>([]);
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
 
-  // ── 청구 탭 계산 ──────────────────────────────────────
-  const toggleMonth = (m: string) => {
-    setFilterMonths((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
-    );
-  };
-
-  const monthLabel = filterMonths.length === 0 ? '전체 월'
-    : filterMonths.length === 1 ? formatMonth(filterMonths[0])
-    : `${formatMonth([...filterMonths].sort().reverse()[0])} 외 ${filterMonths.length - 1}개`;
-
-  const monthFilteredBills = filterMonths.length === 0 ? bills : bills.filter((b) => filterMonths.includes(b.month));
-  const totalBilled = monthFilteredBills.reduce((s, b) => s + b.amount, 0);
-  const totalPaid = monthFilteredBills.reduce((s, b) => s + b.paidAmount, 0);
-  const totalUnpaid = totalBilled - totalPaid;
-  const rate = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
-  const filtered = monthFilteredBills.filter((b) => {
-    if (filterStatus !== 'all' && b.status !== filterStatus) return false;
-    if (filterClass !== 'all' && b.classId !== filterClass) return false;
-    if (search && !b.studentName.includes(search)) return false;
-    return true;
-  });
-  const unpaidBills = monthFilteredBills.filter((b) => b.status !== BillStatus.PAID && b.status !== BillStatus.CANCELLED);
-
-  // 선택된 취소됨 청구서 목록
-  const selectedCancelledBills = filtered.filter((b) => selectedBillIds.has(b.id) && b.status === BillStatus.CANCELLED);
-
-  // ── 수납 내역 탭 계산 ─────────────────────────────────
-  const togglePayMonth = (m: string) => {
-    setPayFilterMonths2((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
-    );
-  };
-  const payMonthLabel2 = payFilterMonths2.length === 0 ? '전체 월'
-    : payFilterMonths2.length === 1 ? formatMonth(payFilterMonths2[0])
-    : `${formatMonth([...payFilterMonths2].sort().reverse()[0])} 외 ${payFilterMonths2.length - 1}개`;
-
-  const paidBills = paidBillsView.filter((b) => {
-    if (b.status === BillStatus.UNPAID || !b.paidDate) return false;
-    if (payFilterMonths2.length > 0 && !payFilterMonths2.includes(b.paidDate.slice(0, 7))) return false;
-    return true;
-  }).sort((a, b) => (b.paidDate ?? '').localeCompare(a.paidDate ?? ''));
-
-  const payFiltered = paidBills.filter((b) => {
-    if (payViewMode === 'card') return b.method === '카드';
-    if (payViewMode === 'transfer') return b.method === '계좌이체';
-    if (payViewMode === 'cash') return b.method === '현금';
-    return true;
-  });
-
-  const totalCard = paidBills.filter((b) => b.method === '카드').reduce((s, b) => s + b.paidAmount, 0);
-  const totalTransfer = paidBills.filter((b) => b.method === '계좌이체').reduce((s, b) => s + b.paidAmount, 0);
-  const totalCash = paidBills.filter((b) => b.method === '현금').reduce((s, b) => s + b.paidAmount, 0);
-  const totalAll = totalCard + totalTransfer + totalCash;
-
-  const byDate: Record<string, typeof paidBills> = {};
-  payFiltered.forEach((b) => { const d = b.paidDate ?? ''; if (!byDate[d]) byDate[d] = []; byDate[d].push(b); });
-  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
-
-  // ── 미납 관리 탭 계산 ─────────────────────────────────
-  const overdueBills = bills
-    .filter((b) => b.status !== BillStatus.PAID)
-    .map((b) => ({ ...b, risk: getRiskLevel(b) }))
-    .sort((a, b) => { const order = ['위험', '주의', '경고']; return order.indexOf(a.risk) - order.indexOf(b.risk); });
-
-  const totalOverdue = overdueBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0);
-  const dangerCount = overdueBills.filter((b) => b.risk === '위험').length;
-  const warningCount = overdueBills.filter((b) => b.risk === '주의').length;
-
-  const detailBills = detailStudentId
-    ? getBillsByStudent(detailStudentId).sort((a, b) => b.month.localeCompare(a.month))
-    : [];
-  const detailStudentName = detailBills[0]?.studentName ?? '';
-
-  // ── 다중 선택 핸들러 ──────────────────────────────────
-  const toggleBill = (id: string) => setSelectedBillIds((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const isAllSelected = filtered.length > 0 && filtered.every((b) => selectedBillIds.has(b.id));
-  const isSomeSelected = filtered.some((b) => selectedBillIds.has(b.id)) && !isAllSelected;
-  const toggleAll = () => {
-    if (isAllSelected) {
-      setSelectedBillIds((prev) => { const next = new Set(prev); filtered.forEach((b) => next.delete(b.id)); return next; });
-    } else {
-      setSelectedBillIds((prev) => { const next = new Set(prev); filtered.forEach((b) => next.add(b.id)); return next; });
-    }
-  };
-
-  // ── 청구 생성 핸들러 ──────────────────────────────────
-  const handleGenerateBills = async () => {
-    setGenerateSaving(true);
-    try {
-      const result = await generateBills(generateMonth);
-      toast(`청구서 생성 완료: ${result.created}건 신규, ${result.refreshed}건 갱신`, 'success');
-      setGenerateOpen(false);
-      await fetchBills(filterMonths, { q: debouncedSearch || undefined });
-      await fetchAvailableMonths();
-    } catch { /* store handles toast */ } finally {
-      setGenerateSaving(false);
-    }
-  };
-
-  // ── 청구 탭 핸들러 ────────────────────────────────────
-  const openPay = (b: Bill) => {
-    const effectiveAmount = b.amount - (b.adjustAmount ?? 0);
-    setPayTarget(b); setPayAmount(String(effectiveAmount - b.paidAmount)); setPayMethod('카드'); setPayDate(today); setPayOpen(true);
-  };
-  const handlePay = () => {
-    if (!payTarget) return;
-    const amount = Number(payAmount);
-    const effectiveAmount = payTarget.amount - (payTarget.adjustAmount ?? 0);
-    if (!amount || amount <= 0) { toast('수납 금액을 입력해주세요.', 'error'); return; }
-    if (amount > effectiveAmount - payTarget.paidAmount) { toast('수납액이 잔여 금액을 초과합니다.', 'error'); return; }
-    payBill(payTarget.id, amount, payMethod, payDate);
-    toast(`${payTarget.studentName} 수납 처리 완료 (${amount.toLocaleString()}원)`);
-    setPayOpen(false);
-  };
-  const openAdjust = (b: Bill) => { setAdjustTarget(b); setAdjustAmt(String(b.adjustAmount ?? '')); setAdjustMemoVal(b.adjustMemo ?? ''); setAdjustOpen(true); };
-  const handleAdjust = async () => {
-    if (!adjustTarget) return;
-    const amt = Number(adjustAmt || 0);
-    if (amt < 0) { toast('차감 금액은 0 이상이어야 합니다.', 'error'); return; }
-    if (amt >= adjustTarget.amount) { toast('차감 금액이 청구액 이상일 수 없습니다.', 'error'); return; }
-    setAdjustSaving(true);
-    try {
-      await adjustBill(adjustTarget.id, amt, adjustMemoVal);
-    } catch {
-      return;
-    } finally {
-      setAdjustSaving(false);
-    }
-    toast(`조정 저장 완료 (차감 ${amt.toLocaleString()}원)`);
-    setAdjustOpen(false);
-  };
-
-  const openAdjustHistory = async (b: Bill) => {
+  // ── 모달 오픈 핸들러 ──────────────────────────────────
+  const openPay = (b: Bill) => { setPayTarget(b); setPayOpen(true); };
+  const openAdjust = (b: Bill) => { setAdjustTarget(b); setAdjustOpen(true); };
+  const openAdjustHistory = (b: Bill) => {
     setAdjustHistStudent({ id: b.studentId, name: b.studentName });
-    setAdjustHistRows([]);
-    setAdjustHistLoading(true);
     setAdjustHistOpen(true);
-    try {
-      setAdjustHistRows(await fetchBillAdjustments(b.studentId));
-    } catch {
-      toast('조정 이력을 불러오지 못했습니다.', 'error');
-    } finally {
-      setAdjustHistLoading(false);
-    }
   };
-
-  // ── 청구서 발송 핸들러 ────────────────────────────────
-  const handleSendBillingNotif = async () => {
-    setBillingNotifSending(true);
-    try {
-      for (const { studentId, studentName, bills } of billingNotifTargets) {
-        await addNotification({
-          type: '수납알림',
-          title: `${monthLabel} 수강료 청구 안내`,
-          content: generateBillingContent(academyName, studentName, bills, monthLabel),
-          recipients: [studentId],
-          sentBy: '',
-          billIds: bills.map((b) => b.id),
-        });
-      }
-      toast(`${billingNotifTargets.length}명에게 청구서를 발송했습니다.`, 'success');
-      setSelectedBillIds(new Set());
-      setBillingNotifOpen(false);
-    } finally {
-      setBillingNotifSending(false);
-    }
-  };
-
-  // ── 미납 알림 발송 핸들러 (개별) ──────────────────────
-  const sendOverdueNotification = async (studentId: string, studentName: string) => {
-    const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
-    if (studentBills.length === 0) { toast('미납 청구 내역이 없습니다.', 'error'); return; }
-    await addNotification({
-      type: '수납알림',
-      title: `미납 수강료 안내`,
-      content: generateOverdueContent(academyName, studentName, studentBills),
-      recipients: [studentId],
-      sentBy: '',
-      billIds: studentBills.map((b) => b.id),
-    });
-  };
-
-  // ── 미납 알림 일괄 발송 핸들러 ────────────────────────
-  const sendBatchOverdueNotifications = async () => {
-    if (overdueBills.length === 0) { toast('미납 학생이 없습니다.', 'info'); return; }
-    setOverdueNotifSending(true);
-    try {
-      // 학생별 중복 제거
-      const studentMap = new Map<string, { studentId: string; studentName: string }>();
-      overdueBills.forEach((b) => {
-        if (!studentMap.has(b.studentId)) {
-          studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName });
-        }
-      });
-
-      let successCount = 0;
-      for (const { studentId, studentName } of studentMap.values()) {
-        const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
-        if (studentBills.length === 0) continue;
-        try {
-          await fetch('/api/communication/notifications', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: '수납알림',
-              title: `미납 수강료 안내`,
-              content: generateOverdueContent(academyName, studentName, studentBills),
-              recipients: [studentId],
-              billIds: studentBills.map((b) => b.id),
-            }),
-          });
-          successCount++;
-        } catch { /* 개별 실패 무시 */ }
-      }
-      toast(`미납 알림 ${successCount}명 발송 완료`, 'success');
-    } catch {
-      toast('알림 발송 중 오류가 발생했습니다.', 'error');
-    } finally {
-      setOverdueNotifSending(false);
-    }
-  };
-
-  // ── 취소 핸들러 ────────────────────────────────────────
-  const openCancel = (b: Bill) => {
-    setCancelTarget(b);
-    setCancelReason('원장 취소');
-    setCancelOpen(true);
-  };
-  const handleCancel = async () => {
-    if (!cancelTarget) return;
-    setCancelSaving(true);
-    try {
-      await cancelBill(cancelTarget.id, cancelReason);
-      setCancelOpen(false);
-      await fetchBills(filterMonths, { q: debouncedSearch || undefined });
-      setSelectedBillIds(new Set());
-    } catch { /* store handles toast */ } finally {
-      setCancelSaving(false);
-    }
-  };
-
-  // ── 재청구 핸들러 ─────────────────────────────────────
-  const openRebill = async () => {
-    const cancelledIds = selectedCancelledBills.map((b) => b.id);
-    if (cancelledIds.length === 0) { toast('취소됨 상태의 청구서를 선택하세요.', 'error'); return; }
-    setRebillLoading(true);
+  const openCancel = (b: Bill) => { setCancelTarget(b); setCancelOpen(true); };
+  const openRebill = (cancelledIds: string[]) => {
+    if (cancelledIds.length === 0) { return; }
+    setRebillCancelledIds(cancelledIds);
     setRebillOpen(true);
-    try {
-      const previews = await previewRebill(cancelledIds);
-      const today25 = (() => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-25`;
-      })();
-      setRebillItems(previews.map((p) => ({
-        ...p,
-        amount: p.calculatedAmount,
-        dueDate: today25,
-      })));
-    } catch { setRebillOpen(false); } finally {
-      setRebillLoading(false);
-    }
   };
-  const handleRebill = async () => {
-    const items = rebillItems.map((r) => ({ billId: r.billId, amount: r.amount, dueDate: r.dueDate }));
-    if (items.some((i) => !i.amount || i.amount <= 0)) { toast('모든 재청구 금액을 입력해주세요.', 'error'); return; }
-    setRebillSaving(true);
-    try {
-      await rebill(items, rebillSendNotif);
-      setRebillOpen(false);
-      setSelectedBillIds(new Set());
-      await fetchBills(filterMonths, { q: debouncedSearch || undefined });
-    } catch { /* store handles toast */ } finally {
-      setRebillSaving(false);
-    }
+  const openBillingNotif = (targets: BillingNotifTarget[], monthLabel: string) => {
+    setBillingNotifTargets(targets);
+    setBillingNotifMonthLabel(monthLabel);
+    setBillingNotifOpen(true);
   };
-
-  const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
-
-  // 청구서 발송 모달 - 선택된 학생별 청구 목록
-  const billingNotifTargets = useMemo(() => {
-    const selectedBills = filtered.filter((b) => selectedBillIds.has(b.id));
-    const studentMap = new Map<string, { studentId: string; studentName: string; bills: Bill[]; total: number }>();
-    selectedBills.forEach((b) => {
-      const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
-      const due = effectiveAmt - b.paidAmount;
-      if (!studentMap.has(b.studentId)) {
-        studentMap.set(b.studentId, { studentId: b.studentId, studentName: b.studentName, bills: [], total: 0 });
-      }
-      const entry = studentMap.get(b.studentId)!;
-      entry.bills.push(b);
-      entry.total += due;
-    });
-    return Array.from(studentMap.values());
-  }, [filtered, selectedBillIds]);
+  const openDetail = (studentId: string) => {
+    setDetailStudentId(studentId);
+    setDetailOpen(true);
+  };
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -546,702 +128,85 @@ export default function BillingPage() {
 
         {/* ── 청구 및 수납 탭 ── */}
         {financeTab === 'billing' && (
-          <>
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                { label: '청구 총액', value: `${(totalBilled / 10000).toFixed(0)}만원`, color: '#111827' },
-                { label: '수납 완료', value: `${(totalPaid / 10000).toFixed(0)}만원`, color: '#0D9E7A' },
-                { label: '미납 잔액', value: `${(totalUnpaid / 10000).toFixed(0)}만원`, color: '#991B1B' },
-                { label: '수납률', value: `${rate}%`, color: '#4fc3a1' },
-              ].map((kpi) => (
-                <div key={kpi.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
-                  <div className="text-[22px] font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
-                  <div className="text-[11.5px] text-[#6b7280] mt-1">{kpi.label}</div>
-                </div>
-              ))}
-            </div>
-            <div className="bg-white rounded-[10px] border border-[#e2e8f0]">
-              <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-3 flex-wrap">
-                <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" className="w-40" />
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as BillStatus | 'all')} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer">
-                  <option value="all">전체 상태</option>
-                  <option value={BillStatus.PAID}>완납</option>
-                  <option value={BillStatus.UNPAID}>미납</option>
-                  <option value={BillStatus.PARTIAL}>부분납</option>
-                  <option value={BillStatus.CANCELLED}>취소됨</option>
-                </select>
-                <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer">
-                  <option value="all">전체 반</option>
-                  {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <div className="relative" ref={monthDropRef}>
-                  <button type="button" onClick={() => setMonthDropOpen((v) => !v)} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 flex items-center gap-1.5 focus:outline-none cursor-pointer hover:bg-[#f9fafb] bg-white whitespace-nowrap">
-                    <span>{monthLabel}</span><ChevronDown size={12} className={clsx('text-[#6b7280] transition-transform', monthDropOpen && 'rotate-180')} />
-                  </button>
-                  {monthDropOpen && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setFilterMonths([])}>
-                        <Check size={12} className={clsx(filterMonths.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
-                      </div>
-                      <div className="border-t border-[#f1f5f9] my-1" />
-                      {availableMonths.map((m) => (
-                        <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => toggleMonth(m)}>
-                          <Check size={12} className={clsx(filterMonths.includes(m) ? 'text-[#4fc3a1]' : 'invisible')} />{formatMonth(m)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[12px] text-[#6b7280] ml-auto">{filtered.length}건</span>
-                {selectedBillIds.size > 0 && (
-                  <span className="text-[12px] text-[#4fc3a1] font-medium">{selectedBillIds.size}개 선택됨</span>
-                )}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    if (selectedBillIds.size === 0) { toast('학생을 선택하세요.', 'error'); return; }
-                    setBillingNotifOpen(true);
-                  }}
-                >
-                  <Send size={13} /> 청구서 발송
-                </Button>
-                {selectedCancelledBills.length > 0 && (
-                  <Button
-                    variant="dark"
-                    size="sm"
-                    onClick={openRebill}
-                  >
-                    <RotateCcw size={13} /> 재청구 ({selectedCancelledBills.length}건)
-                  </Button>
-                )}
-              </div>
-              <table className="w-full text-[12.5px]">
-                <thead>
-                  <tr className="bg-[#f4f6f8]">
-                    <th className="px-3 py-2.5 text-center w-9">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        ref={(el) => { if (el) el.indeterminate = isSomeSelected; }}
-                        onChange={toggleAll}
-                        className="w-3.5 h-3.5 cursor-pointer accent-[#4fc3a1]"
-                        title="전체 선택"
-                      />
-                    </th>
-                    {[
-                      { label: '학생', cls: 'text-left w-20' },
-                      { label: '반', cls: 'text-left w-36' },
-                      { label: '결제 단위', cls: 'text-center w-20' },
-                      { label: '청구액', cls: 'text-right w-32' },
-                      { label: '메모', cls: 'text-left w-28' },
-                      { label: '납부액', cls: 'text-right w-24' },
-                      { label: '납부기한', cls: 'text-center w-24' },
-                      { label: '발송', cls: 'text-center w-16' },
-                      { label: '상태', cls: 'text-center w-16' },
-                      { label: '납부방법', cls: 'text-center w-20' },
-                      { label: '', cls: 'w-14' },
-                    ].map((h) => (
-                      <th key={h.label} className={clsx('px-2 py-2.5 text-[#6b7280] font-medium', h.cls)}>{h.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f5f9]">
-                  {filtered.map((b) => {
-                    const st = STATUS_STYLE[b.status];
-                    const adj = b.adjustAmount ?? 0;
-                    const isSelected = selectedBillIds.has(b.id);
-                    return (
-                      <tr key={b.id} className={clsx('hover:bg-[#f9fafb]', isSelected && 'bg-[#f0fdf8]', b.status === BillStatus.CANCELLED && 'opacity-60')}>
-                        <td className="px-3 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleBill(b.id)}
-                            className="w-3.5 h-3.5 cursor-pointer accent-[#4fc3a1]"
-                          />
-                        </td>
-                        <td className="px-2 py-3 font-medium text-[#111827]">{b.studentName}</td>
-                        <td className="px-2 py-3 text-[#374151] truncate max-w-[144px]">{b.className}</td>
-                        <td className="px-2 py-3 text-center">
-                          {b.feeType === 'per-lesson'
-                            ? <span className="px-2 py-0.5 rounded-[6px] text-[11px] font-medium bg-[#EDE9FE] text-[#5B21B6]">수업단위별</span>
-                            : b.feeType === 'weekly'
-                            ? <span className="px-2 py-0.5 rounded-[6px] text-[11px] font-medium bg-[#DBEAFE] text-[#1d4ed8]">주별</span>
-                            : <span className="px-2 py-0.5 rounded-[6px] text-[11px] font-medium bg-[#F1F5F9] text-[#475569]">월별</span>
-                          }
-                        </td>
-                        <td className="px-2 py-3 text-right text-[#111827]">
-                          <div className="flex items-center justify-end gap-1">
-                            <span>{b.amount.toLocaleString()}원</span>
-                            <button onClick={() => openAdjust(b)} className="text-[#9ca3af] hover:text-[#4fc3a1] transition-colors cursor-pointer" title="조정금액 설정"><Pencil size={11} /></button>
-                          </div>
-                          {adj > 0 && <div className="text-[11px] text-[#991B1B] mt-0.5">차감 -{adj.toLocaleString()}원</div>}
-                          {(b.adjustCount ?? 0) > 0 && (
-                            <button
-                              onClick={() => openAdjustHistory(b)}
-                              className="block ml-auto text-[10.5px] text-[#5B4FBE] hover:underline mt-0.5 cursor-pointer"
-                              title="조정 이력 보기"
-                            >
-                              변경 {b.adjustCount}건
-                            </button>
-                          )}
-                          {b.feeType === 'per-lesson' && b.scheduledCount != null && (
-                            <div className="text-[10.5px] text-[#6b7280] mt-0.5">
-                              배정 {b.scheduledCount}회
-                              {(b.absentCount ?? 0) > 0 && <span className="text-[#991B1B]"> · 결석 -{b.absentCount}회</span>}
-                              {(b.makeupCount ?? 0) > 0 && <span className="text-[#065f46]"> · 보강 +{b.makeupCount}회</span>}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-2 py-3 max-w-[112px]">
-                          <button onClick={() => openAdjust(b)} className="text-left w-full hover:text-[#4fc3a1] transition-colors cursor-pointer" title="메모 수정">
-                            {b.adjustMemo ? (
-                              <span className="text-[12px] text-[#374151]">{b.adjustMemo}</span>
-                            ) : (
-                              <span className="text-[11.5px] text-[#d1d5db] italic">메모 추가...</span>
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-2 py-3 text-right text-[#111827]">{b.paidAmount.toLocaleString()}원</td>
-                        <td className="px-2 py-3 text-center text-[#374151]">{formatKoreanDate(b.dueDate)}</td>
-                        <td className="px-2 py-3 text-center">
-                          {b.notifiedAt
-                            ? <span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium bg-[#D1FAE5] text-[#065f46]" title={`발송: ${formatKoreanDate(b.notifiedAt.slice(0, 10))}`}>발송됨</span>
-                            : <span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium bg-[#F1F5F9] text-[#6b7280]">미발송</span>
-                          }
-                        </td>
-                        <td className="px-2 py-3 text-center"><span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
-                        <td className="px-2 py-3 text-center text-[#6b7280]">{b.method ?? '-'}</td>
-                        <td className="px-2 py-3 text-center">
-                          {b.status !== BillStatus.PAID && b.status !== BillStatus.CANCELLED && (
-                            <Button variant="primary" size="sm" onClick={() => openPay(b)}>수납</Button>
-                          )}
-                          {b.status === BillStatus.PAID && (
-                            <Button variant="danger" size="sm" onClick={() => openCancel(b)}>
-                              <Ban size={11} /> 취소
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <BillingTab
+            search={search}
+            setSearch={setSearch}
+            filterMonths={filterMonths}
+            setFilterMonths={setFilterMonths}
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
+            filterClass={filterClass}
+            setFilterClass={setFilterClass}
+            selectedBillIds={selectedBillIds}
+            setSelectedBillIds={setSelectedBillIds}
+            onOpenPay={openPay}
+            onOpenAdjust={openAdjust}
+            onOpenAdjustHistory={openAdjustHistory}
+            onOpenCancel={openCancel}
+            onOpenRebill={openRebill}
+            onBillingNotif={openBillingNotif}
+          />
         )}
 
         {/* ── 수납 내역 탭 ── */}
-        {financeTab === 'payments' && (
-          <>
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                { label: '전체 수납', value: totalAll, color: '#111827' },
-                { label: '카드', value: totalCard, color: '#1d4ed8' },
-                { label: '계좌이체', value: totalTransfer, color: '#065f46' },
-                { label: '현금', value: totalCash, color: '#92400E' },
-              ].map((kpi) => (
-                <div key={kpi.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
-                  <div className="text-[20px] font-bold" style={{ color: kpi.color }}>{(kpi.value / 10000).toFixed(0)}만원</div>
-                  <div className="text-[11.5px] text-[#6b7280] mt-1">{kpi.label}</div>
-                </div>
-              ))}
-            </div>
-            <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-2 flex-wrap">
-                {(['all', 'card', 'transfer', 'cash'] as const).map((mode) => {
-                  const labels = { all: '전체', card: '카드', transfer: '계좌이체', cash: '현금' };
-                  return (
-                    <button key={mode} onClick={() => setPayViewMode(mode)}
-                      className={clsx('px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors cursor-pointer', payViewMode === mode ? 'bg-[#1a2535] text-white' : 'bg-[#f4f6f8] text-[#374151] hover:bg-[#e2e8f0]')}
-                    >{labels[mode]}</button>
-                  );
-                })}
-                <div className="relative ml-auto" ref={payMonthDropRef2}>
-                  <button type="button" onClick={() => setPayMonthDropOpen2((v) => !v)} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 flex items-center gap-1.5 focus:outline-none cursor-pointer hover:bg-[#f9fafb] bg-white whitespace-nowrap">
-                    <span>{payMonthLabel2}</span><ChevronDown size={12} className={clsx('text-[#6b7280] transition-transform', payMonthDropOpen2 && 'rotate-180')} />
-                  </button>
-                  {payMonthDropOpen2 && (
-                    <div className="absolute top-full right-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setPayFilterMonths2([])}>
-                        <Check size={12} className={clsx(payFilterMonths2.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
-                      </div>
-                      <div className="border-t border-[#f1f5f9] my-1" />
-                      {availablePaidMonths.map((m) => (
-                        <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => togglePayMonth(m)}>
-                          <Check size={12} className={clsx(payFilterMonths2.includes(m) ? 'text-[#4fc3a1]' : 'invisible')} />{formatMonth(m)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[12px] text-[#6b7280]">{payFiltered.length}건</span>
-              </div>
-              <div className="divide-y divide-[#f1f5f9]">
-                {dates.map((date) => (
-                  <div key={date}>
-                    <div className="px-4 py-2 bg-[#f9fafb]">
-                      <span className="text-[11.5px] font-semibold text-[#374151]">{formatKoreanDate(date)}</span>
-                      <span className="ml-2 text-[11px] text-[#9ca3af]">{byDate[date].reduce((s, b) => s + b.paidAmount, 0).toLocaleString()}원</span>
-                    </div>
-                    {byDate[date].map((b) => {
-                      const ms = b.method ? (METHOD_STYLE[b.method] ?? { bg: '#f1f5f9', text: '#6b7280' }) : { bg: '#f1f5f9', text: '#6b7280' };
-                      return (
-                        <div key={b.id} className="px-5 py-3 flex items-center justify-between hover:bg-[#f9fafb]">
-                          <div>
-                            <span className="text-[13px] font-medium text-[#111827]">{b.studentName}</span>
-                            <span className="ml-2 text-[12px] text-[#6b7280]">{b.className}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {b.method && <span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: ms.bg, color: ms.text }}>{b.method}</span>}
-                            <span className="text-[13px] font-semibold text-[#111827]">{b.paidAmount.toLocaleString()}원</span>
-                            {b.status === BillStatus.PARTIAL && <span className="text-[11px] text-[#92400E]">(부분납)</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-                {dates.length === 0 && <div className="p-8 text-center text-[13px] text-[#9ca3af]">수납 내역이 없습니다</div>}
-              </div>
-            </div>
-          </>
-        )}
+        {financeTab === 'payments' && <PaymentsTab />}
 
         {/* ── 미납 관리 탭 ── */}
-        {financeTab === 'overdue' && (
-          <>
-            <div className="flex items-center justify-between">
-              <div className="grid grid-cols-3 gap-3 flex-1">
-                {[
-                  { label: '미납 총액', value: `${(totalOverdue / 10000).toFixed(0)}만원`, color: '#991B1B' },
-                  { label: '위험 (2개월+)', value: `${dangerCount}명`, color: '#991B1B' },
-                  { label: '주의 (1개월)', value: `${warningCount}명`, color: '#92400E' },
-                ].map((kpi) => (
-                  <div key={kpi.label} className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 text-center">
-                    <div className="text-[22px] font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
-                    <div className="text-[11.5px] text-[#6b7280] mt-1">{kpi.label}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="ml-3 shrink-0">
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={sendBatchOverdueNotifications}
-                  disabled={overdueNotifSending || overdueBills.length === 0}
-                >
-                  <Send size={13} />
-                  {overdueNotifSending ? '발송 중...' : `미납 알림 일괄 발송 (${[...new Set(overdueBills.map(b => b.studentId))].length}명)`}
-                </Button>
-              </div>
-            </div>
-            <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#e2e8f0]">
-                <span className="text-[12.5px] font-semibold text-[#111827]">미납/부분납 현황</span>
-              </div>
-              {overdueBills.length === 0 ? (
-                <div className="p-10 text-center text-[13px] text-[#9ca3af]">모든 수강료가 수납되었습니다</div>
-              ) : (
-                <table className="w-full text-[12.5px]">
-                  <thead>
-                    <tr className="bg-[#f4f6f8]">
-                      <th className="text-center px-4 py-2.5 text-[#6b7280] font-medium w-20">위험도</th>
-                      <th className="text-left px-4 py-2.5 text-[#6b7280] font-medium">학생</th>
-                      <th className="text-left px-4 py-2.5 text-[#6b7280] font-medium">반</th>
-                      <th className="text-right px-4 py-2.5 text-[#6b7280] font-medium">미납액</th>
-                      <th className="text-center px-4 py-2.5 text-[#6b7280] font-medium">납부기한</th>
-                      <th className="text-left px-4 py-2.5 text-[#6b7280] font-medium">메모</th>
-                      <th className="px-4 py-2.5 text-[#6b7280] font-medium text-center">조치</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f1f5f9]">
-                    {overdueBills.map((b) => {
-                      const rs = RISK_STYLE[b.risk] ?? RISK_STYLE['경고'];
-                      const overAmount = b.amount - b.paidAmount;
-                      return (
-                        <tr key={b.id} className="hover:bg-[#f9fafb]" style={{ borderLeft: `3px solid ${rs.border}` }}>
-                          <td className="px-4 py-3 text-center">
-                            <span className="px-2.5 py-1 rounded-[20px] text-[11px] font-semibold" style={{ backgroundColor: rs.bg, color: rs.text }}>{b.risk}</span>
-                          </td>
-                          <td className="px-4 py-3 font-medium text-[#111827]">{b.studentName}</td>
-                          <td className="px-4 py-3 text-[#374151]">{b.className}</td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="font-semibold text-[#991B1B]">{overAmount.toLocaleString()}원</span>
-                              <button onClick={() => { setDetailStudentId(b.studentId); setDetailOpen(true); }} className="text-[11px] text-[#6b7280] border border-[#e2e8f0] rounded-[6px] px-2 py-0.5 hover:bg-[#f9fafb] whitespace-nowrap cursor-pointer">상세 이력</button>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center text-[#374151]">{formatKoreanDate(b.dueDate)}</td>
-                          <td className="px-4 py-3 text-[#6b7280]">{b.memo || '-'}</td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => sendOverdueNotification(b.studentId, b.studentName)}
-                              >
-                                <Send size={11} /> 알림
-                              </Button>
-                              <Button variant="default" size="sm" onClick={() => toast(`${b.studentName} 학부모에게 연락을 시도합니다.`, 'info')}>
-                                <Phone size={11} /> 연락
-                              </Button>
-                              <Button variant="primary" size="sm" onClick={() => payBill(b.id, overAmount, '카드', today)}>수납</Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
+        {financeTab === 'overdue' && <OverdueTab onOpenDetail={openDetail} />}
 
       </div>}
 
       {/* ── 수납 처리 모달 ── */}
-      <Modal open={payOpen} onClose={() => setPayOpen(false)} title="수납 처리" size="sm"
-        footer={<><Button variant="default" size="md" onClick={() => setPayOpen(false)}>취소</Button><Button variant="dark" size="md" onClick={handlePay}>수납 완료</Button></>}
-      >
-        {payTarget && (
-          <div className="space-y-3">
-            <div className="p-3 bg-[#f4f6f8] rounded-[8px] text-[12.5px]">
-              <div className="font-semibold text-[#111827]">{payTarget.studentName}</div>
-              <div className="text-[#6b7280]">{payTarget.className} · 청구 {payTarget.amount.toLocaleString()}원</div>
-              {(payTarget.adjustAmount ?? 0) > 0 && <div className="text-[#991B1B] text-[11.5px]">차감 -{(payTarget.adjustAmount ?? 0).toLocaleString()}원{payTarget.adjustMemo && <span className="ml-1 text-[#6b7280]">({payTarget.adjustMemo})</span>}</div>}
-              <div className="text-[#991B1B] font-medium">잔여 {(payTarget.amount - (payTarget.adjustAmount ?? 0) - payTarget.paidAmount).toLocaleString()}원</div>
-            </div>
-            <div><label className="text-[11.5px] text-[#6b7280] block mb-1">수납 금액 *</label><input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className={fieldClass} /></div>
-            <div><label className="text-[11.5px] text-[#6b7280] block mb-1">납부 방법</label><select value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentMethod)} className={fieldClass}><option value="카드">카드</option><option value="계좌이체">계좌이체</option><option value="현금">현금</option></select></div>
-            <div><label className="text-[11.5px] text-[#6b7280] block mb-1">납부일</label><input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className={fieldClass} /></div>
-          </div>
-        )}
-      </Modal>
+      {payOpen && (
+        <PayModal open={payOpen} onClose={() => setPayOpen(false)} target={payTarget} />
+      )}
 
       {/* ── 청구액 조정 모달 ── */}
-      <Modal open={adjustOpen} onClose={() => setAdjustOpen(false)} title="청구액 조정" size="sm"
-        footer={<><Button variant="default" size="md" onClick={() => setAdjustOpen(false)}>취소</Button><Button variant="dark" size="md" onClick={handleAdjust} disabled={adjustSaving}>{adjustSaving ? '저장 중...' : '저장'}</Button></>}
-      >
-        {adjustTarget && (
-          <div className="space-y-3">
-            <div className="p-3 bg-[#f4f6f8] rounded-[8px] text-[12.5px]"><div className="font-semibold text-[#111827]">{adjustTarget.studentName}</div><div className="text-[#6b7280]">{adjustTarget.className} · 청구액 {adjustTarget.amount.toLocaleString()}원</div></div>
-            <div>
-              <label className="text-[11.5px] text-[#6b7280] block mb-1">차감 금액</label>
-              <input type="number" placeholder="0" value={adjustAmt} onChange={(e) => setAdjustAmt(e.target.value)} className={fieldClass} />
-              <div className="text-[11px] text-[#9ca3af] mt-1">실납부액: {(adjustTarget.amount - Number(adjustAmt || 0)).toLocaleString()}원</div>
-            </div>
-            <div><label className="text-[11.5px] text-[#6b7280] block mb-1">조정 사유</label><input type="text" placeholder="예) 3/15 수업 결석으로 인한 차감" value={adjustMemoVal} onChange={(e) => setAdjustMemoVal(e.target.value)} className={fieldClass} /></div>
-          </div>
-        )}
-      </Modal>
+      {adjustOpen && (
+        <AdjustModal open={adjustOpen} onClose={() => setAdjustOpen(false)} target={adjustTarget} />
+      )}
 
       {/* ── 청구액 조정 이력 모달 ── */}
-      <Modal open={adjustHistOpen} onClose={() => setAdjustHistOpen(false)} title={`${adjustHistStudent?.name ?? ''} 청구액 조정 이력`} size="md"
-        footer={<Button variant="default" size="md" onClick={() => setAdjustHistOpen(false)}>닫기</Button>}
-      >
-        {adjustHistLoading ? (
-          <div className="text-center text-[13px] text-[#9ca3af] py-6">불러오는 중...</div>
-        ) : adjustHistRows.length === 0 ? (
-          <div className="text-center text-[13px] text-[#9ca3af] py-6">조정 이력이 없습니다.</div>
-        ) : (
-          <table className="w-full text-[12.5px]">
-            <thead>
-              <tr className="bg-[#f4f6f8]">
-                {['일시', '청구 월 · 반', '차감액', '사유', '처리자'].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left text-[#6b7280] font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#f1f5f9]">
-              {adjustHistRows.map((a) => (
-                <tr key={a.id} className="hover:bg-[#f9fafb]">
-                  <td className="px-3 py-2.5 text-[#374151] whitespace-nowrap">{new Date(a.createdAt).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="px-3 py-2.5 text-[#374151]">{formatMonth(a.month)} · {a.className}</td>
-                  <td className="px-3 py-2.5 text-right text-[#991B1B]">-{a.amount.toLocaleString()}원</td>
-                  <td className="px-3 py-2.5 text-[#374151]">{a.memo || <span className="text-[#9ca3af]">-</span>}</td>
-                  <td className="px-3 py-2.5 text-[#6b7280]">{a.createdByName || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Modal>
+      {adjustHistOpen && (
+        <AdjustHistoryModal open={adjustHistOpen} onClose={() => setAdjustHistOpen(false)} student={adjustHistStudent} />
+      )}
 
       {/* ── 수강료 납부 이력 모달 (미납 탭) ── */}
-      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title={`${detailStudentName} 수강료 납부 이력`} size="md"
-        footer={<Button variant="default" size="md" onClick={() => setDetailOpen(false)}>닫기</Button>}
-      >
-        <div className="space-y-1">
-          {detailBills.length === 0 ? (
-            <div className="text-center text-[13px] text-[#9ca3af] py-6">이력이 없습니다.</div>
-          ) : (
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="bg-[#f4f6f8]">
-                  {['청구 월', '반', '청구액', '납부액', '미납액', '상태'].map((h) => <th key={h} className="px-3 py-2 text-left text-[#6b7280] font-medium">{h}</th>)}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f1f5f9]">
-                {detailBills.map((b) => {
-                  const st = STATUS_STYLE[b.status];
-                  const unpaid = b.amount - b.paidAmount;
-                  return (
-                    <tr key={b.id} className="hover:bg-[#f9fafb]">
-                      <td className="px-3 py-2.5 text-[#374151]">{formatMonth(b.month)}</td>
-                      <td className="px-3 py-2.5 text-[#374151]">{b.className}</td>
-                      <td className="px-3 py-2.5 text-right text-[#111827]">{b.amount.toLocaleString()}원{(b.adjustAmount ?? 0) > 0 && <div className="text-[11px] text-[#991B1B]">-{(b.adjustAmount ?? 0).toLocaleString()}원 차감</div>}</td>
-                      <td className="px-3 py-2.5 text-right text-[#111827]">{b.paidAmount.toLocaleString()}원</td>
-                      <td className="px-3 py-2.5 text-right font-medium" style={{ color: unpaid > 0 ? '#991B1B' : '#065f46' }}>{unpaid > 0 ? `${unpaid.toLocaleString()}원` : '-'}</td>
-                      <td className="px-3 py-2.5 text-center"><span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-[#f4f6f8] font-semibold">
-                  <td className="px-3 py-2 text-[#374151]" colSpan={2}>합계</td>
-                  <td className="px-3 py-2 text-right text-[#111827]">{detailBills.reduce((s, b) => s + b.amount, 0).toLocaleString()}원</td>
-                  <td className="px-3 py-2 text-right text-[#0D9E7A]">{detailBills.reduce((s, b) => s + b.paidAmount, 0).toLocaleString()}원</td>
-                  <td className="px-3 py-2 text-right text-[#991B1B]">{detailBills.reduce((s, b) => s + (b.amount - b.paidAmount), 0).toLocaleString()}원</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          )}
-        </div>
-      </Modal>
+      <PaymentHistoryModal open={detailOpen} onClose={() => setDetailOpen(false)} studentId={detailStudentId} />
 
       {/* ── 청구서 발송 확인 모달 ── */}
-      <Modal
+      <BillingNotifModal
         open={billingNotifOpen}
         onClose={() => setBillingNotifOpen(false)}
-        title="청구서 발송"
-        size="md"
-        footer={
-          <>
-            <Button variant="default" size="md" onClick={() => setBillingNotifOpen(false)}>취소</Button>
-            <Button variant="dark" size="md" onClick={handleSendBillingNotif} disabled={billingNotifSending}>
-              <Send size={13} /> {billingNotifSending ? '발송 중...' : `${billingNotifTargets.length}명에게 발송`}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div className="p-3.5 bg-[#E1F5EE] border border-[#a7f3d0] rounded-[8px] text-[12.5px] text-[#065f46]">
-            선택된 <strong>{billingNotifTargets.length}명</strong>에게 반별 청구액이 담긴 수납 알림을 각각 발송합니다.
-            여러 반을 수강 중인 학생은 1개의 알림에 반별 금액과 총 합계가 포함됩니다.
-          </div>
-
-          <div>
-            <div className="text-[11.5px] font-semibold text-[#374151] mb-2">발송 대상 ({billingNotifTargets.length}명)</div>
-            <div className="border border-[#e2e8f0] rounded-[8px] overflow-hidden max-h-52 overflow-y-auto">
-              <table className="w-full text-[12px]">
-                <thead>
-                  <tr className="bg-[#f4f6f8]">
-                    <th className="text-left px-3 py-2 text-[#6b7280] font-medium">학생</th>
-                    <th className="text-left px-3 py-2 text-[#6b7280] font-medium">수강 반</th>
-                    <th className="text-right px-3 py-2 text-[#6b7280] font-medium">청구 총액</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f5f9]">
-                  {billingNotifTargets.map((t) => (
-                    <tr key={t.studentId}>
-                      <td className="px-3 py-2 text-[#111827] font-medium">{t.studentName}</td>
-                      <td className="px-3 py-2 text-[#6b7280]">{t.bills.map(b => b.className).join(', ')}</td>
-                      <td className="px-3 py-2 text-right text-[#0D9E7A] font-semibold">{t.total.toLocaleString()}원</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11.5px] font-semibold text-[#374151] mb-2">알림 내용 미리보기 (첫 번째 학생 기준)</div>
-            <div className="p-3.5 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#374151] leading-relaxed whitespace-pre-line border border-[#e2e8f0]">
-              {billingNotifTargets.length > 0
-                ? generateBillingContent(academyName, billingNotifTargets[0].studentName, billingNotifTargets[0].bills, monthLabel)
-                : ''}
-            </div>
-            <div className="mt-2 flex">
-              <div className="px-4 py-2 rounded-[8px] text-[12px] font-semibold text-white cursor-default" style={{ backgroundColor: '#4fc3a1' }}>
-                결제하기 (앱에서 활성화)
-              </div>
-            </div>
-          </div>
-        </div>
-      </Modal>
+        targets={billingNotifTargets}
+        monthLabel={billingNotifMonthLabel}
+        onSent={clearSelection}
+      />
 
       {/* ── 청구 생성 모달 ── */}
-      <Modal
-        open={generateOpen}
-        onClose={() => setGenerateOpen(false)}
-        title="청구 생성"
-        size="sm"
-        footer={
-          <>
-            <Button variant="default" size="md" onClick={() => setGenerateOpen(false)}>취소</Button>
-            <Button variant="dark" size="md" onClick={handleGenerateBills} disabled={generateSaving}>
-              {generateSaving ? '생성 중...' : '생성'}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div className="text-[13px] text-[#374151]">
-            <strong>{generateMonth.replace('-', '년 ').replace(/(\d{2})$/, (m) => `${parseInt(m)}월`)}</strong> 청구서를 생성하시겠습니까?
-          </div>
-          <div>
-            <label className="text-[11.5px] text-[#6b7280] block mb-1">청구 월</label>
-            <input
-              type="month"
-              value={generateMonth}
-              onChange={(e) => setGenerateMonth(e.target.value)}
-              className={fieldClass}
-            />
-          </div>
-          <div className="p-3 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#6b7280] space-y-1">
-            <div>• 활성 수강생 전체를 대상으로 청구서를 일괄 생성합니다.</div>
-            <div>• 금액은 시간표 기준으로 산정됩니다 (초기 청구). 출결 반영은 재청구 흐름을 사용하세요.</div>
-            <div>• 납부기한은 해당 월 25일로 자동 설정됩니다.</div>
-          </div>
-        </div>
-      </Modal>
+      <GenerateModal open={generateOpen} onClose={() => setGenerateOpen(false)} refetchBills={refetchBills} />
 
       {/* ── 청구서 취소 확인 모달 ── */}
-      <Modal
-        open={cancelOpen}
-        onClose={() => setCancelOpen(false)}
-        title="청구서 취소"
-        size="sm"
-        footer={
-          <>
-            <Button variant="default" size="md" onClick={() => setCancelOpen(false)}>닫기</Button>
-            <Button variant="danger" size="md" onClick={handleCancel} disabled={cancelSaving}>
-              {cancelSaving ? '취소 처리 중...' : '취소 확정'}
-            </Button>
-          </>
-        }
-      >
-        {cancelTarget && (
-          <div className="space-y-3">
-            <div className="p-3 bg-[#FEE2E2] border border-[#FECACA] rounded-[8px] text-[12.5px]">
-              <div className="font-semibold text-[#991B1B]">{cancelTarget.studentName} — {cancelTarget.className}</div>
-              <div className="text-[#991B1B] mt-0.5">{cancelTarget.month} 청구액 {cancelTarget.amount.toLocaleString()}원</div>
-              {cancelTarget.paymentOrderId && (
-                <div className="text-[11.5px] text-[#991B1B] mt-1">
-                  ⚠️ 토스 결제 건입니다. 동일 주문의 청구서가 모두 함께 취소됩니다.
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="text-[11.5px] text-[#6b7280] block mb-1">취소 사유</label>
-              <input
-                type="text"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                className={fieldClass}
-                placeholder="취소 사유를 입력하세요"
-              />
-            </div>
-            <div className="text-[11.5px] text-[#6b7280]">
-              취소된 청구서는 &apos;취소됨&apos; 상태로 보존됩니다. 재청구가 필요하면 취소됨 상태 청구서를 선택 후 재청구 버튼을 눌러주세요.
-            </div>
-          </div>
-        )}
-      </Modal>
+      {cancelOpen && (
+        <CancelModal
+          open={cancelOpen}
+          onClose={() => setCancelOpen(false)}
+          target={cancelTarget}
+          refetchBills={refetchBills}
+          clearSelection={clearSelection}
+        />
+      )}
 
       {/* ── 재청구 모달 ── */}
-      <Modal
-        open={rebillOpen}
-        onClose={() => { if (!rebillSaving) setRebillOpen(false); }}
-        title="재청구"
-        size="lg"
-        footer={
-          <>
-            <Button variant="default" size="md" onClick={() => setRebillOpen(false)} disabled={rebillSaving}>취소</Button>
-            <Button variant="dark" size="md" onClick={handleRebill} disabled={rebillSaving || rebillLoading}>
-              {rebillSaving ? '생성 중...' : `재청구 ${rebillItems.length}건 생성`}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {rebillLoading ? (
-            <div className="flex items-center justify-center py-10 gap-2 text-[13px] text-[#6b7280]">
-              <Loader2 size={16} className="animate-spin" /> 출결 기반 금액 계산 중...
-            </div>
-          ) : (
-            <>
-              <div className="p-3.5 bg-[#EDE9FE] border border-[#c4b5fd] rounded-[8px] text-[12.5px] text-[#5B21B6]">
-                실출결 기준으로 자동 계산된 금액이 입력되어 있습니다. 원장님이 직접 수정 후 생성하세요.
-                재청구 알림은 학부모 앱에 <strong>&ldquo;해당 월 결제 취소 후 재청구&rdquo;</strong> 문구로 발송됩니다.
-              </div>
-              <table className="w-full text-[12.5px]">
-                <thead>
-                  <tr className="bg-[#f4f6f8]">
-                    <th className="text-left px-3 py-2 text-[#6b7280] font-medium">학생</th>
-                    <th className="text-left px-3 py-2 text-[#6b7280] font-medium">반</th>
-                    <th className="text-center px-3 py-2 text-[#6b7280] font-medium">청구 월</th>
-                    <th className="text-right px-3 py-2 text-[#6b7280] font-medium">자동계산액</th>
-                    <th className="text-right px-3 py-2 text-[#6b7280] font-medium">최종 청구액</th>
-                    <th className="text-center px-3 py-2 text-[#6b7280] font-medium">납부기한</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f5f9]">
-                  {rebillItems.map((r, i) => (
-                    <tr key={r.billId}>
-                      <td className="px-3 py-2.5 text-[#111827] font-medium">{r.studentName}</td>
-                      <td className="px-3 py-2.5 text-[#374151]">{r.className}</td>
-                      <td className="px-3 py-2.5 text-center text-[#374151]">
-                        {`${r.month.slice(0, 4)}년 ${parseInt(r.month.slice(5, 7))}월`}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-[#6b7280]">{r.calculatedAmount.toLocaleString()}원</td>
-                      <td className="px-3 py-2.5 text-right">
-                        <input
-                          type="number"
-                          value={r.amount}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            setRebillItems((prev) => prev.map((x, j) => j === i ? { ...x, amount: v } : x));
-                          }}
-                          className="w-28 text-right text-[12.5px] border border-[#e2e8f0] rounded-[6px] px-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
-                        />
-                      </td>
-                      <td className="px-3 py-2.5 text-center">
-                        <input
-                          type="date"
-                          value={r.dueDate}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setRebillItems((prev) => prev.map((x, j) => j === i ? { ...x, dueDate: v } : x));
-                          }}
-                          className="text-[12px] border border-[#e2e8f0] rounded-[6px] px-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="rebillNotif"
-                  checked={rebillSendNotif}
-                  onChange={(e) => setRebillSendNotif(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-[#4fc3a1] cursor-pointer"
-                />
-                <label htmlFor="rebillNotif" className="text-[12.5px] text-[#374151] cursor-pointer">
-                  재청구 생성 후 학부모 알림 발송
-                </label>
-              </div>
-            </>
-          )}
-        </div>
-      </Modal>
+      {rebillOpen && (
+        <RebillModal
+          open={rebillOpen}
+          onClose={() => setRebillOpen(false)}
+          cancelledIds={rebillCancelledIds}
+          refetchBills={refetchBills}
+          clearSelection={clearSelection}
+        />
+      )}
     </div>
   );
 }
