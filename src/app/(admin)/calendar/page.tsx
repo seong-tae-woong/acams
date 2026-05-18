@@ -8,7 +8,7 @@ import type { CalendarEvent, CalendarEventType } from '@/lib/types/calendar';
 import { ChevronLeft, ChevronRight, Plus, Pencil } from 'lucide-react';
 import clsx from 'clsx';
 
-const DAYS_OF_WEEK = ['월', '화', '수', '목', '금', '토', '일'];
+const DAYS_OF_WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 
 const TYPE_COLOR: Record<CalendarEventType, string> = {
   '학원일정': '#4fc3a1',
@@ -24,8 +24,7 @@ function daysInMonth(year: number, month: number) {
 }
 
 function firstDayOfMonth(year: number, month: number) {
-  const d = new Date(year, month, 1).getDay();
-  return d === 0 ? 6 : d - 1;
+  return new Date(year, month, 1).getDay();
 }
 
 function todayStr() {
@@ -149,7 +148,7 @@ export default function CalendarPage() {
                 const evs = isValid ? eventsForDate(dateStr) : [];
                 const isToday = dateStr === today;
                 const isSelected = dateStr === selectedDate;
-                const isWeekend = i % 7 >= 5;
+                const isWeekend = i % 7 === 0 || i % 7 === 6;
 
                 return (
                   <div

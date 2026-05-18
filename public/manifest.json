@@ -34,11 +34,6 @@
       "name": "공지사항",
       "url": "/mobile/announcements",
       "description": "학원 공지 확인"
-    },
-    {
-      "name": "학원 일정",
-      "url": "/mobile/calendar",
-      "description": "이번 달 일정 확인"
     }
   ]
 }

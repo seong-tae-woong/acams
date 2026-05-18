@@ -43,11 +43,13 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
 
   // ── 캘린더 ────────────────────────────────────────────
   const today = new Date();
+  const todayStr = toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-based
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const prevMonth = () => { if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); } else setCalMonth((m) => m - 1); };
-  const nextMonth = () => { if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); } else setCalMonth((m) => m + 1); };
+  const prevMonth = () => { setSelectedDate(null); if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); } else setCalMonth((m) => m - 1); };
+  const nextMonth = () => { setSelectedDate(null); if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); } else setCalMonth((m) => m + 1); };
 
   const getClassesForDate = (dateStr: string) => {
     const d = new Date(dateStr + 'T00:00:00');
@@ -58,6 +60,22 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
     const merged = new Map<string, (typeof classes)[0]>();
     [...recurring, ...oneTime].forEach((c) => merged.set(c.id, c));
     return [...merged.values()];
+  };
+
+  const getScheduleItemsForDate = (dateStr: string) => {
+    const jsDay = new Date(dateStr + 'T00:00:00').getDay();
+    const dow: DayOfWeek = jsDay === 0 ? 7 : (jsDay as DayOfWeek);
+    const items: { key: string; cls: ClassInfo; startTime: string; endTime: string; recurring: boolean }[] = [];
+    classes.forEach((c) => {
+      c.schedule.filter((s) => s.dayOfWeek === dow).forEach((s, i) => {
+        items.push({ key: `r-${c.id}-${i}`, cls: c, startTime: s.startTime, endTime: s.endTime, recurring: true });
+      });
+    });
+    classEvents.filter((e) => e.date === dateStr).forEach((e) => {
+      const cls = classes.find((c) => c.id === e.classId);
+      if (cls) items.push({ key: `e-${e.id}`, cls, startTime: e.startTime, endTime: e.endTime, recurring: false });
+    });
+    return items.sort((a, b) => a.startTime.localeCompare(b.startTime));
   };
 
   const calDates = useMemo(() => {
@@ -74,7 +92,7 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
   const [scheduleForm, setScheduleForm] = useState({ date: '', classId: '', startTime: '16:00', endTime: '17:00', mode: 'once' as 'once' | 'weekly' });
 
   const openScheduleModal = (dateStr?: string) => {
-    setScheduleForm({ date: dateStr ?? '', classId: selected?.id ?? (classes[0]?.id ?? ''), startTime: '16:00', endTime: '17:00', mode: 'once' });
+    setScheduleForm({ date: dateStr ?? todayStr, classId: selected?.id ?? (classes[0]?.id ?? ''), startTime: '16:00', endTime: '17:00', mode: 'once' });
     setScheduleOpen(true);
   };
 
@@ -112,54 +130,88 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
 
   return (
     <>
-      {/* 월별 캘린더 */}
-      <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-1 hover:bg-[#f4f6f8] rounded cursor-pointer"><ChevronLeft size={15} /></button>
-            <span className="text-[13px] font-semibold text-[#111827] w-24 text-center">{calYear}년 {calMonth + 1}월</span>
-            <button onClick={nextMonth} className="p-1 hover:bg-[#f4f6f8] rounded cursor-pointer"><ChevronRight size={15} /></button>
+      {/* 월별 캘린더 + 선택 날짜 일정 */}
+      <div className="flex gap-4 items-start">
+        <div className="flex-1 min-w-0 bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button onClick={prevMonth} className="p-1 hover:bg-[#f4f6f8] rounded cursor-pointer"><ChevronLeft size={15} /></button>
+              <span className="text-[13px] font-semibold text-[#111827] w-24 text-center">{calYear}년 {calMonth + 1}월</span>
+              <button onClick={nextMonth} className="p-1 hover:bg-[#f4f6f8] rounded cursor-pointer"><ChevronRight size={15} /></button>
+            </div>
+            <Button variant="default" size="sm" onClick={() => openScheduleModal(selectedDate ?? undefined)}><Plus size={12} /> 일정 추가</Button>
           </div>
-          <Button variant="default" size="sm" onClick={() => openScheduleModal()}><Plus size={12} /> 일정 추가</Button>
+          <div className="p-4">
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_LABELS.map((label, i) => (
+                <div key={label} className={clsx('text-center text-[11px] font-medium py-1', { 'text-[#ef4444]': i === 0, 'text-[#3b82f6]': i === 6, 'text-[#6b7280]': i !== 0 && i !== 6 })}>{label}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {calDates.map((day, idx) => {
+                if (day === null) return <div key={`empty-${idx}`} className="min-h-[70px]" />;
+                const dateStr = toDateStr(calYear, calMonth, day);
+                const dayClasses = getClassesForDate(dateStr);
+                const isToday = day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+                const isSelected = dateStr === selectedDate;
+                const colIdx = idx % 7;
+                return (
+                  <button key={dateStr} onClick={() => setSelectedDate((prev) => (prev === dateStr ? null : dateStr))}
+                    className={clsx('min-h-[70px] p-1 border rounded-[6px] text-left transition-colors cursor-pointer', isSelected ? 'border-[#4fc3a1] bg-[#f0fdf9]' : 'border-[#f1f5f9] hover:bg-[#f9fafb]')}
+                  >
+                    <div className={clsx('text-[11px] font-medium w-5 h-5 flex items-center justify-center rounded-full mb-1', { 'bg-[#1a2535] text-white': isToday, 'text-[#ef4444]': !isToday && colIdx === 0, 'text-[#3b82f6]': !isToday && colIdx === 6, 'text-[#374151]': !isToday && colIdx !== 0 && colIdx !== 6 })}>{day}</div>
+                    <div className="space-y-0.5">
+                      {dayClasses.map((cls) => (
+                        <div key={cls.id} className="text-[9.5px] px-1 rounded truncate"
+                          style={{ backgroundColor: cls.color, color: cls.id === selected.id ? 'white' : cls.color, opacity: cls.id === selected.id ? 1 : 0.4 }}
+                        >
+                          {cls.id === selected.id ? cls.name.slice(0, 5) : '●'}
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-[#f1f5f9]">
+              {classes.map((cls) => (
+                <div key={cls.id} className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cls.color }} />
+                  <span className={clsx('text-[10.5px]', cls.id === selected.id ? 'font-semibold text-[#111827]' : 'text-[#9ca3af]')}>{cls.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="p-4">
-          <div className="grid grid-cols-7 mb-1">
-            {DAY_LABELS.map((label, i) => (
-              <div key={label} className={clsx('text-center text-[11px] font-medium py-1', { 'text-[#ef4444]': i === 0, 'text-[#3b82f6]': i === 6, 'text-[#6b7280]': i !== 0 && i !== 6 })}>{label}</div>
-            ))}
+
+        {/* 선택한 날짜의 일정 */}
+        <div className="w-60 shrink-0 bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e2e8f0]">
+            <span className="text-[12.5px] font-semibold text-[#111827]">
+              {selectedDate ? `${Number(selectedDate.slice(5, 7))}월 ${Number(selectedDate.slice(8))}일 일정` : '날짜 선택'}
+            </span>
           </div>
-          <div className="grid grid-cols-7 gap-1">
-            {calDates.map((day, idx) => {
-              if (day === null) return <div key={`empty-${idx}`} className="min-h-[70px]" />;
-              const dateStr = toDateStr(calYear, calMonth, day);
-              const dayClasses = getClassesForDate(dateStr);
-              const isToday = day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
-              const colIdx = idx % 7;
+          <div className="p-3">
+            {!selectedDate ? (
+              <div className="text-[11.5px] text-[#9ca3af] text-center py-8">캘린더에서 날짜를<br />선택하세요</div>
+            ) : (() => {
+              const items = getScheduleItemsForDate(selectedDate);
+              if (items.length === 0) return <div className="text-[11.5px] text-[#9ca3af] text-center py-8">일정 없음</div>;
               return (
-                <button key={dateStr} onClick={() => openScheduleModal(dateStr)}
-                  className="min-h-[70px] p-1 border border-[#f1f5f9] rounded-[6px] text-left hover:bg-[#f9fafb] transition-colors cursor-pointer"
-                >
-                  <div className={clsx('text-[11px] font-medium w-5 h-5 flex items-center justify-center rounded-full mb-1', { 'bg-[#1a2535] text-white': isToday, 'text-[#ef4444]': !isToday && colIdx === 0, 'text-[#3b82f6]': !isToday && colIdx === 6, 'text-[#374151]': !isToday && colIdx !== 0 && colIdx !== 6 })}>{day}</div>
-                  <div className="space-y-0.5">
-                    {dayClasses.map((cls) => (
-                      <div key={cls.id} className="text-[9.5px] px-1 rounded truncate"
-                        style={{ backgroundColor: cls.color, color: cls.id === selected.id ? 'white' : cls.color, opacity: cls.id === selected.id ? 1 : 0.4 }}
-                      >
-                        {cls.id === selected.id ? cls.name.slice(0, 5) : '●'}
+                <div className="space-y-2">
+                  {items.map((item) => (
+                    <div key={item.key} className="p-2.5 rounded-[8px] border border-[#e2e8f0]" style={{ borderLeftColor: item.cls.color, borderLeftWidth: 3 }}>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.cls.color }} />
+                        <span className="text-[12px] font-medium text-[#111827] truncate">{item.cls.name}</span>
+                        {!item.recurring && <span className="text-[9px] px-1 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] shrink-0">이 날만</span>}
                       </div>
-                    ))}
-                  </div>
-                </button>
+                      <div className="text-[11px] text-[#6b7280]">{item.startTime} ~ {item.endTime}</div>
+                    </div>
+                  ))}
+                </div>
               );
-            })}
-          </div>
-          <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-[#f1f5f9]">
-            {classes.map((cls) => (
-              <div key={cls.id} className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cls.color }} />
-                <span className={clsx('text-[10.5px]', cls.id === selected.id ? 'font-semibold text-[#111827]' : 'text-[#9ca3af]')}>{cls.name}</span>
-              </div>
-            ))}
+            })()}
           </div>
         </div>
       </div>

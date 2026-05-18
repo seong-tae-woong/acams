@@ -54,8 +54,11 @@ export async function proxy(req: NextRequest) {
   }
 
   const token = req.cookies.get('acams_token')?.value;
+  const isApi = pathname.startsWith('/api/');
 
   if (!token) {
+    // API 요청은 401 JSON으로 응답 — fetch가 로그인 HTML을 받아 깨지는 것 방지
+    if (isApi) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
@@ -64,8 +67,10 @@ export async function proxy(req: NextRequest) {
     const { payload: p } = await jwtVerify(token, SECRET);
     payload = p as typeof payload;
   } catch {
-    // 토큰 만료 또는 무효
-    const res = NextResponse.redirect(new URL('/login', req.url));
+    // 토큰 만료 또는 무효 — 잘못된 쿠키 제거
+    const res = isApi
+      ? NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      : NextResponse.redirect(new URL('/login', req.url));
     res.cookies.delete('acams_token');
     return res;
   }

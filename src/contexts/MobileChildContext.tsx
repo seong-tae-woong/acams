@@ -30,8 +30,13 @@ export function MobileChildProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetch('/api/mobile/children')
-      .then((r) => r.json())
-      .then((data: { role?: string; children?: ChildInfo[] }) => {
+      .then((r) => {
+        // 세션 만료 — 로그인 화면으로 (응답을 못 받아 무한 로딩되는 것 방지)
+        if (r.status === 401) { window.location.href = '/login'; return null; }
+        return r.json();
+      })
+      .then((data: { role?: string; children?: ChildInfo[] } | null) => {
+        if (!data) return;
         if (data.role === 'parent' || data.role === 'student') {
           setRole(data.role);
         }

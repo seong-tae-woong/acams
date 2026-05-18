@@ -23,10 +23,10 @@ type CalendarEventItem = {
 };
 
 const DAY_NAMES: Record<number, string> = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일' };
-const DOW_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+const DOW_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
-function firstDayOfMonth(y: number, m: number) { const d = new Date(y, m, 1).getDay(); return d === 0 ? 6 : d - 1; }
+function firstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay(); }
 
 export default function MobileHomePage() {
   const { role, allChildren, selectedChild, selectedChildId, setSelectedChildId } = useMobileChild();
@@ -203,7 +203,7 @@ export default function MobileHomePage() {
                     const dayEvents = isValid ? eventsFor(dateStr) : [];
                     const isToday = dateStr === todayStr;
                     const isSelected = dateStr === selectedDate;
-                    const isWeekend = i % 7 >= 5;
+                    const isWeekend = i % 7 === 0 || i % 7 === 6;
 
                     return (
                       <div
