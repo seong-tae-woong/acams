@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { LectureStatus } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { resolveDurationSec } from '@/lib/ingang/cloudflareStream';
 
 // GET /api/lectures/[id]
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -36,6 +37,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const body = await req.json();
     const { title, description, teacherId, subjects, levels, targetGrades, etcTags, videoUrl, cfVideoId, duration, orderIndex, status, seriesId, episodeNumber } = body;
 
+    // cfVideoId가 변경되었으면 durationSec 재조회.
+    // - 영상 교체: 새 durationSec로 stamp + LectureWatchProgress의 cfVideoId mismatch로 진도 자동 재시작 처리됨
+    // - cfVideoId 새로 추가: durationSec 채움 시도
+    // - 인코딩 미완료: NULL (backfill에서 재시도)
+    let durationSecPatch: { durationSec?: number | null } = {};
+    if (cfVideoId !== undefined) {
+      const prior = await prisma.lecture.findFirst({ where: { id, academyId }, select: { cfVideoId: true } });
+      if (prior && prior.cfVideoId !== cfVideoId) {
+        durationSecPatch = { durationSec: await resolveDurationSec(cfVideoId) };
+      }
+    }
+
     const updated = await prisma.lecture.updateMany({
       where: { id, academyId },
       data: {
@@ -48,6 +61,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(etcTags !== undefined       ? { etcTags }                                : {}),
         ...(videoUrl !== undefined      ? { videoUrl: videoUrl ?? null }             : {}),
         ...(cfVideoId !== undefined     ? { cfVideoId: cfVideoId ?? null }           : {}),
+        ...durationSecPatch,
         ...(duration !== undefined      ? { duration }                               : {}),
         ...(orderIndex !== undefined    ? { orderIndex }                             : {}),
         ...(status !== undefined        ? { status: status as LectureStatus }        : {}),

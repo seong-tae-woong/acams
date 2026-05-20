@@ -3,12 +3,13 @@ import { useState, useEffect } from 'react';
 import { type Lecture } from '../_shared';
 
 // ─── Tab: 이수 조건 설정 ──────────────────────────────────────
-const COND_DEFAULTS = { passScore: 70, maxTries: 3, examCond: 'after100' as const };
+const COND_DEFAULTS = { passScore: 70, maxTries: 3, examCond: 'after100' as const, passWatchPct: 100 };
 
 export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
   const [passScore, setPassScore] = useState(COND_DEFAULTS.passScore);
   const [maxTries,  setMaxTries]  = useState(COND_DEFAULTS.maxTries);
   const [examCond,  setExamCond]  = useState<'after100' | 'anytime'>(COND_DEFAULTS.examCond);
+  const [passWatchPct, setPassWatchPct] = useState<number>(COND_DEFAULTS.passWatchPct);
 
   const [condLoading, setCondLoading] = useState(false);
   const [saving,      setSaving]      = useState(false);
@@ -28,6 +29,11 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
         setPassScore(d?.passScore ?? COND_DEFAULTS.passScore);
         setMaxTries(d?.maxTries ?? COND_DEFAULTS.maxTries);
         setExamCond(d?.examCond === 'anytime' ? 'anytime' : 'after100');
+        setPassWatchPct(
+          typeof d?.passWatchPct === 'number'
+            ? Math.max(50, Math.min(100, d.passWatchPct))
+            : COND_DEFAULTS.passWatchPct,
+        );
       })
       .catch(() => {})
       .finally(() => { if (alive) setCondLoading(false); });
@@ -38,6 +44,7 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
     setPassScore(COND_DEFAULTS.passScore);
     setMaxTries(COND_DEFAULTS.maxTries);
     setExamCond(COND_DEFAULTS.examCond);
+    setPassWatchPct(COND_DEFAULTS.passWatchPct);
     setSaved(false);
   };
 
@@ -48,7 +55,7 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
       const res = await fetch(`/api/ingang/quizzes/${selectedLec.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passScore, maxTries, examCond }),
+        body: JSON.stringify({ passScore, maxTries, examCond, passWatchPct }),
       });
       if (!res.ok) throw new Error();
       setSaved(true);
@@ -84,13 +91,34 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
               <button key={c} onClick={() => { setExamCond(c); setSaved(false); }}
                 className="text-[12px] px-3 py-1.5 rounded-[8px] border-[1.5px] font-medium"
                 style={examCond === c ? { background: '#EEEDFE', color: '#534AB7', borderColor: '#a78bfa' } : { background: '#fff', color: '#6b7280', borderColor: '#e2e8f0' }}>
-                {c === 'after100' ? '영상 100% 시청 후 응시 가능' : '바로 응시 가능'}
+                {c === 'after100' ? `영상 ${passWatchPct}% 시청 후 응시 가능` : '바로 응시 가능'}
               </button>
             ))}
           </div>
         </div>
+        {examCond === 'after100' && (
+          <div className="flex items-center gap-3 mb-3.5 text-[13px] text-[#374151]">
+            이수 인정 시청률:
+            <input
+              type="number"
+              min={50}
+              max={100}
+              value={passWatchPct}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isFinite(n)) return;
+                setPassWatchPct(Math.max(50, Math.min(100, Math.round(n))));
+                setSaved(false);
+              }}
+              className="w-20 text-[14px] font-semibold text-center px-3 py-2 border-[1.5px] border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] outline-none focus:border-[#a78bfa]"
+            />
+            % 이상 (50~100)
+          </div>
+        )}
         <p className="text-[12px] text-[#9ca3af] bg-[#f9fafb] rounded-[8px] px-3 py-2.5 leading-relaxed">
-          합격 기준 {passScore}점 이상, 최대 {maxTries}회 응시 가능합니다. {maxTries}회 모두 불합격 시 원장/강사의 재응시 허용이 필요합니다.
+          {examCond === 'after100'
+            ? `영상 ${passWatchPct}% 이상 시청 후, 합격 기준 ${passScore}점 이상, 최대 ${maxTries}회 응시 가능. ${maxTries}회 모두 불합격 시 원장/강사의 재응시 허용이 필요합니다.`
+            : `시청률 무관, 합격 기준 ${passScore}점 이상, 최대 ${maxTries}회 응시 가능. ${maxTries}회 모두 불합격 시 원장/강사의 재응시 허용이 필요합니다.`}
         </p>
       </div>
       <div className="flex justify-end gap-2">

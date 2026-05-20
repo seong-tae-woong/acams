@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Delete, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, LogOut, Eye, EyeOff, X } from 'lucide-react';
+import Script from 'next/script';
+import { Delete, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, LogOut, Eye, EyeOff, X, Play } from 'lucide-react';
+import { LectureQuizModal } from '@/components/ingang/LectureQuizModal';
 
 // ────────────────────────────────────────────
 // 타입
@@ -12,10 +14,27 @@ type FullLecture = LectureInfo & { description: string; cfVideoId: string | null
 
 type Phase = 'IDLE' | 'LOOKING_UP' | 'LOOKED_UP' | 'APPROVING' | 'LOADING_LECTURES' | 'PLAYING';
 
+// Cloudflare Stream Player SDK 타입 (https://developers.cloudflare.com/stream/uploading-videos/player-api/)
+type StreamPlayer = {
+  addEventListener: (ev: string, cb: () => void) => void;
+  removeEventListener: (ev: string, cb: () => void) => void;
+  currentTime: number;
+  duration?: number;
+};
+declare global {
+  interface Window {
+    Stream?: (el: HTMLIFrameElement) => StreamPlayer;
+  }
+}
+
+type LectureProgress = { watchedSeconds: number; pct: number; completed: boolean; durationUnknown?: boolean };
+
 // ────────────────────────────────────────────
 // 상수
 // ────────────────────────────────────────────
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;  // LOOKED_UP 상태에서 5분 무동작 → IDLE
+const PROGRESS_FLUSH_MS = 5_000;        // 진도 보고 throttle
+const PROGRESS_QUEUE_MAX = 24;          // 메모리 큐 상한 (2분치)
 const DAY_KO: Record<number, string> = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
 
 function todayLabel() {
@@ -75,6 +94,19 @@ export default function IngangTabletPage() {
   const [lectures, setLectures] = useState<FullLecture[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
 
+  // 인강 시청 진도 (lectureId → progress)
+  const [progressByLec, setProgressByLec] = useState<Record<string, LectureProgress>>({});
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
+
+  // Player + 진도 보고 refs
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const playerRef = useRef<StreamPlayer | null>(null);
+  const queueRef = useRef<Array<{ positionSec: number; ts: number }>>([]);
+  const lastFlushRef = useRef<number>(0);
+  const lastReportedPosRef = useRef<number>(-1);
+  const flushInFlightRef = useRef<boolean>(false);
+
   // 무동작 타임아웃
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -92,6 +124,11 @@ export default function IngangTabletPage() {
     setApproveError('');
     setLectures([]);
     setCurrentIdx(0);
+    setProgressByLec({});
+    setShowQuiz(false);
+    queueRef.current = [];
+    playerRef.current = null;
+    lastReportedPosRef.current = -1;
   }, []);
 
   // LOOKED_UP/APPROVING 상태에서 무동작 5분 → IDLE
@@ -181,6 +218,118 @@ export default function IngangTabletPage() {
   };
 
   const currentLecture = lectures[currentIdx] ?? null;
+
+  // ────────────────────────────────────────────
+  // 진도 보고 (서버에서 권위 있게 delta 계산)
+  // 클라이언트는 currentPositionSec과 보고 시각만 전송. 네트워크 실패 시 큐 보존 후 재전송.
+  // ────────────────────────────────────────────
+  const flushProgress = useCallback(async (lectureId: string, cfVideoId: string, isUnload = false) => {
+    if (!sessionId || !lectureId || !cfVideoId) return;
+    if (flushInFlightRef.current && !isUnload) return;
+    const batch = queueRef.current.slice();
+    if (batch.length === 0) return;
+    flushInFlightRef.current = true;
+    queueRef.current = [];
+    const lastPos = batch[batch.length - 1].positionSec;
+    try {
+      const res = await fetch('/api/ingang-tablet/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, lectureId, cfVideoId, currentPositionSec: lastPos, batch }),
+        keepalive: isUnload,
+      });
+      if (!res.ok) {
+        // 409 = 영상 교체: 큐 버리고 다음 progress가 새 영상으로 진행
+        if (res.status === 409) {
+          queueRef.current = [];
+          return;
+        }
+        throw new Error(`progress ${res.status}`);
+      }
+      const data = await res.json();
+      setProgressByLec((prev) => ({
+        ...prev,
+        [lectureId]: {
+          watchedSeconds: data.watchedSeconds ?? 0,
+          pct: data.pct ?? 0,
+          completed: !!data.completed,
+          durationUnknown: !!data.durationUnknown,
+        },
+      }));
+    } catch {
+      // 큐 복구 + 최대 길이 cap
+      queueRef.current = [...batch, ...queueRef.current].slice(-PROGRESS_QUEUE_MAX);
+    } finally {
+      flushInFlightRef.current = false;
+    }
+  }, [sessionId]);
+
+  // ────────────────────────────────────────────
+  // 강의 변경 시 Stream Player SDK 연결 + timeupdate 리스너
+  // ────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'PLAYING') return;
+    if (!currentLecture?.cfVideoId) return;
+    if (!sdkReady) return;
+    if (!iframeRef.current) return;
+    if (typeof window === 'undefined' || !window.Stream) return;
+
+    const lecId = currentLecture.lectureId;
+    const cfId = currentLecture.cfVideoId;
+    const iframeEl = iframeRef.current;
+
+    let player: StreamPlayer | null = null;
+    try {
+      player = window.Stream(iframeEl);
+      playerRef.current = player;
+    } catch (err) {
+      console.warn('[Stream SDK] init fail', err);
+      return;
+    }
+
+    queueRef.current = [];
+    lastReportedPosRef.current = -1;
+    lastFlushRef.current = Date.now();
+
+    const onTimeUpdate = () => {
+      const p = playerRef.current;
+      if (!p) return;
+      const t = Math.floor(p.currentTime || 0);
+      if (t === lastReportedPosRef.current) return; // 0.25초 단위 폭격 중 중복 제거
+      lastReportedPosRef.current = t;
+      queueRef.current.push({ positionSec: t, ts: Date.now() });
+      if (queueRef.current.length > PROGRESS_QUEUE_MAX) {
+        queueRef.current = queueRef.current.slice(-PROGRESS_QUEUE_MAX);
+      }
+      const now = Date.now();
+      if (now - lastFlushRef.current >= PROGRESS_FLUSH_MS) {
+        lastFlushRef.current = now;
+        void flushProgress(lecId, cfId);
+      }
+    };
+
+    const onEnded = () => {
+      void flushProgress(lecId, cfId);
+    };
+
+    player.addEventListener('timeupdate', onTimeUpdate);
+    player.addEventListener('ended', onEnded);
+
+    const onBeforeUnload = () => {
+      void flushProgress(lecId, cfId, true);
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      try {
+        player?.removeEventListener('timeupdate', onTimeUpdate);
+        player?.removeEventListener('ended', onEnded);
+      } catch {}
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      void flushProgress(lecId, cfId, true);
+      playerRef.current = null;
+    };
+  }, [phase, currentLecture?.lectureId, currentLecture?.cfVideoId, sdkReady, flushProgress]);
 
   // ────────────────────────────────────────────
   // IDLE 화면
@@ -398,9 +547,19 @@ export default function IngangTabletPage() {
     const iframeUrl = currentLecture.cfVideoId
       ? `https://iframe.videodelivery.net/${currentLecture.cfVideoId}`
       : currentLecture.videoUrl ?? '';
+    const lecProgress = progressByLec[currentLecture.lectureId];
+    const pct = lecProgress?.pct ?? 0;
+    const completed = lecProgress?.completed ?? false;
 
     return (
       <div className="min-h-screen flex flex-col bg-[#0f1a2b]">
+        {/* Cloudflare Stream Player SDK — iframe과 별개로 부모 페이지에서도 timeupdate 이벤트 수신 가능 */}
+        <Script
+          src="https://embed.cloudflarestream.com/embed/sdk.latest.js"
+          strategy="afterInteractive"
+          onLoad={() => setSdkReady(true)}
+          onReady={() => setSdkReady(true)}
+        />
         {/* 플레이어 헤더 */}
         <div className="flex items-center gap-4 px-5 py-3 border-b border-white/10 shrink-0">
           <div
@@ -414,6 +573,18 @@ export default function IngangTabletPage() {
             <p className="text-white/40 text-[11px]">{student?.name} · {currentIdx + 1}/{lectures.length}</p>
           </div>
           <button
+            onClick={() => setShowQuiz(true)}
+            className="flex items-center gap-1.5 text-[12px] cursor-pointer transition-colors rounded-[8px] px-3 py-1.5"
+            style={completed
+              ? { background: '#a78bfa', color: 'white', boxShadow: '0 0 0 2px rgba(167,139,250,0.25)' }
+              : { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.15)' }
+            }
+            title={completed ? '완강하셨습니다 — 시험 보기' : '시험 응시 (영상 완강 후 활성화)'}
+          >
+            <CheckCircle size={13} />
+            {completed ? '시험 응시' : '시험'}
+          </button>
+          <button
             onClick={handleEnd}
             className="flex items-center gap-1.5 text-white/40 hover:text-white/70 text-[12px] cursor-pointer transition-colors border border-white/15 rounded-[8px] px-3 py-1.5"
           >
@@ -426,6 +597,7 @@ export default function IngangTabletPage() {
         <div className="flex-1 relative bg-black">
           {iframeUrl ? (
             <iframe
+              ref={iframeRef}
               src={iframeUrl}
               className="w-full h-full absolute inset-0"
               allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
@@ -437,7 +609,34 @@ export default function IngangTabletPage() {
               <p className="text-[14px]">영상이 준비되지 않았습니다.</p>
             </div>
           )}
+          {/* 진도 바 (영상 위 하단 오버레이) */}
+          {currentLecture.cfVideoId && (
+            <div className="absolute left-0 right-0 bottom-0 pointer-events-none">
+              <div className="bg-gradient-to-t from-black/60 to-transparent px-5 pt-6 pb-2 flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-white/15 rounded-full overflow-hidden">
+                  <div
+                    className="h-full transition-[width] duration-300"
+                    style={{ width: `${Math.min(100, pct)}%`, background: completed ? '#10b981' : '#a78bfa' }}
+                  />
+                </div>
+                <div className="text-white/80 text-[11.5px] font-medium tabular-nums">
+                  {lecProgress?.durationUnknown ? '영상 준비 중' : `${pct}%`}
+                  {completed && <span className="ml-1.5 text-[#10b981]">완강</span>}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* 시험 모달 */}
+        {showQuiz && (
+          <LectureQuizModal
+            sessionId={sessionId}
+            lectureId={currentLecture.lectureId}
+            lectureTitle={currentLecture.title}
+            onClose={() => setShowQuiz(false)}
+          />
+        )}
 
         {/* 하단 네비게이션 */}
         <div className="shrink-0 border-t border-white/10 bg-[#1a2535]">

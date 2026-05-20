@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { LectureStatus } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { resolveDurationSec } from '@/lib/ingang/cloudflareStream';
 
 // GET /api/lectures
 export async function GET(req: NextRequest) {
@@ -34,6 +35,10 @@ export async function POST(req: NextRequest) {
 
     if (!title?.trim()) return NextResponse.json({ error: '강의명은 필수입니다.' }, { status: 400 });
 
+    // cfVideoId가 새로 stamp되면 Cloudflare Stream에서 durationSec 1회 조회 (인코딩 완료 시).
+    // 진도율 게이트의 서버 진실 원천. 인코딩 미완료 또는 실패 시 NULL → backfill 스크립트 또는 다음 PATCH 때 재시도.
+    const durationSec = cfVideoId ? await resolveDurationSec(cfVideoId) : null;
+
     const lecture = await prisma.lecture.create({
       data: {
         academyId,
@@ -47,6 +52,7 @@ export async function POST(req: NextRequest) {
         cfVideoId: cfVideoId ?? null,
         videoUrl: videoUrl ?? null,
         duration: duration ?? '--:--',
+        durationSec,
         orderIndex: orderIndex ?? 0,
         status: (status as LectureStatus) ?? LectureStatus.DRAFT,
         seriesId: seriesId ?? null,

@@ -47,10 +47,15 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   const { lectureId } = await ctx.params;
 
   try {
-    const { passScore, maxTries, examCond, questions } = await req.json();
+    const { passScore, maxTries, examCond, passWatchPct, questions } = await req.json();
 
     const lecture = await prisma.lecture.findFirst({ where: { id: lectureId, academyId } });
     if (!lecture) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
+
+    const pctClamped =
+      typeof passWatchPct === 'number' && Number.isFinite(passWatchPct)
+        ? Math.max(50, Math.min(100, Math.round(passWatchPct)))
+        : undefined;
 
     const quiz = await prisma.$transaction(async (tx) => {
       const existing = await tx.lectureQuiz.findUnique({ where: { lectureId } });
@@ -61,11 +66,17 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         await tx.lectureQuestion.deleteMany({ where: { quizId: existing.id } });
         quizRecord = await tx.lectureQuiz.update({
           where: { id: existing.id },
-          data: { passScore, maxTries, examCond },
+          data: {
+            passScore, maxTries, examCond,
+            ...(pctClamped !== undefined ? { passWatchPct: pctClamped } : {}),
+          },
         });
       } else {
         quizRecord = await tx.lectureQuiz.create({
-          data: { academyId, lectureId, passScore, maxTries, examCond },
+          data: {
+            academyId, lectureId, passScore, maxTries, examCond,
+            passWatchPct: pctClamped ?? 100,
+          },
         });
       }
 
@@ -110,7 +121,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 }
 
 // PATCH /api/ingang/quizzes/[lectureId]
-// 이수 조건(합격 기준·응시 횟수·응시 조건)만 갱신. 문제는 건드리지 않음.
+// 이수 조건(합격 기준·응시 횟수·응시 조건·이수 인정 시청률)만 갱신. 문제는 건드리지 않음.
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
@@ -119,18 +130,41 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { lectureId } = await ctx.params;
 
   try {
-    const { passScore, maxTries, examCond } = await req.json();
+    const { passScore, maxTries, examCond, passWatchPct } = await req.json();
 
     const lecture = await prisma.lecture.findFirst({ where: { id: lectureId, academyId } });
     if (!lecture) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
 
+    // passWatchPct는 50~100 범위로 강제 (UI에서 강제하지만 서버에서도 1차 방어)
+    const pctClamped =
+      typeof passWatchPct === 'number' && Number.isFinite(passWatchPct)
+        ? Math.max(50, Math.min(100, Math.round(passWatchPct)))
+        : undefined;
+
     const quiz = await prisma.lectureQuiz.upsert({
       where: { lectureId },
-      update: { passScore, maxTries, examCond },
-      create: { academyId, lectureId, passScore, maxTries, examCond },
+      update: {
+        ...(passScore !== undefined ? { passScore } : {}),
+        ...(maxTries !== undefined ? { maxTries } : {}),
+        ...(examCond !== undefined ? { examCond } : {}),
+        ...(pctClamped !== undefined ? { passWatchPct: pctClamped } : {}),
+      },
+      create: {
+        academyId,
+        lectureId,
+        passScore: passScore ?? 70,
+        maxTries: maxTries ?? 3,
+        examCond: examCond ?? 'after100',
+        passWatchPct: pctClamped ?? 100,
+      },
     });
 
-    return NextResponse.json({ passScore: quiz.passScore, maxTries: quiz.maxTries, examCond: quiz.examCond });
+    return NextResponse.json({
+      passScore: quiz.passScore,
+      maxTries: quiz.maxTries,
+      examCond: quiz.examCond,
+      passWatchPct: quiz.passWatchPct,
+    });
   } catch (err) {
     console.error('[PATCH /api/ingang/quizzes/[lectureId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
