@@ -145,6 +145,9 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
   const { academyId, userId, role: userRole } = auth;
+  if (userRole !== 'director' && userRole !== 'teacher' && userRole !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  }
 
   // checkedById is Teacher.id — only set when a teacher is checking in
   let checkedById: string | null = null;

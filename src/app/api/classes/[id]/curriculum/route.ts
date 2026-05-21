@@ -47,7 +47,10 @@ export async function POST(
 ) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  }
 
   const { id: classId } = await ctx.params;
 

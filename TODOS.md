@@ -66,11 +66,8 @@
 ### 11. ~~인강 mockup 페이지 배너~~ ✅ 2026-05-21 완료
 exams·completion·stats·notifications 4페이지에 "샘플 데이터" amber 배너 추가.
 
-### 12. 학사 운영 API role 가드 명시 (P2)
-- **무엇**: `audit/02-api-roles.md §B` 의 22개 학사 라우트에 `director | teacher` 허용 가드 명시.
-- **왜**: 현재는 role 가드 없음 → 의도된 설계인지 코드에 표시 없음. 신규 기여자 혼란 방지.
-- **출발점**: `audit/02-api-roles.md §B` 목록 순서대로 추가. 단 "학생 등록·반 생성을 강사도 할 수 있나?" 비즈니스 결정 선행.
-- **Effort**: S (human ~2시간 / CC ~20분)
+### 12. ~~학사 운영 API role 가드 명시~~ ✅ 2026-05-21 완료
+비즈니스 결정: 강사 포함. 학사 일상 교무(출결·성적·과제·수업이력·보강·리포트·인강 등) → director·teacher 가드. 학생 등록·반 생성·설정 → director only 가드. 총 38개 핸들러 일괄 추가.
 
 ### 13. Upstash Redis rate limit 전환 (P3)
 - **무엇**: 현재 인메모리 `Map` 기반 rate limit → Upstash Redis 기반으로 교체.

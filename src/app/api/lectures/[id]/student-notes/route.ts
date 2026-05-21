@@ -85,6 +85,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!studentId || typeof note !== 'string') {
     return NextResponse.json({ error: 'studentId와 note가 필요합니다.' }, { status: 400 });
   }
+  if (note.trim().length > 1000) {
+    return NextResponse.json({ error: '노트는 1000자 이내로 입력해주세요.' }, { status: 400 });
+  }
 
   // 학생·강의 소속 확인
   const [student, lecture] = await Promise.all([

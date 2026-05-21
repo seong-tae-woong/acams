@@ -106,6 +106,7 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // super_admin은 academyId가 null (모든 학원 관리). director/teacher/parent/student는 필수.
   academyId String?
   academy   Academy? @relation(fields: [academyId], references: [id])
 

@@ -53,12 +53,18 @@
 - `Referrer-Policy`: strict-origin-when-cross-origin
 - `Permissions-Policy`: geolocation=(), microphone=(), camera=(self)
 
-### role 검증 — 재무·운영 API (2026-05-21 적용)
-전수 조사(audit/02-api-roles.md) 결과 재무·운영 13개 핸들러에 `director / super_admin` 가드 추가:
+### role 검증 — 재무·운영·학사 API (2026-05-21 적용)
+전수 조사(audit/02-api-roles.md) 결과 전체 51개 핸들러에 role 가드 추가:
+
+**director / super_admin only (13개)**:
 - `finance/bills` POST / generate POST / adjust PATCH / pay POST
 - `finance/expenses` POST / receipts POST
 - `communication/announcements` POST·PATCH·DELETE / notifications POST / notification-templates POST·DELETE
 - `teachers` POST·PATCH
+- `students` POST / `classes` POST·PATCH·DELETE / `settings/academy` PATCH 등 (이미 적용 포함)
+
+**director / teacher / super_admin (38개)**:
+- 출결·성적·시험·과제·수업이력·보강·반 이벤트·커리큘럼·교재·리포트·인강·상담·문의 등 일상 교무 핸들러 전체
 
 ### 감사 로그
 - `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGIN_LOCKED`, `PASSWORD_CHANGE`, `PASSWORD_RESET` 기록

@@ -164,7 +164,10 @@ function expandRecurrence(p: RecurrencePattern): string[] {
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  }
 
   try {
     const body = await req.json();

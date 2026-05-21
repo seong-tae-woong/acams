@@ -69,7 +69,10 @@ export async function PATCH(
 ) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  }
 
   const { id } = await ctx.params;
 
@@ -173,7 +176,10 @@ export async function DELETE(
 ) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  }
 
   const { id } = await ctx.params;
   const { searchParams } = new URL(req.url);

@@ -22,6 +22,10 @@ function SuccessContent() {
       setStatus('error');
       return;
     }
+    if (!/^[a-z0-9]{20,32}$/.test(orderId)) {
+      router.replace('/mobile/payments/fail?reason=invalid_order');
+      return;
+    }
 
     // 토스 결제 승인 요청
     fetch('/api/mobile/payments/toss/confirm', {

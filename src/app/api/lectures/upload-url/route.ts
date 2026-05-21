@@ -6,7 +6,10 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  }
 
   const accountId = process.env.CF_ACCOUNT_ID;
   const apiToken  = process.env.CF_STREAM_API_TOKEN;
