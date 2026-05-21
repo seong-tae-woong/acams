@@ -15,7 +15,7 @@
   - `/api/kiosk/session`, `/api/kiosk/check-in`: 30회/분
   - `/api/academy/[slug]/inquiry`: 5회/시간
   - `/api/gallery-proxy`: 100회/분
-- **JWT 만료**: 1일 (환경변수 `JWT_EXPIRES_IN=1d`)
+- **JWT 만료**: 30일 (환경변수 `JWT_EXPIRES_IN=30d`)
 - **세션 무효화 (tokenVersion)**:
   - 비밀번호 변경/리셋 → 자동 increment
   - 로그아웃 → 자동 increment
@@ -189,14 +189,8 @@ await prisma.auditLog.deleteMany({
 
 ---
 
-### 8. JWT_EXPIRES_IN 문서 불일치
-**현황**:
-- `SECURITY.md:18` → `JWT_EXPIRES_IN=1d`
-- `README.md` 환경변수 예시 → `JWT_EXPIRES_IN=7d` (← 수정 필요)
-
-**영향**: 실제 Vercel 환경변수와 문서 중 어느 쪽이 맞는지 불분명. 7d면 토큰 탈취 시 노출 창 7배.
-
-**권장 조치**: Vercel 환경변수 확인 후 `1d`로 통일 (README.md 수정).
+### 8. ~~JWT_EXPIRES_IN 문서 불일치~~ ✅ 2026-05-21 완료
+실제 Vercel 환경변수 확인 결과 `30d`. README.md · SECURITY.md 모두 `30d`로 통일.
 
 ---
 
@@ -205,7 +199,7 @@ await prisma.auditLog.deleteMany({
 | 도입 시점 | 항목 |
 |----------|------|
 | ✅ 완료 | #2 role 검증, #4 보안 헤더, #8 kiosk/recent 토큰 검증 |
-| 즉시 (단순 작업) | #6 슈퍼어드민 실 계정 생성, JWT_EXPIRES_IN 문서 통일 |
+| 즉시 (단순 작업) | #6 슈퍼어드민 실 계정 생성 |
 | 트래픽 증가 후 | #1 Upstash Redis |
 | 운영 안정화 후 | #3 만료 정책 강화, #7 감사 로그 보관 정책 |
 | 사용자 증가 / 비용 검토 후 | #5 MFA (이메일 OTP via Resend 무료 플랜 권장) |
