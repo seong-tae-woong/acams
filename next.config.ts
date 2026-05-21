@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // PORT 환경변수가 있으면 해당 포트 사용 (preview tool 자동포트 지원)
+  experimental: {
+    // dynamic: 0 — 관리자/모바일 동적 페이지를 라우터 캐시에 보관하지 않음
+    // 새 배포 후 브라우저가 구 캐시를 쓰다가 에러 나는 문제 방지
+    staleTimes: {
+      dynamic: 0,
+      static: 180,
+    },
+  },
   async headers() {
     return [
       {
