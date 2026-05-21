@@ -33,7 +33,11 @@ export async function POST(
 ) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId, userId } = auth;
+  const { academyId, userId, role } = auth;
+
+  if (role !== 'director' && role !== 'super_admin') {
+    return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
+  }
 
   const { id } = await ctx.params;
 

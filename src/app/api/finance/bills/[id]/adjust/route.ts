@@ -28,7 +28,11 @@ export async function PATCH(
 ) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+
+  if (role !== 'director' && role !== 'super_admin') {
+    return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
+  }
 
   const userName = decodeURIComponent(req.headers.get('x-user-name') ?? '');
   const { id } = await ctx.params;

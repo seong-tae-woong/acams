@@ -40,10 +40,25 @@
 ### 멀티테넌트 격리
 - 모든 API: `x-academy-id` 헤더 필수, body·query의 academyId 절대 신뢰 안 함
 - proxy.ts에서 역할별 경로 접근 제어 (super_admin / director-teacher / parent-student)
+- `kiosk/recent`: academyId query string 제거 → x-kiosk-token JWT 검증 후 academyId 추출 (2026-05-21 적용)
 
 ### 공개 엔드포인트
 - `gallery-proxy`: URL hostname 정확 검증 (SSRF 차단)
 - `kiosk/session`: 키오스크 토큰 5분 만료 + IP rate limit
+
+### 보안 헤더 (2026-05-21 적용)
+- `Strict-Transport-Security`: max-age=63072000; includeSubDomains; preload
+- `X-Frame-Options`: DENY
+- `X-Content-Type-Options`: nosniff
+- `Referrer-Policy`: strict-origin-when-cross-origin
+- `Permissions-Policy`: geolocation=(), microphone=(), camera=(self)
+
+### role 검증 — 재무·운영 API (2026-05-21 적용)
+전수 조사(audit/02-api-roles.md) 결과 재무·운영 13개 핸들러에 `director / super_admin` 가드 추가:
+- `finance/bills` POST / generate POST / adjust PATCH / pay POST
+- `finance/expenses` POST / receipts POST
+- `communication/announcements` POST·PATCH·DELETE / notifications POST / notification-templates POST·DELETE
+- `teachers` POST·PATCH
 
 ### 감사 로그
 - `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGIN_LOCKED`, `PASSWORD_CHANGE`, `PASSWORD_RESET` 기록
@@ -70,20 +85,9 @@
 
 ---
 
-### 2. 일부 쓰기 API에 role 검증 없음
-**현황**: `x-academy-id`만 확인하고 `role`은 검증하지 않는 라우트 존재.
-
-**검토 필요 라우트**:
-- `POST/PATCH/DELETE /api/communication/announcements`
-- `POST/PATCH/DELETE /api/finance/bills`
-- `POST/PATCH/DELETE /api/finance/expenses`
-- `POST /api/calendar`
-
-**위협**: teacher 계정으로 청구서 생성 / 공지 삭제 가능성 (의도된 권한이 아닐 경우)
-
-**권장 조치**:
-- 의도된 권한이면 README에 명시
-- 아니면 각 라우트 상단에 `role !== 'director' && role !== 'super_admin'` 체크 추가
+### 2. ~~일부 쓰기 API에 role 검증 없음~~ ✅ 2026-05-21 완료
+전수 조사(audit/02-api-roles.md) 결과 재무·운영·강사 관련 13개 쓰기 핸들러에 `director / super_admin` 가드 추가 완료.
+학사 운영(teacher 허용 의도) 22개, 모바일(본인 데이터만) 14개, 태블릿(proxy 이중 차단) 10개는 의도된 설계로 유지.
 
 ---
 
@@ -101,27 +105,8 @@
 
 ---
 
-### 4. 보안 헤더 미설정
-**현황**: `next.config.ts`에 다음 헤더가 설정되어 있지 않음.
-- `Strict-Transport-Security` (HSTS)
-- `X-Frame-Options` / `Content-Security-Policy: frame-ancestors`
-- `X-Content-Type-Options: nosniff`
-- `Referrer-Policy`
-
-**위협**: clickjacking, MIME sniffing, downgrade 공격 가능성
-
-**권장 조치**: `next.config.ts`의 `headers()`에 일괄 추가
-```typescript
-headers: async () => [{
-  source: '/(.*)',
-  headers: [
-    { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-    { key: 'X-Frame-Options', value: 'DENY' },
-    { key: 'X-Content-Type-Options', value: 'nosniff' },
-    { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  ],
-}],
-```
+### 4. ~~보안 헤더 미설정~~ ✅ 2026-05-21 완료
+`next.config.ts`에 HSTS·X-Frame-Options·X-Content-Type-Options·Referrer-Policy·Permissions-Policy 5종 추가 완료.
 
 ---
 
@@ -204,12 +189,24 @@ await prisma.auditLog.deleteMany({
 
 ---
 
+### 8. JWT_EXPIRES_IN 문서 불일치
+**현황**:
+- `SECURITY.md:18` → `JWT_EXPIRES_IN=1d`
+- `README.md` 환경변수 예시 → `JWT_EXPIRES_IN=7d` (← 수정 필요)
+
+**영향**: 실제 Vercel 환경변수와 문서 중 어느 쪽이 맞는지 불분명. 7d면 토큰 탈취 시 노출 창 7배.
+
+**권장 조치**: Vercel 환경변수 확인 후 `1d`로 통일 (README.md 수정).
+
+---
+
 ## 우선순위 가이드
 
 | 도입 시점 | 항목 |
 |----------|------|
+| ✅ 완료 | #2 role 검증, #4 보안 헤더, #8 kiosk/recent 토큰 검증 |
+| 즉시 (단순 작업) | #6 슈퍼어드민 실 계정 생성, JWT_EXPIRES_IN 문서 통일 |
 | 트래픽 증가 후 | #1 Upstash Redis |
-| 곧 (다음 작업) | #2 role 검증, #4 보안 헤더, #6 슈퍼어드민 실 계정 생성 |
 | 운영 안정화 후 | #3 만료 정책 강화, #7 감사 로그 보관 정책 |
 | 사용자 증가 / 비용 검토 후 | #5 MFA (이메일 OTP via Resend 무료 플랜 권장) |
 
@@ -224,4 +221,4 @@ await prisma.auditLog.deleteMany({
 
 ---
 
-_최종 업데이트: 2026-05-07_
+_최종 업데이트: 2026-05-21_

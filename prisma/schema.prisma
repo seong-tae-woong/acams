@@ -1185,6 +1185,7 @@ model LectureWatchProgress {
 
   @@unique([studentId, lectureId])
   @@index([academyId, lectureId])
+  @@index([academyId, studentId, updatedAt]) // 학생별 진도 조회 최적화 (통계 화면 실데이터 전환 시 활용)
   @@map("lecture_watch_progress")
 }
 

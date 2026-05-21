@@ -160,8 +160,7 @@ export default function MobilePaymentsPage() {
                         <button
                           disabled={isPaying || payingId !== null}
                           onClick={() => handlePay(b)}
-                          className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:opacity-80"
-                          style={{ backgroundColor: '#4fc3a1' }}
+                          className="w-full py-2.5 rounded-[10px] text-[13px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer active:opacity-80 bg-[#4fc3a1]"
                         >
                           {isPaying ? (
                             <><Loader2 size={14} className="animate-spin" /> 결제 준비 중...</>

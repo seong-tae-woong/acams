@@ -25,6 +25,7 @@ export default function KioskPage() {
   const [setupInput, setSetupInput] = useState('');
   const [academyName, setAcademyName] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [kioskToken, setKioskToken] = useState('');
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(300);
   const [connected, setConnected] = useState(true);
@@ -67,6 +68,7 @@ export default function KioskPage() {
       if (!res.ok) throw new Error('session error');
       const data = await res.json();
       setQrDataUrl(data.qrDataUrl);
+      setKioskToken(data.token);
       setExpiresAt(new Date(data.expiresAt));
       setAcademyName(data.academyName);
       setCountdown(300);
@@ -101,12 +103,13 @@ export default function KioskPage() {
 
   // 최근 체크인 3초 폴링
   useEffect(() => {
-    if (!academyParam) return;
+    if (!academyParam || !kioskToken) return;
     const poll = async () => {
       try {
         const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
         const res = await fetch(
-          `/api/kiosk/recent?academyId=${encodeURIComponent(academyParam)}&since=${encodeURIComponent(since)}`
+          `/api/kiosk/recent?since=${encodeURIComponent(since)}`,
+          { headers: { 'x-kiosk-token': kioskToken } }
         );
         const data = await res.json();
         if (!data.checkIns) return;
@@ -126,7 +129,7 @@ export default function KioskPage() {
     };
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
-  }, [academyParam]);
+  }, [academyParam, kioskToken]);
 
   const handleSetup = () => {
     const val = setupInput.trim();

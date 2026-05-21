@@ -1,6 +1,7 @@
 # TODOS
 
-> 본 PR 범위 밖이지만 추적해두고 싶은 작업들. 인강 진도율·시험 게이트(2026-05-20 design doc)에서 파생된 7건이 첫 등록.
+> 본 PR 범위 밖이지만 추적해두고 싶은 작업들.
+> **2026-05-21 업데이트**: 전반 점검(audit/) 완료. 보안 Pack A+B+C 작업 반영. 신규 항목 8~13 추가.
 
 ## 인강·이수 (priority 묶음)
 
@@ -50,3 +51,29 @@
 - **현재 상태**: package.json에 테스트 러너 의존성 0.
 - **출발점**: vitest 설치 + `test/api/` 폴더 + 인강 progress API 1개 test 케이스.
 - **Effort**: M (human ~3일 / CC ~4시간)
+
+## 보안·운영 (audit/에서 도출, 2026-05-21)
+
+### 8. ~~API role 가드 일괄 추가~~ ✅ 2026-05-21 완료
+재무·운영·강사 관련 13개 쓰기 핸들러에 `director / super_admin` 가드 추가. 상세: `audit/02-api-roles.md`.
+
+### 9. ~~보안 헤더 추가~~ ✅ 2026-05-21 완료
+`next.config.ts`에 HSTS·X-Frame-Options 등 5종 추가. 상세: `audit/01-security.md §1`.
+
+### 10. ~~키오스크 recent 토큰 검증~~ ✅ 2026-05-21 완료
+`/api/kiosk/recent` academyId query string 제거 → x-kiosk-token JWT 검증. 상세: `audit/03-multitenant-kiosk.md`.
+
+### 11. ~~인강 mockup 페이지 배너~~ ✅ 2026-05-21 완료
+exams·completion·stats·notifications 4페이지에 "샘플 데이터" amber 배너 추가.
+
+### 12. 학사 운영 API role 가드 명시 (P2)
+- **무엇**: `audit/02-api-roles.md §B` 의 22개 학사 라우트에 `director | teacher` 허용 가드 명시.
+- **왜**: 현재는 role 가드 없음 → 의도된 설계인지 코드에 표시 없음. 신규 기여자 혼란 방지.
+- **출발점**: `audit/02-api-roles.md §B` 목록 순서대로 추가. 단 "학생 등록·반 생성을 강사도 할 수 있나?" 비즈니스 결정 선행.
+- **Effort**: S (human ~2시간 / CC ~20분)
+
+### 13. Upstash Redis rate limit 전환 (P3)
+- **무엇**: 현재 인메모리 `Map` 기반 rate limit → Upstash Redis 기반으로 교체.
+- **왜**: Vercel 멀티 인스턴스에서 인스턴스 수만큼 한도 곱해짐. 상세: `audit/01-security.md §2`.
+- **선행 조건**: 월 활성 학원 50개 이상 또는 의심 트래픽 관찰 시.
+- **Effort**: S (human ~3시간 / CC ~30분)

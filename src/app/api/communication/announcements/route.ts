@@ -60,7 +60,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId, userId } = auth;
+  const { academyId, userId, role } = auth;
+
+  if (role !== 'director' && role !== 'super_admin') {
+    return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
+  }
 
   try {
     const { title, content, status, pinned, classId } = await req.json();

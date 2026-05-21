@@ -79,6 +79,12 @@ function PageContent() {
         </div>
       </div>
 
+      {/* 샘플 데이터 배너 — Phase F (DB 연동) 개발 예정 */}
+      <div className="shrink-0 mx-4 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-lg">
+        <span>🔔</span>
+        <span>샘플 데이터입니다. 이 화면은 DB 연동 개발 예정입니다.</span>
+      </div>
+
       {/* Page tabs */}
       <div className="bg-white border-b border-[#e2e8f0] flex px-5 shrink-0">
         {(['view','exam'] as TabId[]).map((t) => (

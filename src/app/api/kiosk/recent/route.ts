@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { verifyKioskToken } from '@/lib/kiosk/token';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const academyId = searchParams.get('academyId');
-  const since = searchParams.get('since');
-
-  if (!academyId) {
-    return NextResponse.json({ error: 'academyId required' }, { status: 400 });
+  // x-kiosk-token 헤더 검증 — academyId를 외부 입력(query string)으로 신뢰하지 않음
+  const token = req.headers.get('x-kiosk-token');
+  if (!token) {
+    return NextResponse.json({ error: 'x-kiosk-token required' }, { status: 401 });
   }
+
+  let academyId: string;
+  try {
+    ({ academyId } = await verifyKioskToken(token));
+  } catch {
+    return NextResponse.json({ error: 'Invalid or expired kiosk token' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const since = searchParams.get('since');
 
   const sinceDate = since ? new Date(since) : new Date(Date.now() - 10 * 60 * 1000);
 

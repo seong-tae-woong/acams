@@ -54,7 +54,7 @@ DATABASE_URL=postgresql://...@...neon.tech/neondb?sslmode=require
 
 # 인증
 JWT_SECRET=<64자 이상 랜덤 문자열>
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=1d
 COOKIE_SECURE=true                       # 배포(HTTPS) 환경에서 true
 
 # 토스페이먼츠 — 학원별 결제 키는 DB에 암호화 저장. 아래는 그 암호화 키
