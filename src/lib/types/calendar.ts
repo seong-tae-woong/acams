@@ -25,6 +25,16 @@ export interface MakeupAttendance {
   memo: string;
 }
 
+export type MakeupSlotType = 'PERSONAL' | 'OPEN';
+
+export interface RecurrencePattern {
+  daysOfWeek: number[]; // 1=월..7=일
+  startDate: string;    // YYYY-MM-DD
+  endDate: string;      // YYYY-MM-DD
+  startTime: string;    // HH:MM
+  endTime?: string;     // HH:MM (옵션)
+}
+
 export interface MakeupClass {
   id: string;
   originalClassId: string; // 원래 반 ID
@@ -40,6 +50,11 @@ export interface MakeupClass {
   attendance?: MakeupAttendance[]; // 학생별 출결
   reason: string;
   attendanceChecked: boolean; // 출결 확인 완료 여부
+  // ── 오픈 보강 필드 ──
+  slotType?: MakeupSlotType;
+  capacity?: number | null;          // null = 무제한
+  applicationDeadline?: string | null; // ISO timestamp
+  recurrenceGroupId?: string | null;
 }
 
 export type CalendarEventCreateInput = Omit<CalendarEvent, 'id'>;

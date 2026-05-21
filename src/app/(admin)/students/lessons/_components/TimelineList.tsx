@@ -37,12 +37,12 @@ export default function TimelineList({ timeline }: TimelineListProps) {
               <span className="text-[12px] text-[#374151]">{entry.className}</span>
               {entry.startTime && (
                 <span className="text-[11.5px] text-[#6b7280]">
-                  {entry.startTime}~{entry.endTime}
+                  {entry.endTime ? `${entry.startTime}~${entry.endTime}` : entry.startTime}
                 </span>
               )}
               {entry.isOneTime && (
                 <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e]">
-                  보강
+                  보강{entry.makeupReason ? ` · ${entry.makeupReason}` : ''}
                 </span>
               )}
             </div>

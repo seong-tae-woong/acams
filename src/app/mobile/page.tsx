@@ -4,7 +4,7 @@ import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import PushPermissionBanner from '@/components/mobile/PushPermissionBanner';
-import { ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode } from 'lucide-react';
+import { ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode, CalendarPlus } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
 
@@ -297,6 +297,21 @@ export default function MobileHomePage() {
             <ChevronRight size={18} className="text-white/70" />
           </Link>
         )}
+
+        {/* 보강 신청 (학부모·학생 공통) */}
+        <Link
+          href="/mobile/makeup"
+          className="bg-gradient-to-r from-[#5B4FBE] to-[#a78bfa] rounded-[12px] p-4 flex items-center gap-3 active:opacity-80"
+        >
+          <div className="w-9 h-9 rounded-[10px] bg-white/20 flex items-center justify-center shrink-0">
+            <CalendarPlus size={20} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[14px] font-bold text-white">보강 신청</div>
+            <div className="text-[11.5px] text-white/80">학원이 개설한 보강 슬롯 신청</div>
+          </div>
+          <ChevronRight size={18} className="text-white/70" />
+        </Link>
 
         {/* 바로가기 메뉴 */}
         <div className="grid grid-cols-2 gap-3">

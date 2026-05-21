@@ -9,6 +9,10 @@ import type {
   LessonCommentUpsertInput,
   ClinicResult,
   ClinicResultUpsertInput,
+  MakeupComment,
+  MakeupCommentUpsertInput,
+  MakeupClinicResult,
+  MakeupClinicResultUpsertInput,
   StudentLessonHistory,
   StudentLessonHistoryQuery,
 } from '@/lib/types/lesson';
@@ -16,8 +20,10 @@ import type {
 interface LessonStore {
   templates: ClinicTemplate[];
   sessions: LessonSession[];
-  comments: LessonComment[];     // 현재 선택 수업 기준
-  clinicResults: ClinicResult[]; // 현재 선택 수업 기준
+  comments: LessonComment[];     // 현재 선택 수업 기준 (정규)
+  clinicResults: ClinicResult[]; // 현재 선택 수업 기준 (정규)
+  makeupComments: MakeupComment[];          // 현재 선택 보강 기준
+  makeupClinicResults: MakeupClinicResult[]; // 현재 선택 보강 기준
   loading: boolean;
 
   // 양식
@@ -29,13 +35,21 @@ interface LessonStore {
   // 세션 (캘린더 표시용)
   fetchSessions: (params: { classId?: string; from: string; to: string }) => Promise<void>;
 
-  // 코멘트
+  // 정규 수업 코멘트
   fetchComments: (classId: string, sessionDate: string) => Promise<void>;
   upsertComment: (input: LessonCommentUpsertInput) => Promise<void>;
 
-  // Clinic 결과
+  // 정규 수업 Clinic 결과
   fetchClinicResults: (classId: string, sessionDate: string) => Promise<void>;
   upsertClinicResult: (input: ClinicResultUpsertInput) => Promise<void>;
+
+  // 보강 수업 코멘트
+  fetchMakeupComments: (makeupClassId: string) => Promise<void>;
+  upsertMakeupComment: (input: MakeupCommentUpsertInput) => Promise<void>;
+
+  // 보강 수업 Clinic 결과
+  fetchMakeupClinicResults: (makeupClassId: string) => Promise<void>;
+  upsertMakeupClinicResult: (input: MakeupClinicResultUpsertInput) => Promise<void>;
 
   // 학생별 수업 이력 (v2)
   studentHistory: StudentLessonHistory | null;
@@ -51,6 +65,12 @@ interface LessonStore {
     sessionDate: string,
     templateId: string,
   ) => ClinicResult | undefined;
+  getMakeupCommentFor: (makeupClassId: string, studentId: string) => MakeupComment | undefined;
+  getMakeupClinicResultFor: (
+    makeupClassId: string,
+    studentId: string,
+    templateId: string,
+  ) => MakeupClinicResult | undefined;
 }
 
 export const useLessonStore = create<LessonStore>((set, get) => ({
@@ -58,6 +78,8 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   sessions: [],
   comments: [],
   clinicResults: [],
+  makeupComments: [],
+  makeupClinicResults: [],
   loading: false,
   studentHistory: null,
   studentHistoryLoading: false,
@@ -215,6 +237,82 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
         r.classId === classId &&
         r.studentId === studentId &&
         r.sessionDate === sessionDate &&
+        r.templateId === templateId,
+    ),
+
+  // ── 보강 코멘트 ──────────────────────────────────────────
+  fetchMakeupComments: async (makeupClassId) => {
+    const params = new URLSearchParams({ makeupClassId });
+    const res = await fetch(`/api/makeup/comments?${params.toString()}`);
+    if (!res.ok) throw new Error('보강 코멘트 조회 실패');
+    const data: MakeupComment[] = await res.json();
+    set({ makeupComments: data });
+  },
+
+  upsertMakeupComment: async (input) => {
+    const res = await fetch('/api/makeup/comments', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('보강 코멘트 저장 실패');
+    const saved: MakeupComment = await res.json();
+    set((state) => {
+      const idx = state.makeupComments.findIndex(
+        (c) => c.makeupClassId === saved.makeupClassId && c.studentId === saved.studentId,
+      );
+      if (idx >= 0) {
+        const next = [...state.makeupComments];
+        next[idx] = saved;
+        return { makeupComments: next };
+      }
+      return { makeupComments: [...state.makeupComments, saved] };
+    });
+  },
+
+  // ── 보강 Clinic 결과 ─────────────────────────────────────
+  fetchMakeupClinicResults: async (makeupClassId) => {
+    const params = new URLSearchParams({ makeupClassId });
+    const res = await fetch(`/api/makeup/clinic-results?${params.toString()}`);
+    if (!res.ok) throw new Error('보강 Clinic 결과 조회 실패');
+    const data: MakeupClinicResult[] = await res.json();
+    set({ makeupClinicResults: data });
+  },
+
+  upsertMakeupClinicResult: async (input) => {
+    const res = await fetch('/api/makeup/clinic-results', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('보강 Clinic 결과 저장 실패');
+    const saved: MakeupClinicResult = await res.json();
+    set((state) => {
+      const idx = state.makeupClinicResults.findIndex(
+        (r) =>
+          r.makeupClassId === saved.makeupClassId &&
+          r.studentId === saved.studentId &&
+          r.templateId === saved.templateId,
+      );
+      if (idx >= 0) {
+        const next = [...state.makeupClinicResults];
+        next[idx] = saved;
+        return { makeupClinicResults: next };
+      }
+      return { makeupClinicResults: [...state.makeupClinicResults, saved] };
+    });
+  },
+
+  getMakeupCommentFor: (makeupClassId, studentId) =>
+    get().makeupComments.find(
+      (c) => c.makeupClassId === makeupClassId && c.studentId === studentId,
+    ),
+
+  getMakeupClinicResultFor: (makeupClassId, studentId, templateId) =>
+    get().makeupClinicResults.find(
+      (r) =>
+        r.makeupClassId === makeupClassId &&
+        r.studentId === studentId &&
         r.templateId === templateId,
     ),
 }));

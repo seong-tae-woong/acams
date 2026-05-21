@@ -1,15 +1,29 @@
 'use client';
 import { create } from 'zustand';
-import type { MakeupClass, MakeupAttendance } from '@/lib/types/calendar';
+import type { MakeupClass, MakeupAttendance, RecurrencePattern } from '@/lib/types/calendar';
 import { toast } from '@/lib/stores/toastStore';
+
+export interface OpenSlotCreateInput {
+  originalClassId: string;
+  teacherId: string;
+  reason?: string;
+  capacity?: number | null;
+  // 단일 슬롯
+  makeupDate?: string;
+  makeupTime?: string;
+  applicationDeadline?: string | null;
+  // 반복 슬롯
+  recurrencePattern?: RecurrencePattern;
+}
 
 interface MakeupStore {
   makeupClasses: MakeupClass[];
   loading: boolean;
-  fetchMakeupClasses: (classId?: string, month?: string) => Promise<void>;
+  fetchMakeupClasses: (classId?: string, month?: string, slotType?: 'PERSONAL' | 'OPEN') => Promise<void>;
   addMakeupClass: (input: Omit<MakeupClass, 'id' | 'attendanceChecked' | 'originalClassName' | 'teacherName' | 'attendance'> & { originalClassName?: string; teacherName?: string }) => Promise<string>;
+  addOpenSlot: (input: OpenSlotCreateInput) => Promise<{ createdCount: number }>;
   updateMakeupClass: (id: string, updates: Partial<Omit<MakeupClass, 'id'>>) => Promise<void>;
-  removeMakeupClass: (id: string) => Promise<void>;
+  removeMakeupClass: (id: string, scope?: 'this' | 'future') => Promise<{ deletedCount: number }>;
   addStudents: (makeupClassId: string, studentIds: string[]) => Promise<void>;
   removeStudent: (makeupClassId: string, studentId: string) => Promise<void>;
   setAttendanceChecked: (makeupClassId: string, checked: boolean) => Promise<void>;
@@ -20,12 +34,13 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
   makeupClasses: [],
   loading: false,
 
-  fetchMakeupClasses: async (classId, month) => {
+  fetchMakeupClasses: async (classId, month, slotType) => {
     set({ loading: true });
     try {
       const params = new URLSearchParams();
       if (classId) params.set('classId', classId);
       if (month) params.set('month', month);
+      if (slotType) params.set('slotType', slotType);
       const res = await fetch(`/api/makeup?${params.toString()}`);
       if (!res.ok) throw new Error('보강 수업 조회 실패');
       const data: MakeupClass[] = await res.json();
@@ -35,6 +50,39 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
       toast('보강 수업을 불러오는 데 실패했습니다.', 'error');
     } finally {
       set({ loading: false });
+    }
+  },
+
+  addOpenSlot: async (input) => {
+    try {
+      const res = await fetch('/api/makeup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...input,
+          slotType: 'OPEN',
+          targetStudents: [],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '오픈 슬롯 등록 실패');
+      }
+      const data = await res.json();
+      const createdCount: number = data.createdCount ?? 1;
+      // 단일 슬롯이면 makeupClasses에 prepend, 반복이면 refetch가 깔끔
+      if (createdCount === 1) {
+        set((state) => ({ makeupClasses: [data, ...state.makeupClasses] }));
+      }
+      toast(
+        createdCount === 1 ? '오픈 슬롯이 등록되었습니다.' : `${createdCount}개의 슬롯이 생성되었습니다.`,
+        'success',
+      );
+      return { createdCount };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '오픈 슬롯 등록에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
     }
   },
 
@@ -96,14 +144,26 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
     }
   },
 
-  removeMakeupClass: async (id) => {
+  removeMakeupClass: async (id, scope = 'this') => {
     try {
-      const res = await fetch(`/api/makeup/${id}`, { method: 'DELETE' });
+      const params = scope === 'future' ? '?scope=future' : '';
+      const res = await fetch(`/api/makeup/${id}${params}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('보강 삭제 실패');
-      set((state) => ({
-        makeupClasses: state.makeupClasses.filter((mc) => mc.id !== id),
-      }));
-      toast('보강 수업이 삭제되었습니다.', 'success');
+      const data = await res.json();
+      const deletedCount: number = data.deletedCount ?? 1;
+      // 'this'면 단순 필터, 'future'면 전체 refetch가 안전
+      if (scope === 'this') {
+        set((state) => ({
+          makeupClasses: state.makeupClasses.filter((mc) => mc.id !== id),
+        }));
+      }
+      toast(
+        deletedCount === 1
+          ? '보강 수업이 삭제되었습니다.'
+          : `${deletedCount}개의 보강 슬롯이 삭제되었습니다.`,
+        'success',
+      );
+      return { deletedCount };
     } catch (err) {
       const msg = err instanceof Error ? err.message : '보강 삭제에 실패했습니다.';
       toast(msg, 'error');

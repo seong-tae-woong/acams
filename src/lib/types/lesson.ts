@@ -61,6 +61,13 @@ export interface ClinicCheck {
   checked: boolean;
 }
 
+// 이 세션에서만 사용하는 커스텀 항목 (양식과 분리)
+export interface ClinicCustomItem {
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
 export interface ClinicResult {
   id: string;
   classId: string;
@@ -68,6 +75,8 @@ export interface ClinicResult {
   sessionDate: string; // YYYY-MM-DD
   templateId: string;
   checks: ClinicCheck[];
+  customItems: ClinicCustomItem[];
+  hiddenItemIds: string[];
   authorId: string;
   createdAt: string;
   updatedAt: string;
@@ -79,6 +88,50 @@ export interface ClinicResultUpsertInput {
   sessionDate: string; // YYYY-MM-DD
   templateId: string;
   checks: ClinicCheck[];
+  customItems: ClinicCustomItem[];
+  hiddenItemIds: string[];
+}
+
+// ─────────────────────────────────────────────
+// 보강 수업 코멘트 / Clinic (lessons와 분리)
+// ─────────────────────────────────────────────
+
+export interface MakeupComment {
+  id: string;
+  makeupClassId: string;
+  studentId: string;
+  comment: string;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MakeupCommentUpsertInput {
+  makeupClassId: string;
+  studentId: string;
+  comment: string;
+}
+
+export interface MakeupClinicResult {
+  id: string;
+  makeupClassId: string;
+  studentId: string;
+  templateId: string;
+  checks: ClinicCheck[];
+  customItems: ClinicCustomItem[];
+  hiddenItemIds: string[];
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MakeupClinicResultUpsertInput {
+  makeupClassId: string;
+  studentId: string;
+  templateId: string;
+  checks: ClinicCheck[];
+  customItems: ClinicCustomItem[];
+  hiddenItemIds: string[];
 }
 
 // ─────────────────────────────────────────────
@@ -110,7 +163,14 @@ export interface StudentLessonTimelineClinic {
   templateId: string;
   templateName: string;
   isActive: boolean;
-  checks: Array<{ itemId: string; label: string; checked: boolean }>;
+  // 양식 기반 항목 (이 세션에서 숨겨지지 않은 것만), source='template'
+  // 이 세션에서 추가된 커스텀 항목, source='custom'
+  checks: Array<{
+    itemId: string;
+    label: string;
+    checked: boolean;
+    source: 'template' | 'custom';
+  }>;
 }
 
 export interface StudentLessonTimelineEntry {
@@ -123,6 +183,9 @@ export interface StudentLessonTimelineEntry {
   isOneTime: boolean;
   comment: string | null;
   clinics: StudentLessonTimelineClinic[];
+  // 보강 세션 식별 (정규 수업이면 null) — 클릭 시 상세 모달이 어느 키로 데이터를 조회할지 결정
+  makeupClassId?: string | null;
+  makeupReason?: string | null;
 }
 
 export interface StudentLessonHistory {

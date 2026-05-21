@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
+import Tabs from '@/components/shared/Tabs';
 import { useMakeupStore } from '@/lib/stores/makeupStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
@@ -13,6 +14,10 @@ import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { DAY_NAMES } from '@/lib/types/class';
+import CommentClinicPanel from '../lessons/_components/CommentClinicPanel';
+import OpenMakeupTab from './_components/OpenMakeupTab';
+
+type MakeupTab = 'personal' | 'open';
 
 /* ─── 보강 등록/수정 폼 기본값 ─── */
 const EMPTY_FORM = {
@@ -50,12 +55,19 @@ export default function MakeupPage() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [memo, setMemo] = useState<Record<string, string>>({});
 
+  /* ── 메인 탭 (개별 보강 / 오픈 보강) ── */
+  const [activeTab, setActiveTab] = useState<MakeupTab>('personal');
+
+  /* ── 코멘트/Clinic 작성 대상 학생 (보강 상세 하단 카드용) ── */
+  const [commentStudentId, setCommentStudentId] = useState<string>('');
+
   /* ── 선택된 보강의 학생별 출결 상태를 UI 상태로 복원 ── */
   useEffect(() => {
     const mc = makeupClasses.find((m) => m.id === selectedId);
     if (!mc) {
       setChecked({});
       setMemo({});
+      setCommentStudentId('');
       return;
     }
     const nextChecked: Record<string, boolean> = {};
@@ -67,6 +79,8 @@ export default function MakeupPage() {
     });
     setChecked(nextChecked);
     setMemo(nextMemo);
+    // 코멘트 대상 학생: 명단의 첫 학생으로 자동 선택
+    setCommentStudentId(mc.targetStudents[0] ?? '');
   }, [selectedId, makeupClasses]);
 
   /* ── 보강 등록/수정 모달 ── */
@@ -235,13 +249,27 @@ export default function MakeupPage() {
         title="보강 수업 관리"
         badge={`${makeupClasses.length}건`}
         actions={
-          <Button variant="dark" size="sm" onClick={openRegister}>
-            <Plus size={13} /> 보강 등록
-          </Button>
+          activeTab === 'personal' ? (
+            <Button variant="dark" size="sm" onClick={openRegister}>
+              <Plus size={13} /> 보강 등록
+            </Button>
+          ) : null
         }
       />
 
-      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
+      <Tabs
+        tabs={[
+          { value: 'personal', label: '개별 보강' },
+          { value: 'open', label: '오픈 보강' },
+        ]}
+        value={activeTab}
+        onChange={(v) => setActiveTab(v as MakeupTab)}
+        className="px-4 bg-white"
+      />
+
+      {activeTab === 'open' ? (
+        <OpenMakeupTab />
+      ) : loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
         {/* ── 좌측: 보강 목록 ── */}
         <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
           <div className="p-2 space-y-1">
@@ -353,7 +381,7 @@ export default function MakeupPage() {
             <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
               <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
                 <div>
-                  <span className="text-[12.5px] font-semibold text-[#111827]">수강학생 명단</span>
+                  <span className="text-[12.5px] font-semibold text-[#111827]">보강 수업 학생 명단</span>
                   {selected.targetStudents.length === 0 && (
                     <span className="ml-2 text-[11.5px] text-[#9ca3af]">
                       강의 시작 전 학생 명단을 등록해주세요
@@ -402,7 +430,7 @@ export default function MakeupPage() {
             {targetStudents.length > 0 && (
               <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
                 <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
-                  <span className="text-[12.5px] font-semibold text-[#111827]">출결 입력</span>
+                  <span className="text-[12.5px] font-semibold text-[#111827]">보강 출결 입력</span>
                   <Button
                     variant="primary"
                     size="sm"
@@ -481,6 +509,33 @@ export default function MakeupPage() {
                   <Button variant="dark" size="md" onClick={handleSaveAttendance}>
                     출결 저장
                   </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 수업 코멘트 & Clinic — 학생이 있을 때만 표시 */}
+            {targetStudents.length > 0 && (
+              <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between gap-3">
+                  <span className="text-[12.5px] font-semibold text-[#111827]">수업 코멘트 & Clinic 체크</span>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11.5px] text-[#6b7280]">학생</label>
+                    <select
+                      value={commentStudentId}
+                      onChange={(e) => setCommentStudentId(e.target.value)}
+                      className="text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
+                    >
+                      {targetStudents.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <CommentClinicPanel
+                    scope={{ kind: 'makeup', makeupClassId: selected.id }}
+                    selectedStudentId={commentStudentId || null}
+                  />
                 </div>
               </div>
             )}
@@ -616,7 +671,7 @@ export default function MakeupPage() {
       <Modal
         open={studentModalOpen}
         onClose={() => setStudentModalOpen(false)}
-        title="수강학생 명단 등록"
+        title="보강 수업 학생 명단 등록"
         size="md"
         footer={
           <>

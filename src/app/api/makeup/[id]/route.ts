@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
+import { AttendanceStatus as PrismaStatus, MakeupSlotType } from '@/generated/prisma/client';
 import { recalculateBillByContext } from '@/lib/utils/billing';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -28,6 +28,10 @@ type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
   makeupDate: Date; makeupTime: string; teacherId: string;
   reason: string; attendanceChecked: boolean;
+  slotType: MakeupSlotType;
+  capacity: number | null;
+  applicationDeadline: Date | null;
+  recurrenceGroupId: string | null;
   originalClass: { name: string };
   teacher: { name: string };
   targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
@@ -51,6 +55,10 @@ function mapMakeup(m: MakeupForMap) {
     })),
     reason: m.reason,
     attendanceChecked: m.attendanceChecked,
+    slotType: m.slotType,
+    capacity: m.capacity,
+    applicationDeadline: m.applicationDeadline ? m.applicationDeadline.toISOString() : null,
+    recurrenceGroupId: m.recurrenceGroupId,
   };
 }
 
@@ -157,7 +165,8 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/makeup/[id]
+// DELETE /api/makeup/[id]?scope=this|future
+// scope=future: 같은 recurrenceGroupId의 makeupDate >= 본 슬롯의 makeupDate 인 모든 슬롯 일괄 삭제
 export async function DELETE(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
@@ -167,6 +176,8 @@ export async function DELETE(
   const { academyId } = auth;
 
   const { id } = await ctx.params;
+  const { searchParams } = new URL(req.url);
+  const scope = searchParams.get('scope') === 'future' ? 'future' : 'this';
 
   try {
     const existing = await prisma.makeupClass.findUnique({ where: { id } });
@@ -174,12 +185,33 @@ export async function DELETE(
       return NextResponse.json({ error: '보강 수업을 찾을 수 없습니다.' }, { status: 404 });
     }
 
+    let deletedCount = 0;
     await prisma.$transaction(async (tx) => {
-      await tx.makeupClassTarget.deleteMany({ where: { makeupClassId: id } });
-      await tx.makeupClass.delete({ where: { id } });
+      if (scope === 'future' && existing.recurrenceGroupId) {
+        const siblings = await tx.makeupClass.findMany({
+          where: {
+            academyId,
+            recurrenceGroupId: existing.recurrenceGroupId,
+            makeupDate: { gte: existing.makeupDate },
+          },
+          select: { id: true },
+        });
+        const ids = siblings.map((s) => s.id);
+        await tx.makeupClassTarget.deleteMany({ where: { makeupClassId: { in: ids } } });
+        await tx.makeupComment.deleteMany({ where: { makeupClassId: { in: ids } } });
+        await tx.makeupClinicResult.deleteMany({ where: { makeupClassId: { in: ids } } });
+        await tx.makeupClass.deleteMany({ where: { id: { in: ids } } });
+        deletedCount = ids.length;
+      } else {
+        await tx.makeupClassTarget.deleteMany({ where: { makeupClassId: id } });
+        await tx.makeupComment.deleteMany({ where: { makeupClassId: id } });
+        await tx.makeupClinicResult.deleteMany({ where: { makeupClassId: id } });
+        await tx.makeupClass.delete({ where: { id } });
+        deletedCount = 1;
+      }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deletedCount });
   } catch (err) {
     console.error('[DELETE /api/makeup/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

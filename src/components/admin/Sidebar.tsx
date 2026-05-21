@@ -31,7 +31,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/classes', label: '반 편성 및 시간표', icon: BookOpen },
       { href: '/classes/attendance', label: '출결 체크', icon: UserCheck },
-      { href: '/classes/makeup', label: '보강 수업 등록', icon: CalendarPlus },
+      { href: '/classes/makeup', label: '보강 수업 관리', icon: CalendarPlus },
       { href: '/classes/lessons', label: '수업 관리', icon: ClipboardList },
     ],
   },

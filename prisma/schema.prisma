@@ -75,6 +75,8 @@ model Academy {
   clinicTemplates       ClinicTemplate[]
   lessonComments        LessonComment[]
   clinicResults         ClinicResult[]
+  makeupComments        MakeupComment[]
+  makeupClinicResults   MakeupClinicResult[]
 
   @@map("academies")
 }
@@ -204,6 +206,8 @@ model Student {
   lectureTargets      LectureStudentTarget[]
   lessonComments      LessonComment[]
   clinicResults       ClinicResult[]
+  makeupComments      MakeupComment[]
+  makeupClinicResults MakeupClinicResult[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -407,11 +411,33 @@ model MakeupClass {
   reason            String  @default("")
   attendanceChecked Boolean @default(false)
 
-  targets MakeupClassTarget[]
+  // ── 오픈 보강 슬롯 메타 (Phase 2~3에서 활용, Phase 1엔 default만 들어감) ──
+  slotType            MakeupSlotType @default(PERSONAL)
+  capacity            Int?           // null = 무제한
+  applicationDeadline DateTime?      // null = 앱에서 makeupDate-1h 계산
+  recurrenceGroupId   String?        // 반복 슬롯 그룹 식별자
+  recurrencePattern   Json?          // { daysOfWeek: [1,3], startDate, endDate, time } 등
+
+  targets  MakeupClassTarget[]
+  comments MakeupComment[]
+  clinicResults MakeupClinicResult[]
 
   createdAt DateTime @default(now())
 
+  @@index([academyId, slotType, makeupDate])
+  @@index([recurrenceGroupId])
   @@map("makeup_classes")
+}
+
+enum MakeupSlotType {
+  PERSONAL // 개별 보강 — 기존 흐름 (관리자 주도)
+  OPEN     // 오픈 보강 — 학부모 PWA 신청
+}
+
+enum MakeupApplySource {
+  ADMIN   // 관리자가 명단에 추가
+  PARENT  // 학부모 PWA 신청
+  SELF    // 학생 직접 신청 (Phase 2 이후)
 }
 
 model MakeupClassTarget {
@@ -419,11 +445,65 @@ model MakeupClassTarget {
   studentId     String
   status        AttendanceStatus?
   memo          String            @default("")
+
+  // ── 신청 출처 추적 (Phase 2~3에서 활용) ──
+  appliedBy MakeupApplySource @default(ADMIN)
+  appliedAt DateTime          @default(now())
+
   makeupClass   MakeupClass @relation(fields: [makeupClassId], references: [id])
   student       Student     @relation(fields: [studentId], references: [id])
 
   @@id([makeupClassId, studentId])
   @@map("makeup_class_targets")
+}
+
+// 보강 수업에 대한 코멘트 (학생 × 보강 별 1행) — lessons LessonComment와 분리
+model MakeupComment {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  makeupClassId String
+  makeupClass   MakeupClass @relation(fields: [makeupClassId], references: [id])
+  studentId     String
+  student       Student     @relation(fields: [studentId], references: [id])
+
+  comment  String
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([makeupClassId, studentId])
+  @@index([academyId])
+  @@map("makeup_comments")
+}
+
+// 보강 수업의 Clinic 체크 결과 (학생 × 보강 × 양식 별 1행)
+model MakeupClinicResult {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  makeupClassId String
+  makeupClass   MakeupClass    @relation(fields: [makeupClassId], references: [id])
+  studentId     String
+  student       Student        @relation(fields: [studentId], references: [id])
+  templateId    String
+  template      ClinicTemplate @relation(fields: [templateId], references: [id])
+
+  checks        Json
+  customItems   Json     @default("[]")
+  hiddenItemIds Json     @default("[]")
+
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([makeupClassId, studentId, templateId])
+  @@index([academyId])
+  @@map("makeup_clinic_results")
 }
 
 // ─────────────────────────────────────────────
@@ -1256,7 +1336,8 @@ model ClinicTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  results ClinicResult[]
+  results        ClinicResult[]
+  makeupResults  MakeupClinicResult[]
 
   @@index([academyId, isActive])
   @@map("clinic_templates")
@@ -1287,7 +1368,9 @@ model LessonComment {
 }
 
 // Clinic 체크 결과 (학생 × 날짜 × 양식 별 1행)
-// checks 형식: [{ itemId: string, checked: boolean }]
+// checks 형식:         [{ itemId: string, checked: boolean }]      — 양식 항목에 대한 체크 결과
+// customItems 형식:    [{ id: string, label: string, checked: boolean }] — 이 세션에서 추가된 항목
+// hiddenItemIds 형식:  string[]                                     — 이 세션에서 숨긴 양식 항목 ID
 model ClinicResult {
   id        String  @id @default(cuid())
   academyId String
@@ -1300,8 +1383,10 @@ model ClinicResult {
   templateId String
   template   ClinicTemplate @relation(fields: [templateId], references: [id])
 
-  sessionDate DateTime
-  checks      Json
+  sessionDate   DateTime
+  checks        Json
+  customItems   Json     @default("[]")
+  hiddenItemIds Json     @default("[]")
 
   authorId String
 

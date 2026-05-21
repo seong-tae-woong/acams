@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
+import { AttendanceStatus as PrismaStatus, MakeupSlotType } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { randomUUID } from 'crypto';
 
 const STATUS_TO_UI: Record<PrismaStatus, '출석' | '결석' | '지각' | '조퇴'> = {
   [PrismaStatus.PRESENT]: '출석',
@@ -20,6 +21,10 @@ type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
   makeupDate: Date; makeupTime: string; teacherId: string;
   reason: string; attendanceChecked: boolean;
+  slotType: MakeupSlotType;
+  capacity: number | null;
+  applicationDeadline: Date | null;
+  recurrenceGroupId: string | null;
   originalClass: { name: string };
   teacher: { name: string };
   targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
@@ -43,10 +48,15 @@ function mapMakeup(m: MakeupForMap) {
     })),
     reason: m.reason,
     attendanceChecked: m.attendanceChecked,
+    slotType: m.slotType,
+    capacity: m.capacity,
+    applicationDeadline: m.applicationDeadline ? m.applicationDeadline.toISOString() : null,
+    recurrenceGroupId: m.recurrenceGroupId,
+    // 신청 가능 인원 계산은 UI에서 capacity - targets.length로
   };
 }
 
-// GET /api/makeup?classId=&month=
+// GET /api/makeup?classId=&month=&slotType=PERSONAL|OPEN
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
@@ -55,12 +65,18 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
   const month = searchParams.get('month');
+  const slotTypeParam = searchParams.get('slotType');
+  const slotType =
+    slotTypeParam === 'OPEN' ? MakeupSlotType.OPEN :
+    slotTypeParam === 'PERSONAL' ? MakeupSlotType.PERSONAL :
+    undefined;
 
   try {
     const makeups = await prisma.makeupClass.findMany({
       where: {
         academyId,
         ...(classId ? { originalClassId: classId } : {}),
+        ...(slotType ? { slotType } : {}),
         ...(month
           ? {
               makeupDate: {
@@ -84,6 +100,31 @@ export async function GET(req: NextRequest) {
   }
 }
 
+interface RecurrencePattern {
+  daysOfWeek: number[];   // 1=월..7=일
+  startDate: string;      // YYYY-MM-DD
+  endDate: string;        // YYYY-MM-DD
+  startTime: string;      // HH:MM
+  endTime?: string;       // HH:MM (옵션, 정보용)
+}
+
+// 반복 패턴 → makeupDate 목록 펼침
+function expandRecurrence(p: RecurrencePattern): string[] {
+  const start = new Date(`${p.startDate}T00:00:00.000Z`);
+  const end = new Date(`${p.endDate}T00:00:00.000Z`);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return [];
+  const targetDows = new Set(p.daysOfWeek);
+  const dates: string[] = [];
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const jsDow = d.getUTCDay();
+    const dow = jsDow === 0 ? 7 : jsDow;
+    if (targetDows.has(dow)) {
+      dates.push(d.toISOString().slice(0, 10));
+    }
+  }
+  return dates;
+}
+
 // POST /api/makeup
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -91,24 +132,126 @@ export async function POST(req: NextRequest) {
   const { academyId } = auth;
 
   try {
-    const { originalClassId, originalDate, makeupDate, makeupTime, teacherId, reason, targetStudents } =
-      await req.json();
+    const body = await req.json();
+    const {
+      originalClassId,
+      originalDate,
+      makeupDate,
+      makeupTime,
+      teacherId,
+      reason,
+      targetStudents,
+      slotType,
+      capacity,
+      applicationDeadline,
+      recurrencePattern,
+    } = body;
 
-    if (!originalClassId || !originalDate || !makeupDate || !teacherId) {
-      return NextResponse.json({ error: '원래 반, 날짜, 보강일, 강사는 필수입니다.' }, { status: 400 });
+    if (!originalClassId || !teacherId) {
+      return NextResponse.json({ error: '원래 반, 강사는 필수입니다.' }, { status: 400 });
     }
+
+    const isOpen = slotType === 'OPEN';
+    const slotEnum = isOpen ? MakeupSlotType.OPEN : MakeupSlotType.PERSONAL;
+
+    // ── 반복 슬롯 (OPEN 전용) ──
+    if (isOpen && recurrencePattern) {
+      const pattern = recurrencePattern as RecurrencePattern;
+      if (!Array.isArray(pattern.daysOfWeek) || pattern.daysOfWeek.length === 0) {
+        return NextResponse.json({ error: '반복 요일을 선택해주세요.' }, { status: 400 });
+      }
+      if (!pattern.startDate || !pattern.endDate || !pattern.startTime) {
+        return NextResponse.json({ error: '반복 시작일·종료일·시작 시간을 입력해주세요.' }, { status: 400 });
+      }
+      const dates = expandRecurrence(pattern);
+      if (dates.length === 0) {
+        return NextResponse.json({ error: '생성될 슬롯이 없습니다. 기간을 확인해주세요.' }, { status: 400 });
+      }
+      if (dates.length > 200) {
+        return NextResponse.json({ error: '반복 슬롯이 너무 많습니다 (최대 200개).' }, { status: 400 });
+      }
+
+      const groupId = randomUUID();
+      const createdIds = await prisma.$transaction(async (tx) => {
+        const ids: string[] = [];
+        for (const date of dates) {
+          const dateObj = new Date(`${date}T00:00:00.000Z`);
+          const deadline = applicationDeadline
+            ? new Date(applicationDeadline)
+            : (() => {
+                // 기본: 시작 시각 1시간 전
+                const [hh, mm] = pattern.startTime.split(':').map(Number);
+                const d = new Date(dateObj);
+                d.setUTCHours(hh - 1, mm, 0, 0);
+                return d;
+              })();
+          const m = await tx.makeupClass.create({
+            data: {
+              academyId,
+              originalClassId,
+              originalDate: dateObj, // 반복 슬롯은 originalDate=makeupDate로
+              makeupDate: dateObj,
+              makeupTime: pattern.startTime + (pattern.endTime ? `~${pattern.endTime}` : ''),
+              teacherId,
+              reason: reason ?? '정기 보강',
+              attendanceChecked: false,
+              slotType: slotEnum,
+              capacity: typeof capacity === 'number' && capacity > 0 ? capacity : null,
+              applicationDeadline: deadline,
+              recurrenceGroupId: groupId,
+              recurrencePattern: pattern as object,
+            },
+          });
+          ids.push(m.id);
+        }
+        return ids;
+      });
+
+      // 첫 슬롯만 반환 (목록 갱신은 클라이언트가 refetch)
+      const first = await prisma.makeupClass.findUnique({
+        where: { id: createdIds[0] },
+        include: MAKEUP_INCLUDE,
+      });
+      return NextResponse.json(
+        { ...mapMakeup(first!), createdCount: createdIds.length },
+        { status: 201 },
+      );
+    }
+
+    // ── 단일 슬롯 (PERSONAL 또는 OPEN-단일) ──
+    if (!makeupDate) {
+      return NextResponse.json({ error: '보강일은 필수입니다.' }, { status: 400 });
+    }
+    if (!isOpen && !originalDate) {
+      return NextResponse.json({ error: '개별 보강은 원래 수업일이 필수입니다.' }, { status: 400 });
+    }
+
+    const dateObj = new Date(makeupDate);
+    const deadline = isOpen
+      ? (applicationDeadline
+          ? new Date(applicationDeadline)
+          : (() => {
+              const [hh, mm] = (makeupTime || '00:00').split(':').map(Number);
+              const d = new Date(dateObj);
+              d.setUTCHours(hh - 1, mm, 0, 0);
+              return d;
+            })())
+      : null;
 
     const makeup = await prisma.$transaction(async (tx) => {
       const m = await tx.makeupClass.create({
         data: {
           academyId,
           originalClassId,
-          originalDate: new Date(originalDate),
-          makeupDate: new Date(makeupDate),
+          originalDate: new Date(originalDate ?? makeupDate),
+          makeupDate: dateObj,
           makeupTime: makeupTime ?? '',
           teacherId,
           reason: reason ?? '',
           attendanceChecked: false,
+          slotType: slotEnum,
+          capacity: isOpen && typeof capacity === 'number' && capacity > 0 ? capacity : null,
+          applicationDeadline: deadline,
         },
       });
 

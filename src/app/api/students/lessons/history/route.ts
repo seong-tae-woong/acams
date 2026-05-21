@@ -7,6 +7,7 @@ import type {
   StudentLessonTimelineEntry,
   StudentLessonTimelineClinic,
   ClinicCheck,
+  ClinicCustomItem,
   ClinicTemplateItem,
 } from '@/lib/types/lesson';
 
@@ -70,8 +71,8 @@ export async function GET(req: NextRequest) {
     const from = toDateOnly(fromStr);
     const to = toDateOnly(toStr);
 
-    // 3. Comment + ClinicResult 병렬 조회
-    const [comments, clinicResults, templates, classRows] = await Promise.all([
+    // 3. Comment + ClinicResult + 보강 데이터 병렬 조회
+    const [comments, clinicResults, makeupComments, makeupClinicResults, makeupTargets, templates, classRows] = await Promise.all([
       prisma.lessonComment.findMany({
         where: {
           academyId,
@@ -90,6 +91,75 @@ export async function GET(req: NextRequest) {
         },
         include: { class: { select: { id: true, name: true, color: true } } },
       }),
+      // 보강 코멘트 — 학생이 명단에 있는 보강만
+      prisma.makeupComment.findMany({
+        where: {
+          academyId,
+          studentId,
+          makeupClass: {
+            originalClassId: { in: targetClassIds },
+            makeupDate: { gte: from, lte: to },
+          },
+        },
+        include: {
+          makeupClass: {
+            select: {
+              id: true,
+              originalClassId: true,
+              makeupDate: true,
+              makeupTime: true,
+              reason: true,
+              originalClass: { select: { id: true, name: true, color: true } },
+            },
+          },
+        },
+      }),
+      // 보강 Clinic 결과 — 학생이 명단에 있는 보강만
+      prisma.makeupClinicResult.findMany({
+        where: {
+          academyId,
+          studentId,
+          makeupClass: {
+            originalClassId: { in: targetClassIds },
+            makeupDate: { gte: from, lte: to },
+          },
+        },
+        include: {
+          makeupClass: {
+            select: {
+              id: true,
+              originalClassId: true,
+              makeupDate: true,
+              makeupTime: true,
+              reason: true,
+              originalClass: { select: { id: true, name: true, color: true } },
+            },
+          },
+        },
+      }),
+      // 보강 명단에 있는 모든 보강 (코멘트/Clinic이 없어도 타임라인에 표시)
+      prisma.makeupClassTarget.findMany({
+        where: {
+          studentId,
+          makeupClass: {
+            academyId,
+            originalClassId: { in: targetClassIds },
+            makeupDate: { gte: from, lte: to },
+          },
+        },
+        include: {
+          makeupClass: {
+            select: {
+              id: true,
+              originalClassId: true,
+              makeupDate: true,
+              makeupTime: true,
+              reason: true,
+              originalClass: { select: { id: true, name: true, color: true } },
+            },
+          },
+        },
+      }),
       prisma.clinicTemplate.findMany({ where: { academyId } }),
       prisma.class.findMany({
         where: { academyId, id: { in: targetClassIds } },
@@ -106,7 +176,12 @@ export async function GET(req: NextRequest) {
       { templateName: string; isActive: boolean; itemTotals: Map<string, { label: string; total: number; checked: number }> }
     >();
 
-    for (const r of clinicResults) {
+    // 정규 + 보강 Clinic 결과를 함께 집계
+    const aggregateClinic = (r: {
+      templateId: string;
+      checks: unknown;
+      hiddenItemIds: unknown;
+    }) => {
       const tmpl = templateMap.get(r.templateId);
       const tmplName = tmpl?.name ?? '(삭제된 양식)';
       const tmplActive = tmpl?.isActive ?? false;
@@ -119,8 +194,10 @@ export async function GET(req: NextRequest) {
         summaryAgg.set(r.templateId, agg);
       }
 
+      const hiddenIds = new Set((r.hiddenItemIds as unknown as string[] | null) ?? []);
       const checks = (r.checks as unknown as ClinicCheck[] | null) ?? [];
       for (const c of checks) {
+        if (hiddenIds.has(c.itemId)) continue;
         const label = itemLabelMap.get(c.itemId) ?? '(삭제된 항목)';
         let entry = agg.itemTotals.get(c.itemId);
         if (!entry) {
@@ -130,7 +207,10 @@ export async function GET(req: NextRequest) {
         entry.total += 1;
         if (c.checked) entry.checked += 1;
       }
-    }
+    };
+
+    for (const r of clinicResults) aggregateClinic(r);
+    for (const r of makeupClinicResults) aggregateClinic(r);
 
     const clinicByTemplate: StudentLessonClinicSummary[] = [];
     for (const [templateId, agg] of summaryAgg.entries()) {
@@ -189,15 +269,27 @@ export async function GET(req: NextRequest) {
       const tmplItems = (tmpl?.items as unknown as ClinicTemplateItem[] | null) ?? [];
       const itemLabelMap = new Map(tmplItems.map((it) => [it.id, it.label]));
       const checks = (r.checks as unknown as ClinicCheck[] | null) ?? [];
+      const customItems = (r.customItems as unknown as ClinicCustomItem[] | null) ?? [];
+      const hiddenIds = new Set((r.hiddenItemIds as unknown as string[] | null) ?? []);
+      const templateChecks = checks
+        .filter((c) => !hiddenIds.has(c.itemId))
+        .map((c) => ({
+          itemId: c.itemId,
+          label: itemLabelMap.get(c.itemId) ?? '(삭제된 항목)',
+          checked: c.checked,
+          source: 'template' as const,
+        }));
+      const customChecks = customItems.map((ci) => ({
+        itemId: ci.id,
+        label: ci.label,
+        checked: ci.checked,
+        source: 'custom' as const,
+      }));
       entry.clinicsByTemplate.set(r.templateId, {
         templateId: r.templateId,
         templateName: tmplName,
         isActive: tmplActive,
-        checks: checks.map((c) => ({
-          itemId: c.itemId,
-          label: itemLabelMap.get(c.itemId) ?? '(삭제된 항목)',
-          checked: c.checked,
-        })),
+        checks: [...templateChecks, ...customChecks],
       });
     }
 
@@ -220,6 +312,103 @@ export async function GET(req: NextRequest) {
         isOneTime: !sched, // 정규 일정에 없으면 보강으로 간주
         comment: e.comment,
         clinics: [...e.clinicsByTemplate.values()],
+        makeupClassId: null,
+        makeupReason: null,
+      });
+    }
+
+    // 6-b. 보강 세션을 별도 timeline entry로 추가 (makeupClassId 키)
+    type MakeupEntry = {
+      makeupClassId: string;
+      date: string;
+      time: string;
+      classId: string;
+      className: string;
+      classColor: string;
+      reason: string;
+      comment: string | null;
+      clinicsByTemplate: Map<string, StudentLessonTimelineClinic>;
+    };
+    const makeupMap = new Map<string, MakeupEntry>();
+
+    const ensureMakeupEntry = (mc: {
+      id: string;
+      originalClassId: string;
+      makeupDate: Date;
+      makeupTime: string;
+      reason: string;
+      originalClass: { id: string; name: string; color: string };
+    }) => {
+      let entry = makeupMap.get(mc.id);
+      if (!entry) {
+        entry = {
+          makeupClassId: mc.id,
+          date: dateOnly(mc.makeupDate),
+          time: mc.makeupTime,
+          classId: mc.originalClassId,
+          className: mc.originalClass.name,
+          classColor: mc.originalClass.color,
+          reason: mc.reason,
+          comment: null,
+          clinicsByTemplate: new Map(),
+        };
+        makeupMap.set(mc.id, entry);
+      }
+      return entry;
+    };
+
+    // 보강 대상으로 등록된 모든 보강 (코멘트/Clinic 없어도 표시)
+    for (const t of makeupTargets) ensureMakeupEntry(t.makeupClass);
+    for (const c of makeupComments) {
+      const entry = ensureMakeupEntry(c.makeupClass);
+      entry.comment = c.comment;
+    }
+    for (const r of makeupClinicResults) {
+      const entry = ensureMakeupEntry(r.makeupClass);
+      const tmpl = templateMap.get(r.templateId);
+      const tmplName = tmpl?.name ?? '(삭제된 양식)';
+      const tmplActive = tmpl?.isActive ?? false;
+      const tmplItems = (tmpl?.items as unknown as ClinicTemplateItem[] | null) ?? [];
+      const itemLabelMap = new Map(tmplItems.map((it) => [it.id, it.label]));
+      const checks = (r.checks as unknown as ClinicCheck[] | null) ?? [];
+      const customItems = (r.customItems as unknown as ClinicCustomItem[] | null) ?? [];
+      const hiddenIds = new Set((r.hiddenItemIds as unknown as string[] | null) ?? []);
+      const templateChecks = checks
+        .filter((c) => !hiddenIds.has(c.itemId))
+        .map((c) => ({
+          itemId: c.itemId,
+          label: itemLabelMap.get(c.itemId) ?? '(삭제된 항목)',
+          checked: c.checked,
+          source: 'template' as const,
+        }));
+      const customChecks = customItems.map((ci) => ({
+        itemId: ci.id,
+        label: ci.label,
+        checked: ci.checked,
+        source: 'custom' as const,
+      }));
+      entry.clinicsByTemplate.set(r.templateId, {
+        templateId: r.templateId,
+        templateName: tmplName,
+        isActive: tmplActive,
+        checks: [...templateChecks, ...customChecks],
+      });
+    }
+
+    for (const m of makeupMap.values()) {
+      // 보강 시간을 HH:MM~HH:MM 형식으로 — endTime은 없으므로 빈값 유지
+      timeline.push({
+        date: m.date,
+        classId: m.classId,
+        className: m.className,
+        classColor: m.classColor,
+        startTime: m.time,
+        endTime: '',
+        isOneTime: true,
+        comment: m.comment,
+        clinics: [...m.clinicsByTemplate.values()],
+        makeupClassId: m.makeupClassId,
+        makeupReason: m.reason,
       });
     }
 
@@ -240,7 +429,9 @@ export async function GET(req: NextRequest) {
       range: { from: fromStr, to: toStr },
       classes: classesRef,
       summary: {
-        commentCount: comments.filter((c) => c.comment.trim() !== '').length,
+        commentCount:
+          comments.filter((c) => c.comment.trim() !== '').length +
+          makeupComments.filter((c) => c.comment.trim() !== '').length,
         clinicByTemplate,
       },
       timeline,
