@@ -248,9 +248,19 @@ export async function POST(req: NextRequest) {
     });
 
     // 비밀번호 SMS 발송 (응답에서 제외)
+    // - 학생 계정: 학생 phone 있으면 학생에게, 학부모 phone 있으면 학부모에게도 발송
+    // - 학부모 계정: 신규 가입한 경우에만 학부모에게 발송
     const smsPromises: Promise<void>[] = [];
-    if (studentLoginId && phone) {
-      smsPromises.push(sendSms(phone, `[학원로그] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`));
+    if (studentLoginId) {
+      const studentMsg = `[학원로그] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`;
+      if (phone) {
+        smsPromises.push(sendSms(phone, studentMsg));
+      }
+      if (parentPhone) {
+        smsPromises.push(
+          sendSms(parentPhone, `[학원로그] 자녀(${name}) 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`),
+        );
+      }
     }
     if (isNewParent && parentPhone) {
       smsPromises.push(sendSms(parentPhone, `[학원로그] 학부모 계정\nID: ${parentPhone}\n임시PW: ${parentTempPassword}`));

@@ -72,9 +72,23 @@ export async function POST(
         where: { id: student.user.id },
         data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
       });
+      // 학생 phone 있으면 학생에게, 학부모 phone 있으면 학부모에게도 발송
+      const smsPromises: Promise<void>[] = [];
       if (student.phone) {
-        await sendSms(student.phone, `[학원로그] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`);
+        smsPromises.push(
+          sendSms(student.phone, `[학원로그] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`),
+        );
       }
+      const parentPhoneForStudentReset = student.parentLinks[0]?.parent?.phone;
+      if (parentPhoneForStudentReset) {
+        smsPromises.push(
+          sendSms(
+            parentPhoneForStudentReset,
+            `[학원로그] 자녀(${student.name}) 학생 계정 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`,
+          ),
+        );
+      }
+      await Promise.all(smsPromises);
       await writeAuditLog({
         action: 'PASSWORD_RESET',
         userId: req.headers.get('x-user-id') ?? undefined,

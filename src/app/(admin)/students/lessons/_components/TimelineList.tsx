@@ -1,5 +1,5 @@
 'use client';
-import { Check, X as XIcon } from 'lucide-react';
+import { Check, X as XIcon, CalendarPlus, BookOpen } from 'lucide-react';
 import type { StudentLessonTimelineEntry } from '@/lib/types/lesson';
 
 interface TimelineListProps {
@@ -25,14 +25,27 @@ export default function TimelineList({ timeline }: TimelineListProps) {
 
   return (
     <div className="space-y-3">
-      {timeline.map((entry, idx) => (
+      {timeline.map((entry, idx) => {
+        const isMakeup = entry.kind === 'makeup';
+        return (
         <div
-          key={`${entry.classId}-${entry.date}-${idx}`}
-          className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden flex"
+          key={`${isMakeup ? 'm' : 'r'}-${entry.makeupClassId ?? entry.classId}-${entry.date}-${idx}`}
+          className={`bg-white rounded-[10px] border overflow-hidden flex ${
+            isMakeup ? 'border-[#fde68a]' : 'border-[#e2e8f0]'
+          }`}
         >
           <div className="w-1 shrink-0" style={{ backgroundColor: entry.classColor }} />
           <div className="flex-1 p-4 space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
+              {isMakeup ? (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-[20px] bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
+                  <CalendarPlus size={11} /> 보강
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-[20px] bg-[#E1F5EE] text-[#065f46] border border-[#bbf7d0]">
+                  <BookOpen size={11} /> 정규
+                </span>
+              )}
               <span className="text-[12.5px] font-semibold text-[#111827]">{formatHeader(entry.date)}</span>
               <span className="text-[12px] text-[#374151]">{entry.className}</span>
               {entry.startTime && (
@@ -40,10 +53,8 @@ export default function TimelineList({ timeline }: TimelineListProps) {
                   {entry.endTime ? `${entry.startTime}~${entry.endTime}` : entry.startTime}
                 </span>
               )}
-              {entry.isOneTime && (
-                <span className="text-[10.5px] px-1.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e]">
-                  보강{entry.makeupReason ? ` · ${entry.makeupReason}` : ''}
-                </span>
+              {isMakeup && entry.makeupReason && (
+                <span className="text-[11px] text-[#92400e]">사유: {entry.makeupReason}</span>
               )}
             </div>
 
@@ -87,7 +98,8 @@ export default function TimelineList({ timeline }: TimelineListProps) {
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useMakeupStore, type OpenSlotCreateInput } from '@/lib/stores/makeupStore';
@@ -7,7 +7,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { formatKoreanDate } from '@/lib/utils/format';
-import { Plus, Trash2, UserPlus, X as XIcon, CheckCheck } from 'lucide-react';
+import { Plus, Trash2, UserPlus, X as XIcon, CheckCheck, Filter } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
@@ -81,18 +81,65 @@ function countRecurrence(form: RecurringForm): number {
 
 export default function OpenMakeupTab() {
   const {
-    makeupClasses, loading,
-    addOpenSlot, fetchMakeupClasses, addStudents, removeStudent, saveAttendance, removeMakeupClass,
+    open: openTab,
+    addOpenSlot, fetchMakeupClasses, fetchMore, addStudents, removeStudent, saveAttendance, removeMakeupClass,
   } = useMakeupStore();
   const { classes } = useClassStore();
   const { students } = useStudentStore();
   const { teachers } = useTeacherStore();
 
-  // OPEN 슬롯만 필터
-  const openSlots = useMemo(
-    () => makeupClasses.filter((m) => m.slotType === 'OPEN').sort((a, b) => b.makeupDate.localeCompare(a.makeupDate)),
-    [makeupClasses],
-  );
+  const openSlots = openTab.items;
+  const loading = openTab.loading;
+
+  // 마운트 시 첫 페이지 로드 (탭 전환 진입 시점)
+  useEffect(() => {
+    fetchMakeupClasses('OPEN');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── 필터 ── */
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterClassId, setFilterClassId] = useState<string>('');
+  const [filterFrom, setFilterFrom] = useState<string>('');
+  const [filterTo, setFilterTo] = useState<string>('');
+  const hasActiveFilter = Boolean(filterClassId || filterFrom || filterTo);
+
+  function applyFilter() {
+    fetchMakeupClasses('OPEN', {
+      classId: filterClassId || undefined,
+      from: filterFrom || undefined,
+      to: filterTo || undefined,
+    });
+    setFilterOpen(false);
+  }
+
+  function clearFilter() {
+    setFilterClassId('');
+    setFilterFrom('');
+    setFilterTo('');
+    fetchMakeupClasses('OPEN');
+    setFilterOpen(false);
+  }
+
+  /* ── 무한 스크롤 ── */
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const fetchMoreRef = useRef(fetchMore);
+  fetchMoreRef.current = fetchMore;
+  useEffect(() => {
+    const root = listScrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          fetchMoreRef.current('OPEN');
+        }
+      },
+      { root, rootMargin: '120px' },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [openTab.nextCursor]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = openSlots.find((m) => m.id === selectedId);
@@ -119,7 +166,7 @@ export default function OpenMakeupTab() {
     setChecked(nextChecked);
     setMemo(nextMemo);
     setCommentStudentId(selected.targetStudents[0] ?? '');
-  }, [selectedId, makeupClasses]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, openSlots]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── 슬롯 등록 모달 ── */
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -160,7 +207,7 @@ export default function OpenMakeupTab() {
     try {
       await addOpenSlot(input);
       setRegisterOpen(false);
-      fetchMakeupClasses(undefined, undefined, 'OPEN');
+      fetchMakeupClasses('OPEN', openTab.filters);
     } catch { /* toast handled */ }
   }
 
@@ -191,7 +238,7 @@ export default function OpenMakeupTab() {
     try {
       await addOpenSlot(input);
       setRegisterOpen(false);
-      fetchMakeupClasses(undefined, undefined, 'OPEN');
+      fetchMakeupClasses('OPEN', openTab.filters);
     } catch { /* toast handled */ }
   }
 
@@ -204,7 +251,7 @@ export default function OpenMakeupTab() {
     await removeMakeupClass(selected.id, scope);
     setSelectedId(null);
     if (scope === 'future') {
-      fetchMakeupClasses(undefined, undefined, 'OPEN');
+      fetchMakeupClasses('OPEN', openTab.filters);
     }
   }
 
@@ -255,61 +302,138 @@ export default function OpenMakeupTab() {
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  if (loading) return <LoadingSpinner />;
-
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* ── 좌측: 슬롯 목록 ── */}
-      <div className="w-72 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-        <div className="px-3 py-2.5 border-b border-[#e2e8f0] flex items-center justify-between">
-          <span className="text-[11.5px] text-[#6b7280]">{openSlots.length}개 슬롯</span>
+      <div className="w-72 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col">
+        <div className="px-3 py-2.5 border-b border-[#e2e8f0] flex items-center justify-between gap-2">
           <Button variant="dark" size="sm" onClick={openRegister}>
             <Plus size={13} /> 슬롯 등록
           </Button>
         </div>
-        <div className="p-2 space-y-1">
-          {openSlots.length === 0 && (
-            <p className="text-[12px] text-[#9ca3af] text-center py-6">등록된 오픈 슬롯이 없습니다</p>
-          )}
-          {openSlots.map((slot) => {
-            const cls = classes.find((c) => c.id === slot.originalClassId);
-            const filled = slot.targetStudents.length;
-            const cap = slot.capacity;
-            return (
-              <button
-                key={slot.id}
-                onClick={() => setSelectedId(slot.id)}
-                className={clsx(
-                  'w-full px-3 py-3 rounded-[8px] text-left transition-colors cursor-pointer',
-                  selectedId === slot.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
-                )}
+        {/* 필터 헤더 */}
+        <div className="px-3 py-2 border-b border-[#e2e8f0] relative">
+          <button
+            type="button"
+            onClick={() => setFilterOpen((v) => !v)}
+            className={clsx(
+              'w-full inline-flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-[8px] text-[11.5px] font-medium border transition-colors cursor-pointer',
+              hasActiveFilter
+                ? 'bg-[#E1F5EE] border-[#4fc3a1] text-[#065f46]'
+                : 'bg-white border-[#e2e8f0] text-[#6b7280] hover:border-[#4fc3a1]',
+            )}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Filter size={12} /> 필터{hasActiveFilter ? ' (적용됨)' : ''}
+            </span>
+            {hasActiveFilter && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); clearFilter(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); clearFilter(); } }}
+                className="text-[10.5px] text-[#065f46] hover:underline"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls?.color ?? '#ccc' }} />
-                  <span className="text-[12.5px] font-medium text-[#111827]">{slot.originalClassName}</span>
-                  {slot.recurrenceGroupId && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EEEDFE] text-[#5B4FBE]">반복</span>
+                초기화
+              </span>
+            )}
+          </button>
+          {filterOpen && (
+            <div className="absolute z-20 top-full left-3 right-3 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg p-3 space-y-2.5">
+              <div>
+                <label className="block text-[11px] text-[#6b7280] mb-1">반</label>
+                <select
+                  value={filterClassId}
+                  onChange={(e) => setFilterClassId(e.target.value)}
+                  className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 focus:outline-none focus:border-[#4fc3a1] bg-white"
+                >
+                  <option value="">전체</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] text-[#6b7280] mb-1">시작일</label>
+                  <input
+                    type="date"
+                    value={filterFrom}
+                    onChange={(e) => setFilterFrom(e.target.value)}
+                    className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 focus:outline-none focus:border-[#4fc3a1]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#6b7280] mb-1">종료일</label>
+                  <input
+                    type="date"
+                    value={filterTo}
+                    onChange={(e) => setFilterTo(e.target.value)}
+                    className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 focus:outline-none focus:border-[#4fc3a1]"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-1.5 pt-1">
+                <Button variant="default" size="sm" onClick={clearFilter}>초기화</Button>
+                <Button variant="dark" size="sm" onClick={applyFilter}>적용</Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div ref={listScrollRef} className="flex-1 overflow-y-auto">
+          <div className="p-2 space-y-1">
+            {loading && openSlots.length === 0 ? (
+              <LoadingSpinner />
+            ) : openSlots.length === 0 ? (
+              <p className="text-[12px] text-[#9ca3af] text-center py-6">
+                {hasActiveFilter ? '조건에 맞는 슬롯이 없습니다' : '등록된 오픈 슬롯이 없습니다'}
+              </p>
+            ) : null}
+            {openSlots.map((slot) => {
+              const cls = classes.find((c) => c.id === slot.originalClassId);
+              const filled = slot.targetStudents.length;
+              const cap = slot.capacity;
+              return (
+                <button
+                  key={slot.id}
+                  onClick={() => setSelectedId(slot.id)}
+                  className={clsx(
+                    'w-full px-3 py-3 rounded-[8px] text-left transition-colors cursor-pointer',
+                    selectedId === slot.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
                   )}
-                </div>
-                <div className="text-[11.5px] text-[#6b7280] ml-4">
-                  {formatKoreanDate(slot.makeupDate)} {slot.makeupTime}
-                </div>
-                <div className="ml-4 mt-1.5 flex items-center gap-1.5 flex-wrap">
-                  <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#F3F4F6] text-[#374151]">
-                    신청 {filled}{cap ? `/${cap}` : ''}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#FEF3C7] text-[#92400E]">
-                    마감 {formatDeadline(slot.applicationDeadline)}
-                  </span>
-                  {slot.attendanceChecked && (
-                    <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#D1FAE5] text-[#065f46]">
-                      출결 완료
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls?.color ?? '#ccc' }} />
+                    <span className="text-[12.5px] font-medium text-[#111827]">{slot.originalClassName}</span>
+                    {slot.recurrenceGroupId && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EEEDFE] text-[#5B4FBE]">반복</span>
+                    )}
+                  </div>
+                  <div className="text-[11.5px] text-[#6b7280] ml-4">
+                    {formatKoreanDate(slot.makeupDate)} {slot.makeupTime}
+                  </div>
+                  <div className="ml-4 mt-1.5 flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#F3F4F6] text-[#374151]">
+                      신청 {filled}{cap ? `/${cap}` : ''}
                     </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                    <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#FEF3C7] text-[#92400E]">
+                      마감 {formatDeadline(slot.applicationDeadline)}
+                    </span>
+                    {slot.attendanceChecked && (
+                      <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#D1FAE5] text-[#065f46]">
+                        출결 완료
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+            {openTab.nextCursor && (
+              <div ref={sentinelRef} className="py-3 text-center text-[11px] text-[#9ca3af]">
+                {openTab.loadingMore ? '불러오는 중…' : '더 보기'}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

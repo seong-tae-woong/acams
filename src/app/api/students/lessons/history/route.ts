@@ -47,17 +47,10 @@ export async function GET(req: NextRequest) {
     }
 
     const studentClassIds = student.classEnrollments.map((e) => e.classId);
-    if (studentClassIds.length === 0) {
-      return NextResponse.json({
-        student: { id: student.id, name: student.name },
-        range: { from: fromStr, to: toStr },
-        classes: [],
-        summary: { commentCount: 0, clinicByTemplate: [] },
-        timeline: [],
-      } satisfies StudentLessonHistory);
-    }
 
     // 2. classId 옵션 적용 (지정 시 학생 소속 반인지 검증)
+    //    classId 미지정 시 targetClassIds = 학생의 활성 반 전체 (정규 수업 필터용)
+    //    보강은 학생 ID 기반으로 별도 조회하므로 활성 반이 0개여도 보강 이력은 표시.
     let targetClassIds: string[];
     if (classIdParam) {
       if (!studentClassIds.includes(classIdParam)) {
@@ -71,33 +64,51 @@ export async function GET(req: NextRequest) {
     const from = toDateOnly(fromStr);
     const to = toDateOnly(toStr);
 
+    // 보강 originalClass 필터 — classId 지정 시 그 반의 보강만, 미지정 시 학생 명단 기준 전체
+    const makeupOriginalClassFilter = classIdParam
+      ? { originalClassId: classIdParam }
+      : {};
+
     // 3. Comment + ClinicResult + 보강 데이터 병렬 조회
+    //    정규 수업 데이터(comments, clinicResults)는 학생 활성 반이 있을 때만 의미가 있으므로
+    //    targetClassIds가 비어 있으면 빈 배열로 단락 — 불필요한 빈 IN() 쿼리 회피.
+    const regularFetches = targetClassIds.length > 0
+      ? ([
+          prisma.lessonComment.findMany({
+            where: {
+              academyId,
+              studentId,
+              classId: { in: targetClassIds },
+              sessionDate: { gte: from, lte: to },
+            },
+            include: { class: { select: { id: true, name: true, color: true } } },
+          }),
+          prisma.clinicResult.findMany({
+            where: {
+              academyId,
+              studentId,
+              classId: { in: targetClassIds },
+              sessionDate: { gte: from, lte: to },
+            },
+            include: { class: { select: { id: true, name: true, color: true } } },
+          }),
+          prisma.class.findMany({
+            where: { academyId, id: { in: targetClassIds } },
+            include: { schedules: true },
+          }),
+        ] as const)
+      : ([Promise.resolve([]), Promise.resolve([]), Promise.resolve([])] as const);
+
     const [comments, clinicResults, makeupComments, makeupClinicResults, makeupTargets, templates, classRows] = await Promise.all([
-      prisma.lessonComment.findMany({
-        where: {
-          academyId,
-          studentId,
-          classId: { in: targetClassIds },
-          sessionDate: { gte: from, lte: to },
-        },
-        include: { class: { select: { id: true, name: true, color: true } } },
-      }),
-      prisma.clinicResult.findMany({
-        where: {
-          academyId,
-          studentId,
-          classId: { in: targetClassIds },
-          sessionDate: { gte: from, lte: to },
-        },
-        include: { class: { select: { id: true, name: true, color: true } } },
-      }),
-      // 보강 코멘트 — 학생이 명단에 있는 보강만
+      regularFetches[0],
+      regularFetches[1],
+      // 보강 코멘트 — 학생이 명단에 있는 보강 (학생 활성 반과 무관, 오픈 보강 포함)
       prisma.makeupComment.findMany({
         where: {
           academyId,
           studentId,
           makeupClass: {
-            originalClassId: { in: targetClassIds },
+            ...makeupOriginalClassFilter,
             makeupDate: { gte: from, lte: to },
           },
         },
@@ -114,13 +125,13 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      // 보강 Clinic 결과 — 학생이 명단에 있는 보강만
+      // 보강 Clinic 결과 — 학생이 명단에 있는 보강 (학생 활성 반과 무관, 오픈 보강 포함)
       prisma.makeupClinicResult.findMany({
         where: {
           academyId,
           studentId,
           makeupClass: {
-            originalClassId: { in: targetClassIds },
+            ...makeupOriginalClassFilter,
             makeupDate: { gte: from, lte: to },
           },
         },
@@ -143,7 +154,7 @@ export async function GET(req: NextRequest) {
           studentId,
           makeupClass: {
             academyId,
-            originalClassId: { in: targetClassIds },
+            ...makeupOriginalClassFilter,
             makeupDate: { gte: from, lte: to },
           },
         },
@@ -161,10 +172,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.clinicTemplate.findMany({ where: { academyId } }),
-      prisma.class.findMany({
-        where: { academyId, id: { in: targetClassIds } },
-        include: { schedules: true },
-      }),
+      regularFetches[2],
     ]);
 
     const classMap = new Map(classRows.map((c) => [c.id, c]));
@@ -303,13 +311,14 @@ export async function GET(req: NextRequest) {
       const sched = cls?.schedules.find((s) => s.dayOfWeek === dow);
 
       timeline.push({
+        kind: 'regular',
         date: e.date,
         classId: e.classId,
         className: cls?.name ?? '(삭제된 반)',
         classColor: cls?.color ?? '#9ca3af',
         startTime: sched?.startTime ?? '',
         endTime: sched?.endTime ?? '',
-        isOneTime: !sched, // 정규 일정에 없으면 보강으로 간주
+        isOneTime: !sched, // (deprecated) 호환성 유지 — UI는 kind를 사용
         comment: e.comment,
         clinics: [...e.clinicsByTemplate.values()],
         makeupClassId: null,
@@ -398,6 +407,7 @@ export async function GET(req: NextRequest) {
     for (const m of makeupMap.values()) {
       // 보강 시간을 HH:MM~HH:MM 형식으로 — endTime은 없으므로 빈값 유지
       timeline.push({
+        kind: 'makeup',
         date: m.date,
         classId: m.classId,
         className: m.className,

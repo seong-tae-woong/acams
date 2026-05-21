@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
@@ -9,12 +9,14 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { formatKoreanDate } from '@/lib/utils/format';
-import { Plus, CheckCheck, UserPlus, X as XIcon } from 'lucide-react';
+import { Plus, CheckCheck, UserPlus, X as XIcon, Settings2, Filter } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { DAY_NAMES } from '@/lib/types/class';
 import CommentClinicPanel from '../lessons/_components/CommentClinicPanel';
+import ClinicTemplateModal from '../lessons/_components/ClinicTemplateModal';
+import { useLessonStore } from '@/lib/stores/lessonStore';
 import OpenMakeupTab from './_components/OpenMakeupTab';
 
 type MakeupTab = 'personal' | 'open';
@@ -38,17 +40,29 @@ const inputCls =
 const labelCls = 'block text-[11.5px] text-[#6b7280] mb-1';
 
 export default function MakeupPage() {
-  const { makeupClasses, loading, addMakeupClass, updateMakeupClass, addStudents, removeStudent, saveAttendance, fetchMakeupClasses } =
-    useMakeupStore();
+  const {
+    personal,
+    addMakeupClass,
+    updateMakeupClass,
+    addStudents,
+    removeStudent,
+    saveAttendance,
+    fetchMakeupClasses,
+    fetchMore,
+  } = useMakeupStore();
+  const makeupClasses = personal.items;
+  const loading = personal.loading;
   const { classes, fetchClasses } = useClassStore();
   const { students, fetchStudents } = useStudentStore();
   const { teachers, fetchTeachers } = useTeacherStore();
+  const { fetchTemplates } = useLessonStore();
 
   useEffect(() => {
-    fetchMakeupClasses();
+    fetchMakeupClasses('PERSONAL');
     fetchClasses();
     fetchStudents();
     fetchTeachers();
+    fetchTemplates().catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -57,6 +71,55 @@ export default function MakeupPage() {
 
   /* ── 메인 탭 (개별 보강 / 오픈 보강) ── */
   const [activeTab, setActiveTab] = useState<MakeupTab>('personal');
+
+  /* ── Clinic 양식 관리 모달 ── */
+  const [clinicTemplateOpen, setClinicTemplateOpen] = useState(false);
+
+  /* ── 필터 (개별 보강 좌측 패널용) ── */
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterClassId, setFilterClassId] = useState<string>('');
+  const [filterFrom, setFilterFrom] = useState<string>('');
+  const [filterTo, setFilterTo] = useState<string>('');
+  const hasActiveFilter = Boolean(filterClassId || filterFrom || filterTo);
+
+  function applyFilter() {
+    fetchMakeupClasses('PERSONAL', {
+      classId: filterClassId || undefined,
+      from: filterFrom || undefined,
+      to: filterTo || undefined,
+    });
+    setFilterOpen(false);
+  }
+
+  function clearFilter() {
+    setFilterClassId('');
+    setFilterFrom('');
+    setFilterTo('');
+    fetchMakeupClasses('PERSONAL');
+    setFilterOpen(false);
+  }
+
+  /* ── 무한 스크롤 (좌측 패널 끝 sentinel 관찰) ── */
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const fetchMoreRef = useRef(fetchMore);
+  fetchMoreRef.current = fetchMore;
+  useEffect(() => {
+    if (activeTab !== 'personal') return;
+    const root = listScrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          fetchMoreRef.current('PERSONAL');
+        }
+      },
+      { root, rootMargin: '120px' },
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [activeTab, personal.nextCursor]);
 
   /* ── 코멘트/Clinic 작성 대상 학생 (보강 상세 하단 카드용) ── */
   const [commentStudentId, setCommentStudentId] = useState<string>('');
@@ -247,13 +310,17 @@ export default function MakeupPage() {
     <div className="flex flex-col flex-1 overflow-hidden">
       <Topbar
         title="보강 수업 관리"
-        badge={`${makeupClasses.length}건`}
         actions={
-          activeTab === 'personal' ? (
-            <Button variant="dark" size="sm" onClick={openRegister}>
-              <Plus size={13} /> 보강 등록
+          <>
+            <Button variant="default" size="sm" onClick={() => setClinicTemplateOpen(true)}>
+              <Settings2 size={13} /> Clinic 양식 관리
             </Button>
-          ) : null
+            {activeTab === 'personal' && (
+              <Button variant="dark" size="sm" onClick={openRegister}>
+                <Plus size={13} /> 보강 등록
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -269,61 +336,142 @@ export default function MakeupPage() {
 
       {activeTab === 'open' ? (
         <OpenMakeupTab />
-      ) : loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
+      ) : <div className="flex flex-1 overflow-hidden">
         {/* ── 좌측: 보강 목록 ── */}
-        <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white overflow-y-auto">
-          <div className="p-2 space-y-1">
-            {makeupClasses.length === 0 && (
-              <p className="text-[12px] text-[#9ca3af] text-center py-6">등록된 보강이 없습니다</p>
-            )}
-            {makeupClasses.map((mc) => {
-              const cls = classes.find((c) => c.id === mc.originalClassId);
-              return (
-                <button
-                  key={mc.id}
-                  onClick={() => {
-                    setSelectedId(mc.id);
-                    setChecked({});
-                    setMemo({});
-                  }}
-                  className={clsx(
-                    'w-full px-3 py-3 rounded-[8px] text-left transition-colors cursor-pointer',
-                    selectedId === mc.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
-                  )}
+        <div className="w-64 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col">
+          {/* 필터 헤더 */}
+          <div className="px-3 py-2 border-b border-[#e2e8f0] relative">
+            <button
+              type="button"
+              onClick={() => setFilterOpen((v) => !v)}
+              className={clsx(
+                'w-full inline-flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-[8px] text-[11.5px] font-medium border transition-colors cursor-pointer',
+                hasActiveFilter
+                  ? 'bg-[#E1F5EE] border-[#4fc3a1] text-[#065f46]'
+                  : 'bg-white border-[#e2e8f0] text-[#6b7280] hover:border-[#4fc3a1]',
+              )}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Filter size={12} /> 필터{hasActiveFilter ? ' (적용됨)' : ''}
+              </span>
+              {hasActiveFilter && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); clearFilter(); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); clearFilter(); } }}
+                  className="text-[10.5px] text-[#065f46] hover:underline"
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: cls?.color ?? '#ccc' }}
+                  초기화
+                </span>
+              )}
+            </button>
+            {filterOpen && (
+              <div className="absolute z-20 top-full left-3 right-3 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg p-3 space-y-2.5">
+                <div>
+                  <label className="block text-[11px] text-[#6b7280] mb-1">반</label>
+                  <select
+                    value={filterClassId}
+                    onChange={(e) => setFilterClassId(e.target.value)}
+                    className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 focus:outline-none focus:border-[#4fc3a1] bg-white"
+                  >
+                    <option value="">전체</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] text-[#6b7280] mb-1">시작일</label>
+                    <input
+                      type="date"
+                      value={filterFrom}
+                      onChange={(e) => setFilterFrom(e.target.value)}
+                      className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 focus:outline-none focus:border-[#4fc3a1]"
                     />
-                    <span className="text-[12.5px] font-medium text-[#111827]">{mc.originalClassName}</span>
                   </div>
-                  <div className="text-[11.5px] text-[#6b7280] ml-4">
-                    보강일: {formatKoreanDate(mc.makeupDate)} {mc.makeupTime}
+                  <div>
+                    <label className="block text-[11px] text-[#6b7280] mb-1">종료일</label>
+                    <input
+                      type="date"
+                      value={filterTo}
+                      onChange={(e) => setFilterTo(e.target.value)}
+                      className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 focus:outline-none focus:border-[#4fc3a1]"
+                    />
                   </div>
-                  <div className="text-[11px] text-[#9ca3af] ml-4 mt-0.5">
-                    원래 수업: {formatKoreanDate(mc.originalDate)}
-                  </div>
-                  <div className="ml-4 mt-1.5 flex items-center gap-1.5">
-                    <span
-                      className={clsx(
-                        'px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium',
-                        mc.attendanceChecked
-                          ? 'bg-[#D1FAE5] text-[#065f46]'
-                          : 'bg-[#FEF3C7] text-[#92400E]',
-                      )}
-                    >
-                      {mc.attendanceChecked ? '출결 완료' : '출결 미확인'}
-                    </span>
-                    {mc.targetStudents.length === 0 && (
-                      <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#F3F4F6] text-[#6b7280]">
-                        명단 미등록
-                      </span>
+                </div>
+                <div className="flex justify-end gap-1.5 pt-1">
+                  <Button variant="default" size="sm" onClick={clearFilter}>초기화</Button>
+                  <Button variant="dark" size="sm" onClick={applyFilter}>적용</Button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div ref={listScrollRef} className="flex-1 overflow-y-auto">
+            <div className="p-2 space-y-1">
+              {loading && makeupClasses.length === 0 ? (
+                <LoadingSpinner />
+              ) : makeupClasses.length === 0 ? (
+                <p className="text-[12px] text-[#9ca3af] text-center py-6">
+                  {hasActiveFilter ? '조건에 맞는 보강이 없습니다' : '등록된 보강이 없습니다'}
+                </p>
+              ) : null}
+              {makeupClasses.map((mc) => {
+                const cls = classes.find((c) => c.id === mc.originalClassId);
+                return (
+                  <button
+                    key={mc.id}
+                    onClick={() => {
+                      setSelectedId(mc.id);
+                      setChecked({});
+                      setMemo({});
+                    }}
+                    className={clsx(
+                      'w-full px-3 py-3 rounded-[8px] text-left transition-colors cursor-pointer',
+                      selectedId === mc.id ? 'bg-[#E1F5EE]' : 'hover:bg-[#f4f6f8]',
                     )}
-                  </div>
-                </button>
-              );
-            })}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: cls?.color ?? '#ccc' }}
+                      />
+                      <span className="text-[12.5px] font-medium text-[#111827]">{mc.originalClassName}</span>
+                    </div>
+                    <div className="text-[11.5px] text-[#6b7280] ml-4">
+                      보강일: {formatKoreanDate(mc.makeupDate)} {mc.makeupTime}
+                    </div>
+                    <div className="text-[11px] text-[#9ca3af] ml-4 mt-0.5">
+                      원래 수업: {formatKoreanDate(mc.originalDate)}
+                    </div>
+                    <div className="ml-4 mt-1.5 flex items-center gap-1.5">
+                      <span
+                        className={clsx(
+                          'px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium',
+                          mc.attendanceChecked
+                            ? 'bg-[#D1FAE5] text-[#065f46]'
+                            : 'bg-[#FEF3C7] text-[#92400E]',
+                        )}
+                      >
+                        {mc.attendanceChecked ? '출결 완료' : '출결 미확인'}
+                      </span>
+                      {mc.targetStudents.length === 0 && (
+                        <span className="px-2 py-0.5 rounded-[20px] text-[10.5px] font-medium bg-[#F3F4F6] text-[#6b7280]">
+                          명단 미등록
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {/* 무한 스크롤 sentinel */}
+              {personal.nextCursor && (
+                <div ref={sentinelRef} className="py-3 text-center text-[11px] text-[#9ca3af]">
+                  {personal.loadingMore ? '불러오는 중…' : '더 보기'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -779,6 +927,12 @@ export default function MakeupPage() {
           )}
         </div>
       </Modal>
+
+      {/* ════ Clinic 양식 관리 모달 (수업 관리와 동일 데이터 공유) ════ */}
+      <ClinicTemplateModal
+        open={clinicTemplateOpen}
+        onClose={() => setClinicTemplateOpen(false)}
+      />
     </div>
   );
 }

@@ -56,7 +56,9 @@ function mapMakeup(m: MakeupForMap) {
   };
 }
 
-// GET /api/makeup?classId=&month=&slotType=PERSONAL|OPEN
+// GET /api/makeup?slotType=PERSONAL|OPEN&classId=&from=YYYY-MM-DD&to=YYYY-MM-DD&cursor=YYYY-MM-DD|id&limit=10
+// 응답: { items: MakeupClass[], nextCursor: string | null }
+// 정렬: makeupDate DESC, id DESC (안정 정렬을 위해 id를 tie-breaker로 사용)
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
@@ -64,12 +66,36 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const classId = searchParams.get('classId');
-  const month = searchParams.get('month');
+  const from = searchParams.get('from');
+  const to = searchParams.get('to');
+  const cursor = searchParams.get('cursor');
+  const limitParam = searchParams.get('limit');
+  const limit = Math.min(Math.max(parseInt(limitParam ?? '10', 10) || 10, 1), 50);
+
   const slotTypeParam = searchParams.get('slotType');
   const slotType =
     slotTypeParam === 'OPEN' ? MakeupSlotType.OPEN :
     slotTypeParam === 'PERSONAL' ? MakeupSlotType.PERSONAL :
     undefined;
+
+  // cursor: "YYYY-MM-DD|<id>" — makeupDate가 이보다 작거나, 같으면 id가 더 작은 row
+  let cursorDate: Date | null = null;
+  let cursorId: string | null = null;
+  if (cursor) {
+    const [d, id] = cursor.split('|');
+    if (d && id && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      cursorDate = new Date(`${d}T00:00:00.000Z`);
+      cursorId = id;
+    }
+  }
+
+  const dateRange: { gte?: Date; lte?: Date } = {};
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    dateRange.gte = new Date(`${from}T00:00:00.000Z`);
+  }
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    dateRange.lte = new Date(`${to}T23:59:59.999Z`);
+  }
 
   try {
     const makeups = await prisma.makeupClass.findMany({
@@ -77,23 +103,32 @@ export async function GET(req: NextRequest) {
         academyId,
         ...(classId ? { originalClassId: classId } : {}),
         ...(slotType ? { slotType } : {}),
-        ...(month
+        ...(Object.keys(dateRange).length > 0 ? { makeupDate: dateRange } : {}),
+        ...(cursorDate && cursorId
           ? {
-              makeupDate: {
-                gte: new Date(`${month}-01`),
-                lt: new Date(
-                  month.slice(0, 4) + '-' +
-                  String(parseInt(month.slice(5, 7)) + 1).padStart(2, '0') + '-01'
-                ),
-              },
+              OR: [
+                { makeupDate: { lt: cursorDate } },
+                { makeupDate: cursorDate, id: { lt: cursorId } },
+              ],
             }
           : {}),
       },
       include: MAKEUP_INCLUDE,
-      orderBy: { makeupDate: 'desc' },
+      orderBy: [{ makeupDate: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
     });
 
-    return NextResponse.json(makeups.map(mapMakeup));
+    const hasMore = makeups.length > limit;
+    const items = hasMore ? makeups.slice(0, limit) : makeups;
+    const last = items[items.length - 1];
+    const nextCursor = hasMore && last
+      ? `${last.makeupDate.toISOString().slice(0, 10)}|${last.id}`
+      : null;
+
+    return NextResponse.json({
+      items: items.map(mapMakeup),
+      nextCursor,
+    });
   } catch (err) {
     console.error('[GET /api/makeup]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

@@ -16,10 +16,41 @@ export interface OpenSlotCreateInput {
   recurrencePattern?: RecurrencePattern;
 }
 
-interface MakeupStore {
-  makeupClasses: MakeupClass[];
+export type SlotType = 'PERSONAL' | 'OPEN';
+
+export interface MakeupFilters {
+  classId?: string;
+  from?: string; // YYYY-MM-DD
+  to?: string;   // YYYY-MM-DD
+}
+
+interface TabState {
+  items: MakeupClass[];
+  nextCursor: string | null;
   loading: boolean;
-  fetchMakeupClasses: (classId?: string, month?: string, slotType?: 'PERSONAL' | 'OPEN') => Promise<void>;
+  loadingMore: boolean;
+  filters: MakeupFilters;
+}
+
+const EMPTY_TAB: TabState = {
+  items: [],
+  nextCursor: null,
+  loading: false,
+  loadingMore: false,
+  filters: {},
+};
+
+const PAGE_SIZE = 10;
+
+interface MakeupStore {
+  personal: TabState;
+  open: TabState;
+
+  /** 보강 목록 첫 페이지 로드 (filters를 새로 설정하고 cursor 초기화). */
+  fetchMakeupClasses: (slotType: SlotType, filters?: MakeupFilters) => Promise<void>;
+  /** 다음 페이지를 현재 리스트에 append. */
+  fetchMore: (slotType: SlotType) => Promise<void>;
+
   addMakeupClass: (input: Omit<MakeupClass, 'id' | 'attendanceChecked' | 'originalClassName' | 'teacherName' | 'attendance'> & { originalClassName?: string; teacherName?: string }) => Promise<string>;
   addOpenSlot: (input: OpenSlotCreateInput) => Promise<{ createdCount: number; excludedCount: number }>;
   updateMakeupClass: (id: string, updates: Partial<Omit<MakeupClass, 'id'>>) => Promise<void>;
@@ -30,26 +61,65 @@ interface MakeupStore {
   saveAttendance: (makeupClassId: string, attendance: MakeupAttendance[]) => Promise<void>;
 }
 
-export const useMakeupStore = create<MakeupStore>((set, get) => ({
-  makeupClasses: [],
-  loading: false,
+function tabKey(slotType: SlotType): 'personal' | 'open' {
+  return slotType === 'OPEN' ? 'open' : 'personal';
+}
 
-  fetchMakeupClasses: async (classId, month, slotType) => {
-    set({ loading: true });
+function buildQuery(slotType: SlotType, filters: MakeupFilters, cursor: string | null): string {
+  const params = new URLSearchParams();
+  params.set('slotType', slotType);
+  if (filters.classId) params.set('classId', filters.classId);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (cursor) params.set('cursor', cursor);
+  params.set('limit', String(PAGE_SIZE));
+  return params.toString();
+}
+
+export const useMakeupStore = create<MakeupStore>((set, get) => ({
+  personal: EMPTY_TAB,
+  open: EMPTY_TAB,
+
+  fetchMakeupClasses: async (slotType, filters = {}) => {
+    const key = tabKey(slotType);
+    set((state) => ({
+      [key]: { ...state[key], loading: true, filters, items: [], nextCursor: null },
+    }));
     try {
-      const params = new URLSearchParams();
-      if (classId) params.set('classId', classId);
-      if (month) params.set('month', month);
-      if (slotType) params.set('slotType', slotType);
-      const res = await fetch(`/api/makeup?${params.toString()}`);
+      const res = await fetch(`/api/makeup?${buildQuery(slotType, filters, null)}`);
       if (!res.ok) throw new Error('보강 수업 조회 실패');
-      const data: MakeupClass[] = await res.json();
-      set({ makeupClasses: data });
+      const data: { items: MakeupClass[]; nextCursor: string | null } = await res.json();
+      set((state) => ({
+        [key]: { ...state[key], items: data.items, nextCursor: data.nextCursor, loading: false },
+      }));
     } catch (err) {
       console.error('[makeupStore.fetchMakeupClasses]', err);
       toast('보강 수업을 불러오는 데 실패했습니다.', 'error');
-    } finally {
-      set({ loading: false });
+      set((state) => ({ [key]: { ...state[key], loading: false } }));
+    }
+  },
+
+  fetchMore: async (slotType) => {
+    const key = tabKey(slotType);
+    const tab = get()[key];
+    if (!tab.nextCursor || tab.loading || tab.loadingMore) return;
+    set((state) => ({ [key]: { ...state[key], loadingMore: true } }));
+    try {
+      const res = await fetch(`/api/makeup?${buildQuery(slotType, tab.filters, tab.nextCursor)}`);
+      if (!res.ok) throw new Error('보강 수업 추가 조회 실패');
+      const data: { items: MakeupClass[]; nextCursor: string | null } = await res.json();
+      set((state) => ({
+        [key]: {
+          ...state[key],
+          items: [...state[key].items, ...data.items],
+          nextCursor: data.nextCursor,
+          loadingMore: false,
+        },
+      }));
+    } catch (err) {
+      console.error('[makeupStore.fetchMore]', err);
+      toast('보강 수업을 추가로 불러오는 데 실패했습니다.', 'error');
+      set((state) => ({ [key]: { ...state[key], loadingMore: false } }));
     }
   },
 
@@ -71,9 +141,11 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
       const data = await res.json();
       const createdCount: number = data.createdCount ?? 1;
       const excludedCount: number = data.excludedCount ?? 0;
-      // 단일 슬롯이면 makeupClasses에 prepend, 반복이면 refetch가 깔끔
+      // 단일 슬롯이면 open list에 prepend, 반복이면 refetch가 깔끔
       if (createdCount === 1) {
-        set((state) => ({ makeupClasses: [data, ...state.makeupClasses] }));
+        set((state) => ({ open: { ...state.open, items: [data, ...state.open.items] } }));
+      } else {
+        await get().fetchMakeupClasses('OPEN', get().open.filters);
       }
       const msg = createdCount === 1
         ? '오픈 슬롯이 등록되었습니다.'
@@ -109,7 +181,10 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
         throw new Error(err.error ?? '보강 등록 실패');
       }
       const makeup: MakeupClass = await res.json();
-      set((state) => ({ makeupClasses: [...state.makeupClasses, makeup] }));
+      // 개별 보강 리스트에 prepend (정렬은 makeupDate desc이지만 새로 등록한 건 상단에 두어 즉시 확인 가능하게)
+      set((state) => ({
+        personal: { ...state.personal, items: [makeup, ...state.personal.items] },
+      }));
       toast('보강 수업이 등록되었습니다.', 'success');
       return makeup.id;
     } catch (err) {
@@ -137,8 +212,16 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
       });
       if (!res.ok) throw new Error('보강 수정 실패');
       const updated: MakeupClass = await res.json();
+      // 두 리스트 모두에서 해당 id를 찾아 교체 (slotType은 record에 들어있음)
       set((state) => ({
-        makeupClasses: state.makeupClasses.map((mc) => (mc.id === id ? updated : mc)),
+        personal: {
+          ...state.personal,
+          items: state.personal.items.map((mc) => (mc.id === id ? updated : mc)),
+        },
+        open: {
+          ...state.open,
+          items: state.open.items.map((mc) => (mc.id === id ? updated : mc)),
+        },
       }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : '보강 수정에 실패했습니다.';
@@ -154,11 +237,14 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
       if (!res.ok) throw new Error('보강 삭제 실패');
       const data = await res.json();
       const deletedCount: number = data.deletedCount ?? 1;
-      // 'this'면 단순 필터, 'future'면 전체 refetch가 안전
       if (scope === 'this') {
         set((state) => ({
-          makeupClasses: state.makeupClasses.filter((mc) => mc.id !== id),
+          personal: { ...state.personal, items: state.personal.items.filter((mc) => mc.id !== id) },
+          open: { ...state.open, items: state.open.items.filter((mc) => mc.id !== id) },
         }));
+      } else {
+        // future 범위는 같은 recurrenceGroupId의 여러 row가 한 번에 삭제되므로 refetch가 안전.
+        await get().fetchMakeupClasses('OPEN', get().open.filters);
       }
       toast(
         deletedCount === 1
@@ -175,14 +261,18 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
   },
 
   addStudents: async (makeupClassId, studentIds) => {
-    const mc = get().makeupClasses.find((m) => m.id === makeupClassId);
+    const mc =
+      get().personal.items.find((m) => m.id === makeupClassId) ??
+      get().open.items.find((m) => m.id === makeupClassId);
     if (!mc) return;
     const merged = Array.from(new Set([...mc.targetStudents, ...studentIds]));
     await get().updateMakeupClass(makeupClassId, { targetStudents: merged });
   },
 
   removeStudent: async (makeupClassId, studentId) => {
-    const mc = get().makeupClasses.find((m) => m.id === makeupClassId);
+    const mc =
+      get().personal.items.find((m) => m.id === makeupClassId) ??
+      get().open.items.find((m) => m.id === makeupClassId);
     if (!mc) return;
     const filtered = mc.targetStudents.filter((id) => id !== studentId);
     await get().updateMakeupClass(makeupClassId, { targetStudents: filtered });

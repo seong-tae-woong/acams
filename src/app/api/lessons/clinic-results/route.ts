@@ -8,6 +8,12 @@ interface ClinicCheck {
   checked: boolean;
 }
 
+interface ClinicCustomItem {
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
 function toDateOnly(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00.000Z`);
 }
@@ -19,6 +25,8 @@ function serialize(r: {
   templateId: string;
   sessionDate: Date;
   checks: Prisma.JsonValue;
+  customItems: Prisma.JsonValue;
+  hiddenItemIds: Prisma.JsonValue;
   authorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +38,8 @@ function serialize(r: {
     templateId: r.templateId,
     sessionDate: r.sessionDate.toISOString().slice(0, 10),
     checks: (r.checks as unknown as ClinicCheck[]) ?? [],
+    customItems: (r.customItems as unknown as ClinicCustomItem[]) ?? [],
+    hiddenItemIds: (r.hiddenItemIds as unknown as string[]) ?? [],
     authorId: r.authorId,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
@@ -73,13 +83,15 @@ export async function PUT(req: NextRequest) {
   const { academyId, userId } = auth;
 
   try {
-    const { classId, studentId, sessionDate, templateId, checks } = await req.json();
+    const { classId, studentId, sessionDate, templateId, checks, customItems, hiddenItemIds } = await req.json();
     if (!classId || !studentId || !sessionDate || !templateId) {
       return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 });
     }
     if (!Array.isArray(checks)) {
       return NextResponse.json({ error: 'checks는 배열' }, { status: 400 });
     }
+    const safeCustomItems: ClinicCustomItem[] = Array.isArray(customItems) ? customItems : [];
+    const safeHiddenItemIds: string[] = Array.isArray(hiddenItemIds) ? hiddenItemIds : [];
 
     const cls = await prisma.class.findFirst({ where: { id: classId, academyId } });
     if (!cls) return NextResponse.json({ error: '반 권한 없음' }, { status: 403 });
@@ -96,7 +108,12 @@ export async function PUT(req: NextRequest) {
           templateId,
         },
       },
-      update: { checks: checks as unknown as Prisma.InputJsonValue, authorId: userId },
+      update: {
+        checks: checks as unknown as Prisma.InputJsonValue,
+        customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
+        hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
+        authorId: userId,
+      },
       create: {
         academyId,
         classId,
@@ -104,6 +121,8 @@ export async function PUT(req: NextRequest) {
         templateId,
         sessionDate: toDateOnly(sessionDate),
         checks: checks as unknown as Prisma.InputJsonValue,
+        customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
+        hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
         authorId: userId,
       },
     });

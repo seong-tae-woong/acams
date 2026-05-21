@@ -93,7 +93,7 @@ export function StudentFormFields({ form, setForm }: { form: StudentForm; setFor
       </div>
       {/* 학생 연락처 */}
       <div>
-        <label className="text-[11.5px] text-[#6b7280] block mb-1">학생 연락처 *</label>
+        <label className="text-[11.5px] text-[#6b7280] block mb-1">학생 연락처</label>
         <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="01000000000" className={fieldClass} />
         {form.phone.includes('-') && (
           <p className="text-[10.5px] text-[#991b1b] mt-1">'-' 없이 숫자만 입력해주세요.</p>

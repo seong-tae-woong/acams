@@ -67,7 +67,7 @@ export default function StudentsPage() {
   }));
 
   const handleRegister = async () => {
-    if (!registerForm.name || !registerForm.phone || !registerForm.parentPhone) {
+    if (!registerForm.name || !registerForm.parentPhone) {
       toast('필수 항목을 입력해주세요.', 'error'); return;
     }
     if (registerForm.phone.includes('-') || registerForm.parentPhone.includes('-')) {

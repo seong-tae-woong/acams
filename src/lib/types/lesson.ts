@@ -174,12 +174,15 @@ export interface StudentLessonTimelineClinic {
 }
 
 export interface StudentLessonTimelineEntry {
+  /** 'regular' = 정규 수업(class schedule 기반), 'makeup' = 보강 수업(MakeupClass) */
+  kind: 'regular' | 'makeup';
   date: string;
   classId: string;
   className: string;
   classColor: string;
   startTime: string;
   endTime: string;
+  /** @deprecated kind 사용. 기존 호환성을 위해 유지하지만 신규 코드는 kind === 'makeup' 사용. */
   isOneTime: boolean;
   comment: string | null;
   clinics: StudentLessonTimelineClinic[];
