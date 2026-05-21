@@ -876,6 +876,7 @@ enum CalendarEventType {
   ACADEMY_SCHEDULE
   CONSULTATION_SCHEDULE
   MAKEUP_SCHEDULE
+  CLOSED_DAY // 휴원일 — 반복 보강 슬롯 생성 시 자동 제외 대상
 }
 
 // ─────────────────────────────────────────────

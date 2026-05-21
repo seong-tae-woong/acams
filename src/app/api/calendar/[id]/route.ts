@@ -8,12 +8,14 @@ const UI_TO_PRISMA: Partial<Record<CalendarEventType, PrismaType>> = {
   '학원일정': PrismaType.ACADEMY_SCHEDULE,
   '상담일정': PrismaType.CONSULTATION_SCHEDULE,
   '보강일정': PrismaType.MAKEUP_SCHEDULE,
+  '휴원일': PrismaType.CLOSED_DAY,
 };
 
 const PRISMA_TO_UI: Record<PrismaType, CalendarEventType> = {
   [PrismaType.ACADEMY_SCHEDULE]: '학원일정',
   [PrismaType.CONSULTATION_SCHEDULE]: '상담일정',
   [PrismaType.MAKEUP_SCHEDULE]: '보강일정',
+  [PrismaType.CLOSED_DAY]: '휴원일',
 };
 
 // PATCH /api/calendar/[id] — 일정 수정

@@ -10,18 +10,21 @@ const UI_TO_PRISMA: Partial<Record<CalendarEventType, PrismaType>> = {
   '학원일정': PrismaType.ACADEMY_SCHEDULE,
   '상담일정': PrismaType.CONSULTATION_SCHEDULE,
   '보강일정': PrismaType.MAKEUP_SCHEDULE,
+  '휴원일': PrismaType.CLOSED_DAY,
 };
 
 const PRISMA_TO_UI: Record<PrismaType, CalendarEventType> = {
   [PrismaType.ACADEMY_SCHEDULE]: '학원일정',
   [PrismaType.CONSULTATION_SCHEDULE]: '상담일정',
   [PrismaType.MAKEUP_SCHEDULE]: '보강일정',
+  [PrismaType.CLOSED_DAY]: '휴원일',
 };
 
 const TYPE_COLOR: Partial<Record<CalendarEventType, string>> = {
   '학원일정': '#4fc3a1',
   '상담일정': '#6366f1',
   '보강일정': '#8b5cf6',
+  '휴원일': '#9ca3af',
 };
 
 // GET /api/calendar?year=YYYY&month=MM — 해당 월 이벤트 목록

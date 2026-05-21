@@ -14,10 +14,11 @@ const TYPE_COLOR: Record<CalendarEventType, string> = {
   '학원일정': '#4fc3a1',
   '상담일정': '#6366f1',
   '보강일정': '#8b5cf6',
+  '휴원일': '#9ca3af',
   '수업': '#3b82f6',
 };
 
-const ALL_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정', '수업'];
+const ALL_TYPES: CalendarEventType[] = ['학원일정', '상담일정', '보강일정', '휴원일', '수업'];
 
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -44,6 +45,7 @@ export default function CalendarPage() {
     '학원일정': true,
     '상담일정': true,
     '보강일정': true,
+    '휴원일': true,
     '수업': true,
   });
 

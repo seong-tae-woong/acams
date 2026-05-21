@@ -9,6 +9,7 @@ const PRISMA_TO_UI: Record<PrismaType, string> = {
   [PrismaType.ACADEMY_SCHEDULE]: '학원일정',
   [PrismaType.CONSULTATION_SCHEDULE]: '상담일정',
   [PrismaType.MAKEUP_SCHEDULE]: '보강일정',
+  [PrismaType.CLOSED_DAY]: '휴원일',
 };
 
 // GET /api/mobile/calendar?year=YYYY&month=MM&studentId=

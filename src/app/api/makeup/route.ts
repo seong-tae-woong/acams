@@ -163,9 +163,32 @@ export async function POST(req: NextRequest) {
       if (!pattern.startDate || !pattern.endDate || !pattern.startTime) {
         return NextResponse.json({ error: '반복 시작일·종료일·시작 시간을 입력해주세요.' }, { status: 400 });
       }
-      const dates = expandRecurrence(pattern);
-      if (dates.length === 0) {
+      const rawDates = expandRecurrence(pattern);
+      if (rawDates.length === 0) {
         return NextResponse.json({ error: '생성될 슬롯이 없습니다. 기간을 확인해주세요.' }, { status: 400 });
+      }
+
+      // 휴원일 자동 제외 — 같은 학원의 CLOSED_DAY 이벤트와 겹치는 날짜는 스킵
+      const closedEvents = await prisma.calendarEvent.findMany({
+        where: {
+          academyId,
+          type: 'CLOSED_DAY',
+          date: {
+            gte: new Date(`${pattern.startDate}T00:00:00.000Z`),
+            lte: new Date(`${pattern.endDate}T23:59:59.999Z`),
+          },
+        },
+        select: { date: true },
+      });
+      const closedSet = new Set(closedEvents.map((e) => e.date.toISOString().slice(0, 10)));
+      const dates = rawDates.filter((d) => !closedSet.has(d));
+      const excludedDates = rawDates.filter((d) => closedSet.has(d));
+
+      if (dates.length === 0) {
+        return NextResponse.json(
+          { error: '선택한 기간이 모두 휴원일이라 생성된 슬롯이 없습니다.', excludedDates },
+          { status: 400 },
+        );
       }
       if (dates.length > 200) {
         return NextResponse.json({ error: '반복 슬롯이 너무 많습니다 (최대 200개).' }, { status: 400 });
@@ -213,7 +236,12 @@ export async function POST(req: NextRequest) {
         include: MAKEUP_INCLUDE,
       });
       return NextResponse.json(
-        { ...mapMakeup(first!), createdCount: createdIds.length },
+        {
+          ...mapMakeup(first!),
+          createdCount: createdIds.length,
+          excludedCount: excludedDates.length,
+          excludedDates,
+        },
         { status: 201 },
       );
     }

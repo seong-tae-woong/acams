@@ -740,6 +740,12 @@ export default function OpenMakeupTab() {
                   총 <span className="font-bold">{recurringCount}개</span>의 슬롯이 생성됩니다.
                 </div>
               )}
+
+              <div className="bg-[#F9FAFB] border border-[#e2e8f0] rounded-[8px] px-3 py-2 text-[11.5px] text-[#6b7280] leading-relaxed">
+                ℹ️ 학원 일정에 <span className="font-semibold text-[#374151]">휴원일</span>로 등록된 날짜는 자동으로 제외됩니다.
+                <br />
+                휴원일은 학원 일정 메뉴에서 등록할 수 있습니다.
+              </div>
             </>
           )}
 

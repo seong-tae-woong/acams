@@ -21,7 +21,7 @@ interface MakeupStore {
   loading: boolean;
   fetchMakeupClasses: (classId?: string, month?: string, slotType?: 'PERSONAL' | 'OPEN') => Promise<void>;
   addMakeupClass: (input: Omit<MakeupClass, 'id' | 'attendanceChecked' | 'originalClassName' | 'teacherName' | 'attendance'> & { originalClassName?: string; teacherName?: string }) => Promise<string>;
-  addOpenSlot: (input: OpenSlotCreateInput) => Promise<{ createdCount: number }>;
+  addOpenSlot: (input: OpenSlotCreateInput) => Promise<{ createdCount: number; excludedCount: number }>;
   updateMakeupClass: (id: string, updates: Partial<Omit<MakeupClass, 'id'>>) => Promise<void>;
   removeMakeupClass: (id: string, scope?: 'this' | 'future') => Promise<{ deletedCount: number }>;
   addStudents: (makeupClassId: string, studentIds: string[]) => Promise<void>;
@@ -70,15 +70,18 @@ export const useMakeupStore = create<MakeupStore>((set, get) => ({
       }
       const data = await res.json();
       const createdCount: number = data.createdCount ?? 1;
+      const excludedCount: number = data.excludedCount ?? 0;
       // 단일 슬롯이면 makeupClasses에 prepend, 반복이면 refetch가 깔끔
       if (createdCount === 1) {
         set((state) => ({ makeupClasses: [data, ...state.makeupClasses] }));
       }
-      toast(
-        createdCount === 1 ? '오픈 슬롯이 등록되었습니다.' : `${createdCount}개의 슬롯이 생성되었습니다.`,
-        'success',
-      );
-      return { createdCount };
+      const msg = createdCount === 1
+        ? '오픈 슬롯이 등록되었습니다.'
+        : excludedCount > 0
+          ? `${createdCount}개의 슬롯이 생성되었습니다 (휴원일 ${excludedCount}개 자동 제외).`
+          : `${createdCount}개의 슬롯이 생성되었습니다.`;
+      toast(msg, 'success');
+      return { createdCount, excludedCount };
     } catch (err) {
       const msg = err instanceof Error ? err.message : '오픈 슬롯 등록에 실패했습니다.';
       toast(msg, 'error');

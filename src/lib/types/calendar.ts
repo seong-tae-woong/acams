@@ -1,6 +1,6 @@
 // 캘린더 관련 타입 정의
 
-export type CalendarEventType = '학원일정' | '상담일정' | '보강일정' | '수업';
+export type CalendarEventType = '학원일정' | '상담일정' | '보강일정' | '휴원일' | '수업';
 
 export interface CalendarEvent {
   id: string;
