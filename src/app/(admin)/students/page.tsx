@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Topbar from '@/components/admin/Topbar';
 import Button from '@/components/shared/Button';
 import Avatar from '@/components/shared/Avatar';
@@ -15,7 +16,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { StudentStatus } from '@/lib/types/student';
 import { formatKoreanDate, formatPhone } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Phone, School, Calendar, KeyRound, CalendarDays, RefreshCw } from 'lucide-react';
+import { Plus, Phone, School, Calendar, KeyRound, CalendarDays, RefreshCw, History } from 'lucide-react';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import {
@@ -258,6 +259,12 @@ export default function StudentsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <Link
+                    href={`/students/lessons?studentId=${selected.id}`}
+                    className="inline-flex items-center gap-1 px-3 h-[30px] rounded-[8px] text-[12px] text-[#374151] border border-[#e2e8f0] bg-white hover:bg-[#f4f6f8]"
+                  >
+                    <History size={13} /> 수업 이력
+                  </Link>
                   <Button variant="ghost" size="sm" onClick={() => setResetTarget('student')}>
                     <RefreshCw size={13} /> 비밀번호 초기화
                   </Button>

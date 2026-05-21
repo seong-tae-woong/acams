@@ -4,7 +4,7 @@ export interface TeacherPermissions {
   manageStudents: boolean; // 학생 관리
   manageClasses: boolean; // 반 관리
   manageAttendance: boolean; // 출결 관리
-  manageGrades: boolean; // 성적 관리
+  manageGrades: boolean; // 수업 관리
   manageFinance: boolean; // 재무 관리
   manageNotifications: boolean; // 알림/공지 관리
   viewReports: boolean; // 리포트 조회

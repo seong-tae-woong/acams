@@ -72,6 +72,9 @@ model Academy {
   ingangViewSessions    IngangViewSession[]
   studentLectureNotes   StudentLectureNote[]
   ingangDailyCodes      IngangDailyCode[]
+  clinicTemplates       ClinicTemplate[]
+  lessonComments        LessonComment[]
+  clinicResults         ClinicResult[]
 
   @@map("academies")
 }
@@ -199,6 +202,8 @@ model Student {
   ingangViewSessions  IngangViewSession[]
   lectureNotes        StudentLectureNote[]
   lectureTargets      LectureStudentTarget[]
+  lessonComments      LessonComment[]
+  clinicResults       ClinicResult[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -304,6 +309,8 @@ model Class {
   lectureTargets LectureTarget[]
   assignments    Assignment[]
   reports        Report[]
+  lessonComments LessonComment[]
+  clinicResults  ClinicResult[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1228,4 +1235,80 @@ model IngangDailyCode {
   @@unique([academyId, date])
   @@index([academyId, date])
   @@map("ingang_daily_codes")
+}
+
+// ─────────────────────────────────────────────
+// CLASS LESSON HISTORY (수업 이력 — Comment + Clinic)
+// ─────────────────────────────────────────────
+
+// 학원이 미리 만드는 Clinic 체크 양식
+// items 형식: [{ id: string, label: string, order: number }]
+model ClinicTemplate {
+  id          String  @id @default(cuid())
+  academyId   String
+  academy     Academy @relation(fields: [academyId], references: [id])
+
+  name        String
+  description String  @default("")
+  items       Json
+  isActive    Boolean @default(true) // soft delete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  results ClinicResult[]
+
+  @@index([academyId, isActive])
+  @@map("clinic_templates")
+}
+
+// 강사가 수업 중 학생에게 남기는 코멘트 (학생 × 날짜 × 반 별 1행)
+model LessonComment {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  sessionDate DateTime // 날짜만 의미 있음 (00:00:00 UTC 정규화)
+  comment     String
+
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, studentId, sessionDate])
+  @@index([academyId, sessionDate])
+  @@map("lesson_comments")
+}
+
+// Clinic 체크 결과 (학생 × 날짜 × 양식 별 1행)
+// checks 형식: [{ itemId: string, checked: boolean }]
+model ClinicResult {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  classId    String
+  class      Class          @relation(fields: [classId], references: [id])
+  studentId  String
+  student    Student        @relation(fields: [studentId], references: [id])
+  templateId String
+  template   ClinicTemplate @relation(fields: [templateId], references: [id])
+
+  sessionDate DateTime
+  checks      Json
+
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, studentId, sessionDate, templateId])
+  @@index([academyId, sessionDate])
+  @@map("clinic_results")
 }

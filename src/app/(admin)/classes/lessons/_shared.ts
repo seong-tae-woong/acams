@@ -1,8 +1,9 @@
-// 성적 관리 — 공용 상수·타입
+// 수업 관리 — 공용 상수·타입
 
-export type MainTab = 'exam' | 'assignment' | 'publish' | 'report-templates';
+export type MainTab = 'history' | 'exam' | 'assignment' | 'publish' | 'report-templates';
 
 export const TAB_OPTIONS = [
+  { value: 'history', label: '수업 이력' },
   { value: 'exam', label: '시험 목록' },
   { value: 'assignment', label: '과제' },
   { value: 'publish', label: '리포트 발행' },

@@ -418,7 +418,7 @@ export default function PublishReportModal({
           {templates.length === 0 ? (
             <div className="text-[12px] text-[#ef4444]">
               발행 가능한 {kind === 'PER_EXAM' ? '시험별' : '주기별'} 양식이 없습니다.
-              {' '}<a href="/students/grades" className="underline">양식 관리에서 만들기</a>
+              {' '}<a href="/classes/lessons" className="underline">양식 관리에서 만들기</a>
             </div>
           ) : (
             <select

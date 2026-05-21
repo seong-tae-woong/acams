@@ -1,19 +1,19 @@
 'use client';
 import Topbar from '@/components/admin/Topbar';
 import Tabs from '@/components/shared/Tabs';
-import ReportTemplatesEditor from '@/components/communication/ReportTemplatesEditor';
+import ReportPublishHub from '@/components/communication/ReportPublishHub';
 import { type MainTab, TAB_OPTIONS } from '../_shared';
 
-interface ReportTemplatesTabProps {
+interface PublishTabProps {
   mainTab: MainTab;
   setMainTab: (t: MainTab) => void;
 }
 
-export default function ReportTemplatesTab({ mainTab, setMainTab }: ReportTemplatesTabProps) {
+export default function PublishTab({ mainTab, setMainTab }: PublishTabProps) {
   return (
     <>
       <Topbar
-        title="성적 관리"
+        title="수업 관리"
         actions={<div className="flex gap-2" />}
       />
       <div className="px-5 pt-3 bg-white">
@@ -24,8 +24,8 @@ export default function ReportTemplatesTab({ mainTab, setMainTab }: ReportTempla
         />
       </div>
 
-      {/* 리포트 양식 탭 — 자체 레이아웃 */}
-      <ReportTemplatesEditor />
+      {/* 리포트 발행 탭 — 자체 레이아웃 */}
+      <ReportPublishHub />
     </>
   );
 }

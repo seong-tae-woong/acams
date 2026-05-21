@@ -304,7 +304,7 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
   return (
     <>
       <Topbar
-        title="성적 관리"
+        title="수업 관리"
         actions={
           <div className="flex gap-2">
             <Button variant="default" size="sm" onClick={() => setCategoryModalOpen(true)}>

@@ -172,7 +172,7 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
   return (
     <>
       <Topbar
-        title="성적 관리"
+        title="수업 관리"
         actions={
           <div className="flex gap-2">
             <Button variant="dark" size="sm" onClick={openCreateAssignmentModal}>
