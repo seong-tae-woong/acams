@@ -34,7 +34,11 @@ function StudentLessonsInner() {
   const { from: defFrom, to: defTo } = defaultRange();
 
   const [studentId, setStudentId] = useState(search.get('studentId') ?? '');
-  const [classId, setClassId] = useState(search.get('classId') ?? '');
+  // classIds 초기화: ?classIds=id1,id2 또는 레거시 ?classId=id 모두 지원
+  const [classIds, setClassIds] = useState<string[]>(() => {
+    const raw = search.get('classIds') ?? search.get('classId') ?? '';
+    return raw ? raw.split(',').filter(Boolean) : [];
+  });
   const [from, setFrom] = useState(search.get('from') ?? defFrom);
   const [to, setTo] = useState(search.get('to') ?? defTo);
   const [searched, setSearched] = useState(false);
@@ -58,17 +62,19 @@ function StudentLessonsInner() {
     if (queryStudentId && from && to) {
       // students 로딩 후 자동 조회
       if (students.length > 0) {
-        runSearch(queryStudentId, search.get('classId') ?? '', from, to);
+        const rawClassIds = search.get('classIds') ?? search.get('classId') ?? '';
+        const initClassIds = rawClassIds ? rawClassIds.split(',').filter(Boolean) : [];
+        runSearch(queryStudentId, initClassIds, from, to);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [students.length]);
 
-  const runSearch = async (sid: string, cid: string, f: string, t: string) => {
+  const runSearch = async (sid: string, cids: string[], f: string, t: string) => {
     try {
       await fetchStudentHistory({
         studentId: sid,
-        classId: cid || undefined,
+        classIds: cids.length > 0 ? cids : undefined,
         from: f,
         to: t,
       });
@@ -83,7 +89,7 @@ function StudentLessonsInner() {
       toast('학생을 선택해 주세요.', 'error');
       return;
     }
-    runSearch(studentId, classId, from, to);
+    runSearch(studentId, classIds, from, to);
   };
 
   return (
@@ -91,13 +97,13 @@ function StudentLessonsInner() {
       <Topbar title="수업 이력" actions={<div />} />
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <FilterBar
+          classIds={classIds}
           studentId={studentId}
-          classId={classId}
           from={from}
           to={to}
           loading={studentHistoryLoading}
+          setClassIds={setClassIds}
           setStudentId={setStudentId}
-          setClassId={setClassId}
           setFrom={setFrom}
           setTo={setTo}
           onSearch={handleSearch}

@@ -204,7 +204,7 @@ export interface StudentLessonHistory {
 
 export interface StudentLessonHistoryQuery {
   studentId: string;
-  classId?: string;
+  classIds?: string[]; // 빈 배열 또는 미지정 = 전체 반
   from: string; // YYYY-MM-DD
   to: string;   // YYYY-MM-DD
 }

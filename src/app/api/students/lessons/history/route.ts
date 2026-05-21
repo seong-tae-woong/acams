@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const studentId = searchParams.get('studentId');
-  const classIdParam = searchParams.get('classId') || undefined;
+  // classIds=id1,id2,... (다중선택) 또는 classId (레거시 단일) 모두 지원
+  const classIdsRaw = searchParams.get('classIds') ?? searchParams.get('classId') ?? '';
+  const classIdsList = classIdsRaw ? classIdsRaw.split(',').filter(Boolean) : [];
   const fromStr = searchParams.get('from');
   const toStr = searchParams.get('to');
 
@@ -48,15 +50,16 @@ export async function GET(req: NextRequest) {
 
     const studentClassIds = student.classEnrollments.map((e) => e.classId);
 
-    // 2. classId 옵션 적용 (지정 시 학생 소속 반인지 검증)
-    //    classId 미지정 시 targetClassIds = 학생의 활성 반 전체 (정규 수업 필터용)
+    // 2. classIds 옵션 적용 (지정 시 학생 소속 반인지 검증)
+    //    classIds 미지정(빈 배열) 시 targetClassIds = 학생의 활성 반 전체 (정규 수업 필터용)
     //    보강은 학생 ID 기반으로 별도 조회하므로 활성 반이 0개여도 보강 이력은 표시.
     let targetClassIds: string[];
-    if (classIdParam) {
-      if (!studentClassIds.includes(classIdParam)) {
+    if (classIdsList.length > 0) {
+      const invalid = classIdsList.filter((id) => !studentClassIds.includes(id));
+      if (invalid.length > 0) {
         return NextResponse.json({ error: '해당 반에 속하지 않은 학생' }, { status: 403 });
       }
-      targetClassIds = [classIdParam];
+      targetClassIds = classIdsList;
     } else {
       targetClassIds = studentClassIds;
     }
@@ -64,9 +67,9 @@ export async function GET(req: NextRequest) {
     const from = toDateOnly(fromStr);
     const to = toDateOnly(toStr);
 
-    // 보강 originalClass 필터 — classId 지정 시 그 반의 보강만, 미지정 시 학생 명단 기준 전체
-    const makeupOriginalClassFilter = classIdParam
-      ? { originalClassId: classIdParam }
+    // 보강 originalClass 필터 — classIds 지정 시 해당 반들의 보강만, 미지정 시 학생 명단 기준 전체
+    const makeupOriginalClassFilter: Record<string, unknown> = classIdsList.length > 0
+      ? { originalClassId: { in: classIdsList } }
       : {};
 
     // 3. Comment + ClinicResult + 보강 데이터 병렬 조회

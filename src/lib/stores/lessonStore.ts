@@ -210,11 +210,11 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
     });
   },
 
-  fetchStudentHistory: async ({ studentId, classId, from, to }) => {
+  fetchStudentHistory: async ({ studentId, classIds, from, to }) => {
     set({ studentHistoryLoading: true });
     try {
       const params = new URLSearchParams({ studentId, from, to });
-      if (classId) params.set('classId', classId);
+      if (classIds && classIds.length > 0) params.set('classIds', classIds.join(','));
       const res = await fetch(`/api/students/lessons/history?${params.toString()}`);
       if (!res.ok) throw new Error('학생 수업 이력 조회 실패');
       const data: StudentLessonHistory = await res.json();
