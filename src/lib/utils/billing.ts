@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { BillStatus, AttendanceStatus, Prisma } from '@/generated/prisma/client';
+import { BillStatus, AttendanceStatus, StudentStatus, Prisma } from '@/generated/prisma/client';
 
 // DayOfWeek DB 저장값(1=월..6=토, 7=일) → JS getDay()(0=일..6=토)
 function toJsDay(dbDow: number): number {
@@ -142,14 +142,18 @@ export async function calcInitialPerLessonAmount(
  * calculateBillWithAdjustments
  * Layer 2 (EnrollmentRule) + Layer 3 (MonthlyAdjustment) 조정을 적용해 청구액을 재계산.
  *
+ * 멱등성 보장:
+ *   base는 매번 class.fee + (per-lesson) scheduled/absent/makeup 컬럼으로 다시 계산.
+ *   bill.amount 자체를 base로 사용하면 두 번 호출 시 percent 할인이 누적됨.
+ *
  * 호출 시점:
- *   - recalculateBill() 체인 끝 (per-lesson 기반액 갱신 후)
+ *   - recalculateBill() 체인 끝 (per-lesson 출결 변경 시)
  *   - 조정 규칙 CRUD 후 즉시
  *   - DRAFT 확정 API (tx 포함, 이후 호출부에서 status UNPAID로 전환)
  *
  * 적용 순서 (OoO):
- *   1. base_tuition (Bill.amount 현재값)
- *   2. percent EnrollmentRule (할인 → 추가 순, createdAt asc)
+ *   1. base_tuition (per-lesson: chargeable × fee, 그 외: class.fee)
+ *   2. percent EnrollmentRule (createdAt asc)
  *   3. fixed  EnrollmentRule
  *   4. MonthlyAdjustment (class/student scope 공통)
  *   5. Math.round() → max(0, …)
@@ -170,14 +174,31 @@ export async function calculateBillWithAdjustments(
       classId: true,
       studentId: true,
       month: true,
-      amount: true,
       paidAmount: true,
       status: true,
+      scheduledCount: true,
+      absentCount: true,
+      makeupCount: true,
+      class: { select: { fee: true, feeType: true } },
     },
   });
 
   if (!bill) return;
   if (bill.status === BillStatus.PAID) return;
+
+  // ── base 산출 (멱등성) ────────────────────────────────────
+  // per-lesson은 청구서에 저장된 출결 카운트로 base를 다시 계산.
+  // 그 외는 class.fee가 base.
+  let base: number;
+  if (bill.class.feeType === 'per-lesson') {
+    const chargeable = Math.max(
+      0,
+      (bill.scheduledCount ?? 0) - (bill.absentCount ?? 0) + (bill.makeupCount ?? 0),
+    );
+    base = chargeable * bill.class.fee;
+  } else {
+    base = bill.class.fee;
+  }
 
   // Layer 2 — 수강 등록 규칙
   const enrollment = await db.classEnrollment.findFirst({
@@ -206,7 +227,7 @@ export async function calculateBillWithAdjustments(
   });
 
   // OoO 적용
-  let adjusted: number = bill.amount;
+  let adjusted: number = base;
 
   // 1) percent 규칙 (할인 먼저, 추가 나중 — 생성 순서 유지)
   for (const rule of enrollmentRules) {
@@ -255,6 +276,126 @@ export async function calculateBillWithAdjustments(
     where: { id: billId },
     data: { amount: finalAmount, status: newStatus },
   });
+}
+
+/**
+ * syncSiblingDiscountsForStudent
+ * 학생의 현재 수강 등록(active)에 대해 형제 할인 자동 EnrollmentRule을 동기화.
+ *
+ * 적용 조건:
+ *   - 학생에게 ≥1명의 형제가 학원에 활성 학생(status="active")으로 존재
+ *   - 학원 설정 siblingDiscountDefault > 0
+ *
+ * 동작:
+ *   - 조건 충족 → 해당 학생의 모든 활성 enrollment에 isAuto=true,autoTag="sibling" 규칙 보장
+ *   - 조건 미충족 → 기존 자동 규칙 제거
+ *   - 금액/타입은 항상 현재 학원 설정값으로 덮어씀 (수동 수정 의도가 없음)
+ *
+ * 호출 시점: 수강 등록 변경, 형제 관계 변경, 학원 설정 변경.
+ */
+export async function syncSiblingDiscountsForStudent(
+  studentId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<void> {
+  const db = tx ?? prisma;
+
+  const student = await db.student.findUnique({
+    where: { id: studentId },
+    select: { id: true, academyId: true, status: true },
+  });
+  if (!student || student.status !== StudentStatus.ACTIVE) return;
+
+  // 학원 설정
+  const academy = await db.academy.findUnique({
+    where: { id: student.academyId },
+    select: { siblingDiscountDefault: true, siblingDiscountType: true },
+  });
+  if (!academy) return;
+
+  // 형제 양방향 조회 + 활성 상태 + 같은 학원 확인
+  const links = await db.studentSibling.findMany({
+    where: { OR: [{ studentAId: studentId }, { studentBId: studentId }] },
+    select: { studentAId: true, studentBId: true },
+  });
+  const siblingIds = links.map((l) => (l.studentAId === studentId ? l.studentBId : l.studentAId));
+
+  let qualifies = false;
+  if (siblingIds.length > 0 && academy.siblingDiscountDefault > 0) {
+    const activeSiblings = await db.student.count({
+      where: { id: { in: siblingIds }, academyId: student.academyId, status: StudentStatus.ACTIVE },
+    });
+    qualifies = activeSiblings > 0;
+  }
+
+  // 학생의 활성 수강 등록 전체
+  const enrollments = await db.classEnrollment.findMany({
+    where: { studentId, isActive: true },
+    select: { id: true, classId: true },
+  });
+
+  // 영향 받는 enrollment ID 모음 (재계산용)
+  const affectedEnrollmentIds: string[] = [];
+
+  for (const enr of enrollments) {
+    const existing = await db.enrollmentRule.findFirst({
+      where: { enrollmentId: enr.id, autoTag: 'sibling' },
+      select: { id: true, amount: true, amountType: true },
+    });
+
+    if (qualifies) {
+      // 보장: 없으면 생성, 있으면 금액/타입을 최신 설정으로 동기화
+      if (!existing) {
+        await db.enrollmentRule.create({
+          data: {
+            academyId: student.academyId,
+            enrollmentId: enr.id,
+            label: '형제 할인',
+            direction: 'discount',
+            amountType: academy.siblingDiscountType,
+            amount: academy.siblingDiscountDefault,
+            memo: '자동 적용',
+            isAuto: true,
+            autoTag: 'sibling',
+          },
+        });
+        affectedEnrollmentIds.push(enr.id);
+      } else if (
+        existing.amount !== academy.siblingDiscountDefault ||
+        existing.amountType !== academy.siblingDiscountType
+      ) {
+        await db.enrollmentRule.update({
+          where: { id: existing.id },
+          data: {
+            amount: academy.siblingDiscountDefault,
+            amountType: academy.siblingDiscountType,
+          },
+        });
+        affectedEnrollmentIds.push(enr.id);
+      }
+    } else {
+      // 조건 미충족 — 기존 자동 규칙 제거
+      if (existing) {
+        await db.enrollmentRule.delete({ where: { id: existing.id } });
+        affectedEnrollmentIds.push(enr.id);
+      }
+    }
+  }
+
+  // 영향받은 enrollment의 활성 청구서 재계산
+  if (affectedEnrollmentIds.length > 0) {
+    const enrs = await db.classEnrollment.findMany({
+      where: { id: { in: affectedEnrollmentIds } },
+      select: { classId: true, studentId: true },
+    });
+    const bills = await db.bill.findMany({
+      where: {
+        OR: enrs.map((e) => ({ classId: e.classId, studentId: e.studentId })),
+        status: { notIn: [BillStatus.PAID, BillStatus.CANCELLED] },
+      },
+      select: { id: true },
+    });
+    await Promise.all(bills.map((b) => calculateBillWithAdjustments(b.id, tx)));
+  }
 }
 
 // per-lesson 청구서의 출결 기반 amount를 계산 (재청구 시 사용)

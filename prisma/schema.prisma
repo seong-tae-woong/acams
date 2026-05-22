@@ -29,7 +29,8 @@ model Academy {
   tossKeyUpdatedBy String? // 변경한 super_admin userId (감사 로그)
 
   // ── 청구 설정 ────────────────────────────────────────
-  siblingDiscountDefault Int @default(0) // 형제/자매 할인 기본값 (%) — 원장 참고용, 수강 등록 시 조건 입력에 사용
+  siblingDiscountDefault Int    @default(0) // 형제/자매 할인 금액 (type=fixed면 원, percent면 0-100)
+  siblingDiscountType    String @default("fixed") // "fixed" | "percent"
 
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
   intro          String? // 한 줄 소개
@@ -82,6 +83,7 @@ model Academy {
   makeupClinicResults   MakeupClinicResult[]
   enrollmentRules       EnrollmentRule[]
   monthlyAdjustments    MonthlyAdjustment[]
+  adjustmentLabels      AdjustmentLabel[]
 
   @@map("academies")
 }
@@ -688,13 +690,29 @@ model EnrollmentRule {
   amountType       String          @default("fixed") // "fixed" | "percent"
   amount           Int             // fixed: 원 단위 / percent: 0-100 정수
   memo             String          @default("")
+  isAuto           Boolean         @default(false)   // 시스템 자동 생성 (형제 할인 등) — 동기화 대상
+  autoTag          String?         // "sibling" 등 자동 규칙 구분 태그
   createdAt        DateTime        @default(now())
 
   academy    Academy         @relation(fields: [academyId], references: [id], onDelete: Cascade)
   enrollment ClassEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   @@index([academyId, enrollmentId])
+  @@index([enrollmentId, autoTag])
   @@map("enrollment_rules")
+}
+
+// ─── 월별 조정용 명칭 사전 (교재비, 활동비 등) ─────────────────
+model AdjustmentLabel {
+  id        String   @id @default(cuid())
+  academyId String
+  name      String   // 예: "교재비", "활동비", "특강비"
+  createdAt DateTime @default(now())
+
+  academy Academy @relation(fields: [academyId], references: [id], onDelete: Cascade)
+
+  @@unique([academyId, name])
+  @@map("adjustment_labels")
 }
 
 // ─── Layer 3: 월별 1회성 조정 (교재비, 특강비 등) ────────────────

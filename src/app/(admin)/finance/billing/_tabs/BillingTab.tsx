@@ -5,13 +5,15 @@ import SearchInput from '@/components/shared/SearchInput';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useClassStore } from '@/lib/stores/classStore';
+import { useStudentStore } from '@/lib/stores/studentStore';
 import { BillStatus } from '@/lib/types/finance';
 import type { Bill } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck } from 'lucide-react';
+import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck, Tag } from 'lucide-react';
 import clsx from 'clsx';
 import { STATUS_STYLE, formatMonth, type BillingNotifTarget } from '../_shared';
+import MonthlyAdjustModal from '../_components/MonthlyAdjustModal';
 
 interface BillingTabProps {
   search: string;
@@ -43,9 +45,33 @@ export default function BillingTab({
 }: BillingTabProps) {
   const { bills, availableMonths, fetchBills } = useFinanceStore();
   const { classes } = useClassStore();
+  const { students, fetchStudents } = useStudentStore();
   const { currentUser } = useAuthStore();
+
+  // 학생 store hydrate — 월별 조정 모달의 학생 목록 표시에 필요
+  useEffect(() => {
+    if (students.length === 0) {
+      fetchStudents();
+    }
+  }, [students.length, fetchStudents]);
   const isDirector = currentUser?.role === 'director' || currentUser?.role === 'super_admin';
   const [confirmingDraft, setConfirmingDraft] = useState(false);
+
+  // 월별 조정 모달
+  const [monthlyAdjustOpen, setMonthlyAdjustOpen] = useState(false);
+
+  // 반별 활성 학생 맵 (모달 prop으로 전달)
+  const studentsByClass = useMemo(() => {
+    const map: Record<string, { id: string; name: string }[]> = {};
+    for (const c of classes) {
+      const sids = c.students ?? [];
+      map[c.id] = sids
+        .map((sid) => students.find((s) => s.id === sid))
+        .filter((s): s is NonNullable<typeof s> => !!s && s.status === '재원')
+        .map((s) => ({ id: s.id, name: s.name }));
+    }
+    return map;
+  }, [classes, students]);
 
   // ── 청구 탭 상태 ──────────────────────────────────────
   const [monthDropOpen, setMonthDropOpen] = useState(false);
@@ -196,6 +222,22 @@ export default function BillingTab({
           <span className="text-[12px] text-[#6b7280] ml-auto">{filtered.length}건</span>
           {selectedBillIds.size > 0 && (
             <span className="text-[12px] text-[#4fc3a1] font-medium">{selectedBillIds.size}개 선택됨</span>
+          )}
+          {isDirector && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                if (filterMonths.length !== 1) {
+                  toast('월별 조정은 단일 월을 선택한 상태에서만 추가할 수 있습니다.', 'error');
+                  return;
+                }
+                setMonthlyAdjustOpen(true);
+              }}
+              title="이번 달 교재비·활동비 등 일회성 조정 추가"
+            >
+              <Tag size={13} /> 월별 조정
+            </Button>
           )}
           <Button
             variant="default"
@@ -358,6 +400,18 @@ export default function BillingTab({
           </tbody>
         </table>
       </div>
+
+      {/* 월별 조정 모달 — filterMonths.length === 1일 때만 활성화됨 */}
+      {monthlyAdjustOpen && filterMonths.length === 1 && (
+        <MonthlyAdjustModal
+          open={monthlyAdjustOpen}
+          onClose={() => setMonthlyAdjustOpen(false)}
+          billingMonth={filterMonths[0]}
+          classes={classes.map((c) => ({ id: c.id, name: c.name }))}
+          studentsByClass={studentsByClass}
+          onSaved={() => fetchBills()}
+        />
+      )}
     </>
   );
 }

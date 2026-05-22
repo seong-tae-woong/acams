@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { syncSiblingDiscountsForStudent } from '@/lib/utils/billing';
 
 // POST /api/students/[id]/siblings — 형제/자매 목록 전체 교체 (sync)
 export async function POST(
@@ -25,6 +26,14 @@ export async function POST(
     const student = await prisma.student.findFirst({ where: { id, academyId } });
     if (!student) return NextResponse.json({ error: '학생을 찾을 수 없습니다.' }, { status: 404 });
 
+    // sync 대상: 기존 형제 + 새 형제 (변경된 양쪽 모두 재평가 필요)
+    const prevLinks = await prisma.studentSibling.findMany({
+      where: { OR: [{ studentAId: id }, { studentBId: id }] },
+      select: { studentAId: true, studentBId: true },
+    });
+    const prevSiblings = prevLinks.map((l) => (l.studentAId === id ? l.studentBId : l.studentAId));
+    const affectedIds = new Set<string>([id, ...prevSiblings, ...siblingIds]);
+
     await prisma.$transaction(async (tx) => {
       // 기존 링크 전체 삭제 (양방향)
       await tx.studentSibling.deleteMany({
@@ -43,6 +52,11 @@ export async function POST(
       );
       if (unique.length > 0) {
         await tx.studentSibling.createMany({ data: unique, skipDuplicates: true });
+      }
+
+      // 영향 받은 학생 전원에 대해 형제 할인 자동 동기화
+      for (const sid of affectedIds) {
+        await syncSiblingDiscountsForStudent(sid, tx);
       }
     });
 

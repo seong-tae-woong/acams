@@ -1,6 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { syncSiblingDiscountsForStudent } from '@/lib/utils/billing';
+import { StudentStatus } from '@/generated/prisma/client';
 
 function toProxyUrl(blobUrl: string): string {
   if (!blobUrl || !blobUrl.includes('blob.vercel-storage.com')) return blobUrl;
@@ -31,6 +33,7 @@ export async function GET(req: NextRequest) {
         kakaoMapUrl: true,
         galleryImages: true,
         siblingDiscountDefault: true,
+        siblingDiscountType: true,
       },
     });
 
@@ -65,6 +68,7 @@ export async function PATCH(req: NextRequest) {
       phone, address,
       // 청구 설정
       siblingDiscountDefault,
+      siblingDiscountType,
     } = body;
 
     // galleryImages: 명시적으로 전달된 경우에만 업데이트 (미전달 시 기존 값 유지)
@@ -88,9 +92,25 @@ export async function PATCH(req: NextRequest) {
         ...(cleanImages !== null && { galleryImages: cleanImages }),
         ...(siblingDiscountDefault !== undefined && typeof siblingDiscountDefault === 'number' && siblingDiscountDefault >= 0
           && { siblingDiscountDefault: Math.round(siblingDiscountDefault) }),
+        ...(siblingDiscountType !== undefined && (siblingDiscountType === 'fixed' || siblingDiscountType === 'percent')
+          && { siblingDiscountType }),
       },
       select: { slug: true, profileEnabled: true },
     });
+
+    // 형제 할인 설정이 바뀌었으면 학원 전체 학생 재동기화
+    const siblingChanged = (siblingDiscountDefault !== undefined && typeof siblingDiscountDefault === 'number')
+      || (siblingDiscountType === 'fixed' || siblingDiscountType === 'percent');
+    if (siblingChanged) {
+      const students = await prisma.student.findMany({
+        where: { academyId, status: StudentStatus.ACTIVE },
+        select: { id: true },
+      });
+      // 순차 호출 — DB 동시 트랜잭션 폭주 방지
+      for (const s of students) {
+        await syncSiblingDiscountsForStudent(s.id);
+      }
+    }
 
     return NextResponse.json({ success: true, slug: updated.slug, profileEnabled: updated.profileEnabled });
   } catch (err) {

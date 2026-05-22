@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { syncSiblingDiscountsForStudent } from '@/lib/utils/billing';
 
 const STATUS_TO_PRISMA: Record<string, PrismaStatus> = {
   '재원': PrismaStatus.ACTIVE,
@@ -147,6 +148,9 @@ export async function PATCH(
             data: { isActive: false, droppedAt: new Date() },
           });
         }
+
+        // enrollment 변경 시 형제 할인 자동 동기화 (이 학생만 — 형제는 변경 영향 없음)
+        await syncSiblingDiscountsForStudent(id, tx);
       }
     });
 
