@@ -10,10 +10,11 @@ import { BillStatus } from '@/lib/types/finance';
 import type { Bill } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck, Tag } from 'lucide-react';
+import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck, Tag, FileText } from 'lucide-react';
 import clsx from 'clsx';
 import { STATUS_STYLE, formatMonth, type BillingNotifTarget } from '../_shared';
 import MonthlyAdjustModal from '../_components/MonthlyAdjustModal';
+import BillDetailModal from '../_components/BillDetailModal';
 
 interface BillingTabProps {
   search: string;
@@ -59,6 +60,9 @@ export default function BillingTab({
 
   // 월별 조정 모달
   const [monthlyAdjustOpen, setMonthlyAdjustOpen] = useState(false);
+
+  // 세부 내역 모달
+  const [detailBill, setDetailBill] = useState<Bill | null>(null);
 
   // 반별 활성 학생 맵 (모달 prop으로 전달)
   const studentsByClass = useMemo(() => {
@@ -332,6 +336,19 @@ export default function BillingTab({
                   <td className="px-2 py-3 text-right text-[#111827]">
                     <div className="flex items-center justify-end gap-1">
                       <span>{b.amount.toLocaleString()}원</span>
+                      <button
+                        onClick={() => b.hasAdjustments && setDetailBill(b)}
+                        disabled={!b.hasAdjustments}
+                        className={clsx(
+                          'transition-colors',
+                          b.hasAdjustments
+                            ? 'text-[#5B4FBE] hover:text-[#4338CA] cursor-pointer'
+                            : 'text-[#d1d5db] cursor-not-allowed',
+                        )}
+                        title={b.hasAdjustments ? '세부 내역 보기' : '조정 내역 없음 (기본 수강료만 청구)'}
+                      >
+                        <FileText size={11} />
+                      </button>
                       <button onClick={() => onOpenAdjust(b)} className="text-[#9ca3af] hover:text-[#4fc3a1] transition-colors cursor-pointer" title="조정금액 설정"><Pencil size={11} /></button>
                     </div>
                     {adj > 0 && <div className="text-[11px] text-[#991B1B] mt-0.5">차감 -{adj.toLocaleString()}원</div>}
@@ -412,6 +429,13 @@ export default function BillingTab({
           onSaved={() => fetchBills()}
         />
       )}
+
+      {/* 청구서 세부 내역 모달 */}
+      <BillDetailModal
+        open={!!detailBill}
+        onClose={() => setDetailBill(null)}
+        bill={detailBill}
+      />
     </>
   );
 }

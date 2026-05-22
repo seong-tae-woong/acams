@@ -29,9 +29,17 @@ function mapBill(b: {
   cancelledAt: Date | null; cancelReason: string | null;
   paymentOrderId: string | null; rebillOfId: string | null;
   student: { name: string };
-  class: { name: string; feeType: string };
+  class: { name: string; feeType: string; fee: number };
   _count: { adjustments: number };
 }) {
+  // base 계산 — per-lesson은 출결 컬럼 기반, 그 외는 class.fee
+  const base = b.class.feeType === 'per-lesson'
+    ? Math.max(0, (b.scheduledCount ?? 0) - (b.absentCount ?? 0) + (b.makeupCount ?? 0)) * b.class.fee
+    : b.class.fee;
+
+  // hasAdjustments: 최종 금액이 base와 다르거나, 레거시 차감(adjustAmount)이 있으면 true
+  const hasAdjustments = b.amount !== base || (b.adjustAmount ?? 0) > 0;
+
   return {
     id: b.id,
     studentId: b.studentId,
@@ -50,6 +58,7 @@ function mapBill(b: {
     adjustMemo: b.adjustMemo,
     adjustCount: b._count.adjustments,
     feeType: b.class.feeType,
+    baseFee: b.class.fee,
     scheduledCount: b.scheduledCount,
     absentCount: b.absentCount,
     makeupCount: b.makeupCount,
@@ -58,12 +67,13 @@ function mapBill(b: {
     cancelReason: b.cancelReason,
     paymentOrderId: b.paymentOrderId,
     rebillOfId: b.rebillOfId,
+    hasAdjustments,
   };
 }
 
 const BILL_INCLUDE = {
   student: { select: { name: true } },
-  class: { select: { name: true, feeType: true } },
+  class: { select: { name: true, feeType: true, fee: true } },
   _count: { select: { adjustments: true } },
 } as const;
 

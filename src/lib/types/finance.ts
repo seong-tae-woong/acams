@@ -28,6 +28,8 @@ export interface Bill {
   adjustMemo?: string;   // 조정 사유
   adjustCount?: number;  // 이 청구서의 누적 조정 횟수
   feeType?: string;         // "monthly" | "per-lesson"
+  baseFee?: number;         // 반의 기본 수강료 (per-lesson은 회당 단가)
+  hasAdjustments?: boolean; // 세부 내역(조정·할인) 존재 여부 — 세부 내역 버튼 활성/비활성
   scheduledCount?: number | null; // per-lesson: 배정 수업 횟수
   absentCount?: number | null;    // per-lesson: 결석 횟수
   makeupCount?: number | null;    // per-lesson: 보강으로 복원된 횟수
