@@ -241,7 +241,7 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
               <div className="text-[11px] font-semibold text-[#92400E] mb-1.5">휴원 · {onLeaveStudents.length}명</div>
               <div className="flex flex-wrap gap-2">
                 {onLeaveStudents.map((s) => (
-                  <div key={s.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#FEF3C7] rounded-[8px] opacity-75" title={s.memo || '휴원'}>
+                  <div key={s.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#FEF3C7] rounded-[8px] opacity-75" title="휴원">
                     <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0" style={{ backgroundColor: s.avatarColor }}>{s.name[0]}</span>
                     <span className="text-[12px] text-[#92400E]">{s.name}</span>
                     <span className="text-[9.5px] px-1 rounded bg-[#FEF3C7] text-[#92400E] border border-[#fcd34d]">휴원</span>

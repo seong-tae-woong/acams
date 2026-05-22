@@ -18,10 +18,9 @@ export default function InfoTab({ student }: { student: Student }) {
   const [siblingChecked, setSiblingChecked] = useState<Set<string>>(new Set());
 
   const openSiblingModal = () => {
-    const samePhone = students
-      .filter((s) => s.id !== student.id && s.parentPhone && s.parentPhone === student.parentPhone)
-      .map((s) => s.id);
-    setSiblingChecked(new Set([...student.siblingIds, ...samePhone]));
+    // 기존 형제/자매 ID를 체크 상태로 초기화
+    // (보호자 번호 기반 자동 추천은 학생 등록 시 POST 응답에서만 제공)
+    setSiblingChecked(new Set(student.siblingIds));
     setSiblingSearch('');
     setSiblingOpen(true);
   };
@@ -49,10 +48,6 @@ export default function InfoTab({ student }: { student: Student }) {
     if (!siblingSearch) return true;
     return s.name.includes(siblingSearch) || s.school.includes(siblingSearch);
   });
-
-  const samePhoneIds = new Set(
-    students.filter((s) => s.id !== student.id && s.parentPhone && s.parentPhone === student.parentPhone).map((s) => s.id),
-  );
 
   return (
     <>
@@ -158,7 +153,6 @@ export default function InfoTab({ student }: { student: Student }) {
             {siblingCandidateList.length === 0 ? (
               <p className="text-[12px] text-[#9ca3af] text-center py-4">검색 결과가 없습니다</p>
             ) : siblingCandidateList.map((s) => {
-              const isSamePhone = samePhoneIds.has(s.id);
               const isChecked = siblingChecked.has(s.id);
               return (
                 <label
@@ -178,11 +172,6 @@ export default function InfoTab({ student }: { student: Student }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[12.5px] font-medium text-[#111827]">{s.name}</span>
-                      {isSamePhone && (
-                        <span className="text-[10px] bg-[#fef3c7] text-[#92400e] px-1.5 py-0.5 rounded-full font-medium">
-                          보호자 번호 일치
-                        </span>
-                      )}
                     </div>
                     <div className="text-[11px] text-[#6b7280]">{s.school} · {s.grade}학년</div>
                   </div>

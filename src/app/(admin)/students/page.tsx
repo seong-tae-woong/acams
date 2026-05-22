@@ -18,7 +18,6 @@ import { formatKoreanDate, formatPhone } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Plus, Phone, School, Calendar, KeyRound, CalendarDays, RefreshCw, History } from 'lucide-react';
 import clsx from 'clsx';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import {
   STATUS_OPTIONS, DETAIL_TABS, AVATAR_COLORS,
   type StudentForm, parseSchool, EMPTY_FORM, type PostRegisterInfo, StudentFormFields,
@@ -31,9 +30,12 @@ import PaymentTab from './_tabs/PaymentTab';
 import ConsultTab from './_tabs/ConsultTab';
 
 export default function StudentsPage() {
-  const { students, selectedStudentId, filterStatus, search, loading, getFilteredStudents, getStudent,
+  const {
+    students, selectedStudentId, selectedStudent, filterStatus, search, loading, detailLoading,
+    getFilteredStudents,
     setSelectedStudent, setFilterStatus, setSearch, addStudent, updateStudent, changeStatus,
-    syncSiblings, fetchStudents } = useStudentStore();
+    syncSiblings, fetchStudents,
+  } = useStudentStore();
   const { fetchClasses } = useClassStore();
 
   useEffect(() => {
@@ -60,7 +62,7 @@ export default function StudentsPage() {
   const [attModalStudentName, setAttModalStudentName] = useState('');
 
   const filtered = getFilteredStudents();
-  const selected = selectedStudentId ? getStudent(selectedStudentId) : null;
+  const selected = selectedStudent; // store의 selectedStudent 직접 참조 (getStudent 불필요)
   const filterOptions = STATUS_OPTIONS.map((opt) => ({
     ...opt,
     count: opt.value === 'all' ? students.length : students.filter((s) => s.status === opt.value).length,
@@ -78,12 +80,9 @@ export default function StudentsPage() {
     const yearCount = students.filter((s) => s.attendanceNumber.startsWith(String(year))).length;
     const attendanceNumber = `${year}${String(yearCount + 1).padStart(3, '0')}`;
 
-    const siblingCandidates = students
-      .filter((s) => s.parentPhone && s.parentPhone === registerForm.parentPhone)
-      .map(({ id, name, school, grade, avatarColor }) => ({ id, name, school, grade, avatarColor }));
-
     try {
-      const { studentLoginId, studentTempPassword, parentTempPassword } = await addStudent({
+      // siblingCandidates는 서버(POST /api/students)가 감지해서 응답에 포함 (D3)
+      const { studentLoginId, studentTempPassword, parentTempPassword, siblingCandidates } = await addStudent({
         ...registerForm,
         school: `${registerForm.school.trim()}${registerForm.schoolLevel}`,
         grade: Number(registerForm.grade),
@@ -94,8 +93,8 @@ export default function StudentsPage() {
         birthDate: registerForm.birthDate || undefined,
       });
 
-      const newStudents = useStudentStore.getState().students;
-      const newStudentId = newStudents[newStudents.length - 1].id;
+      // addStudent 성공 시 store가 selectedStudentId를 자동 세팅함
+      const newStudentId = useStudentStore.getState().selectedStudentId ?? '';
 
       setRegisterOpen(false);
       setRegisterForm(EMPTY_FORM);
@@ -195,7 +194,7 @@ export default function StudentsPage() {
         }
       />
 
-      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
         {/* 좌측 학생 목록 */}
         <div className="w-64 shrink-0 flex flex-col border-r border-[#e2e8f0] bg-white overflow-hidden">
           <div className="p-3 border-b border-[#e2e8f0] space-y-2">
@@ -203,7 +202,18 @@ export default function StudentsPage() {
             <FilterTags options={filterOptions} value={filterStatus} onChange={(v) => setFilterStatus(v as StudentStatus | 'all')} />
           </div>
           <div className="flex-1 overflow-y-auto">
-            {filtered.length === 0 ? (
+            {loading ? (
+              /* 목록 스켈레톤 — LoadingSpinner 전체 블로킹 대신 목록 패널만 shimmer */
+              [...Array(8)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5 border-b border-[#f1f5f9]">
+                  <div className="w-8 h-8 rounded-full bg-[#e2e8f0] animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-[#e2e8f0] rounded animate-pulse w-24" />
+                    <div className="h-2.5 bg-[#e2e8f0] rounded animate-pulse w-32" />
+                  </div>
+                </div>
+              ))
+            ) : filtered.length === 0 ? (
               <div className="p-6 text-center text-[12px] text-[#9ca3af]">검색 결과가 없습니다</div>
             ) : filtered.map((student) => (
               <div
@@ -215,7 +225,7 @@ export default function StudentsPage() {
               >
                 {/* 학생 선택 영역 */}
                 <button
-                  onClick={() => { setSelectedStudent(student.id); setDetailTab('info'); }}
+                  onClick={() => { void setSelectedStudent(student.id); setDetailTab('info'); }}
                   className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 text-left cursor-pointer"
                 >
                   <Avatar name={student.name} color={student.avatarColor} size="sm" />
@@ -241,7 +251,23 @@ export default function StudentsPage() {
         </div>
 
         {/* 우측 상세 */}
-        {selected ? (
+        {detailLoading ? (
+          /* 상세 스켈레톤 — 학생 클릭 후 API 응답 전까지 shimmer */
+          <div className="flex-1 flex flex-col overflow-hidden bg-[#f4f6f8]">
+            <div className="bg-white border-b border-[#e2e8f0] px-5 py-4 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#e2e8f0] animate-pulse shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-[#e2e8f0] rounded animate-pulse w-28" />
+                <div className="h-3 bg-[#e2e8f0] rounded animate-pulse w-48" />
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-12 bg-white rounded-[10px] animate-pulse" />
+              ))}
+            </div>
+          </div>
+        ) : selected ? (
           <div className="flex-1 flex flex-col overflow-hidden bg-[#f4f6f8]">
             <div className="bg-white border-b border-[#e2e8f0] px-5 py-4">
               <div className="flex items-center gap-4">
@@ -291,7 +317,7 @@ export default function StudentsPage() {
             <p className="text-[13px] text-[#9ca3af]">좌측에서 학생을 선택하세요</p>
           </div>
         )}
-      </div>}
+      </div>
 
       {/* 출결 현황 팝업 */}
       <AttendanceCalendarModal

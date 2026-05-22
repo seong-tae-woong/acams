@@ -39,6 +39,18 @@ export interface StudentSummary {
   classCount: number;
 }
 
+// 목록 패널 전용 슬림 타입 (parentLinks·siblingLinks·siblingOf JOIN 없음)
+export interface StudentListItem {
+  id: string;
+  name: string;
+  school: string;
+  grade: number;
+  status: StudentStatus;
+  avatarColor: string;
+  attendanceNumber: string;
+  classes: string[]; // classEnrollments JOIN — 반/출결 페이지 필터에 필요
+}
+
 export interface StudentFilter {
   status?: StudentStatus;
   grade?: number;

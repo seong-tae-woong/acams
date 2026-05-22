@@ -59,12 +59,31 @@ function mapStudent(s: {
   };
 }
 
+// POST와 GET /id 에서 상세 데이터 조회 시 사용 (4 JOIN 유지)
 const STUDENT_INCLUDE = {
   parentLinks: { include: { parent: { select: { name: true, phone: true } } } },
   classEnrollments: { select: { classId: true, isActive: true } },
   siblingLinks: { select: { studentBId: true } },
   siblingOf: { select: { studentAId: true } },
 } as const;
+
+// 목록 전용 슬림 매핑 (classEnrollments 1 JOIN, parentLinks·siblingLinks·siblingOf 제거)
+function mapStudentListItem(s: {
+  id: string; name: string; school: string; grade: number;
+  status: PrismaStatus; avatarColor: string; attendanceNumber: string;
+  classEnrollments: { classId: string }[];
+}) {
+  return {
+    id: s.id,
+    name: s.name,
+    school: s.school,
+    grade: s.grade,
+    status: STATUS_TO_UI[s.status],
+    avatarColor: s.avatarColor,
+    attendanceNumber: s.attendanceNumber,
+    classes: s.classEnrollments.map((e) => e.classId),
+  };
+}
 
 // GET /api/students?status=&q=
 export async function GET(req: NextRequest) {
@@ -92,11 +111,24 @@ export async function GET(req: NextRequest) {
             }
           : {}),
       },
-      include: STUDENT_INCLUDE,
+      // parentLinks·siblingLinks·siblingOf 3 JOIN 제거 — 목록에 불필요
+      select: {
+        id: true,
+        name: true,
+        school: true,
+        grade: true,
+        status: true,
+        avatarColor: true,
+        attendanceNumber: true,
+        classEnrollments: {
+          where: { isActive: true },
+          select: { classId: true },
+        },
+      },
       orderBy: { name: 'asc' },
     });
 
-    return NextResponse.json(students.map(mapStudent));
+    return NextResponse.json(students.map(mapStudentListItem));
   } catch (err) {
     console.error('[GET /api/students]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
@@ -270,12 +302,34 @@ export async function POST(req: NextRequest) {
     }
     await Promise.all(smsPromises);
 
+    // 형제/자매 후보 감지: 같은 학원 + 같은 보호자 전화번호를 가진 다른 학생
+    // Parent 모델에 academyId 없으므로 Student.academyId + parentLinks 경유로 스코프
+    const siblingCandidates = parentPhone
+      ? await prisma.student.findMany({
+          where: {
+            academyId,
+            id: { not: studentId },
+            parentLinks: {
+              some: { parent: { phone: parentPhone } },
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            school: true,
+            grade: true,
+            avatarColor: true,
+          },
+        })
+      : [];
+
     return NextResponse.json(
       {
         ...mapStudent(created!),
         studentLoginId: studentLoginId ?? null,
         studentTempPassword: studentLoginId ? studentTempPassword : null,
         parentTempPassword: isNewParent ? parentTempPassword : null,
+        siblingCandidates,
       },
       { status: 201 }
     );
