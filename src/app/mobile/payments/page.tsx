@@ -13,15 +13,24 @@ import clsx from 'clsx';
 type BillStatus = 'PAID' | 'UNPAID' | 'PARTIAL';
 type PayMethod  = 'CARD' | 'TRANSFER';
 
+type AdjustmentItem = {
+  label: string;
+  direction: 'discount' | 'add';
+  amount: number;
+  amountType: 'fixed' | 'percent';
+};
+
 type BillItem = {
   id: string;
   className: string;
   month: string;
   amount: number;
+  baseFee: number;
   paidAmount: number;
   status: BillStatus;
   dueDate: string;
   memo: string;
+  adjustments?: AdjustmentItem[];
 };
 type ReceiptItem = { id: string; amount: number; issuedDate: string; method: string };
 
@@ -122,6 +131,30 @@ export default function MobilePaymentsPage() {
                         <Icon size={10} />{ss.label}
                       </span>
                     </div>
+                    {/* 조정 내역 — 규칙이 있을 때만 표시 */}
+                    {b.adjustments && b.adjustments.length > 0 && (
+                      <div className="mb-2.5 space-y-1 bg-[#f9fafb] rounded-[8px] px-3 py-2">
+                        <div className="flex items-center justify-between text-[11.5px]">
+                          <span className="text-[#6b7280]">기본 수강료</span>
+                          <span className="text-[#374151]">{b.baseFee.toLocaleString()}원</span>
+                        </div>
+                        {b.adjustments.map((a, i) => (
+                          <div key={i} className="flex items-center justify-between text-[11.5px]">
+                            <span className="text-[#6b7280]">{a.label}</span>
+                            <span style={{ color: a.direction === 'discount' ? '#991B1B' : '#065f46' }}>
+                              {a.direction === 'discount' ? '-' : '+'}
+                              {a.amountType === 'percent'
+                                ? `${a.amount}%`
+                                : `${a.amount.toLocaleString()}원`}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="border-t border-[#e2e8f0] pt-1 flex items-center justify-between text-[12px] font-semibold">
+                          <span className="text-[#374151]">최종 청구액</span>
+                          <span className="text-[#111827]">{b.amount.toLocaleString()}원</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-[12px] mb-3">
                       <span className="text-[#6b7280]">납부액 / 청구액</span>
                       <span className="font-medium text-[#111827]">

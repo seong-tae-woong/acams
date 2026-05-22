@@ -3,6 +3,7 @@
 export type PaymentMethod = '카드' | '계좌이체' | '현금';
 
 export enum BillStatus {
+  DRAFT = '초안',
   PAID = '완납',
   UNPAID = '미납',
   PARTIAL = '부분납',

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { BillStatus, AttendanceStatus } from '@/generated/prisma/client';
+import { BillStatus, AttendanceStatus, Prisma } from '@/generated/prisma/client';
 
 // DayOfWeek DB 저장값(1=월..6=토, 7=일) → JS getDay()(0=일..6=토)
 function toJsDay(dbDow: number): number {
@@ -79,8 +79,11 @@ export async function recalculateBill(billId: string): Promise<void> {
   const chargeableLessons = Math.max(0, scheduledCount - absentCount + makeupCount);
   const amount = chargeableLessons * bill.class.fee;
 
+  // DRAFT는 상태 변경 없이 금액만 갱신 (확정 시 별도로 UNPAID로 전환)
   let status: BillStatus;
-  if (amount === 0) {
+  if (bill.status === BillStatus.DRAFT) {
+    status = BillStatus.DRAFT;
+  } else if (amount === 0) {
     status = bill.paidAmount > 0 ? BillStatus.PAID : BillStatus.UNPAID;
   } else if (bill.paidAmount >= amount) {
     status = BillStatus.PAID;
@@ -94,6 +97,9 @@ export async function recalculateBill(billId: string): Promise<void> {
     where: { id: billId },
     data: { amount, scheduledCount, absentCount, makeupCount, status },
   });
+
+  // Layer 2+3 조정 적용 (per-lesson 기반액 위에 덮어씀)
+  await calculateBillWithAdjustments(billId);
 }
 
 // 특정 학생+반+월의 per-lesson 청구서를 찾아 재계산
@@ -130,6 +136,125 @@ export async function calcInitialPerLessonAmount(
   const { start, end } = getMonthRange(month);
   const scheduledCount = countScheduledLessons(cls.schedules, start, end);
   return { amount: scheduledCount * cls.fee, scheduledCount };
+}
+
+/**
+ * calculateBillWithAdjustments
+ * Layer 2 (EnrollmentRule) + Layer 3 (MonthlyAdjustment) 조정을 적용해 청구액을 재계산.
+ *
+ * 호출 시점:
+ *   - recalculateBill() 체인 끝 (per-lesson 기반액 갱신 후)
+ *   - 조정 규칙 CRUD 후 즉시
+ *   - DRAFT 확정 API (tx 포함, 이후 호출부에서 status UNPAID로 전환)
+ *
+ * 적용 순서 (OoO):
+ *   1. base_tuition (Bill.amount 현재값)
+ *   2. percent EnrollmentRule (할인 → 추가 순, createdAt asc)
+ *   3. fixed  EnrollmentRule
+ *   4. MonthlyAdjustment (class/student scope 공통)
+ *   5. Math.round() → max(0, …)
+ *
+ * DRAFT 상태 청구서: 금액만 갱신, 상태 변경 없음.
+ * PAID 청구서: 스킵.
+ */
+export async function calculateBillWithAdjustments(
+  billId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<void> {
+  const db = tx ?? prisma;
+
+  const bill = await db.bill.findUnique({
+    where: { id: billId },
+    select: {
+      academyId: true,
+      classId: true,
+      studentId: true,
+      month: true,
+      amount: true,
+      paidAmount: true,
+      status: true,
+    },
+  });
+
+  if (!bill) return;
+  if (bill.status === BillStatus.PAID) return;
+
+  // Layer 2 — 수강 등록 규칙
+  const enrollment = await db.classEnrollment.findFirst({
+    where: { classId: bill.classId, studentId: bill.studentId, isActive: true },
+    select: { id: true },
+  });
+
+  const enrollmentRules = enrollment
+    ? await db.enrollmentRule.findMany({
+        where: { enrollmentId: enrollment.id },
+        orderBy: { createdAt: 'asc' },
+      })
+    : [];
+
+  // Layer 3 — 월별 조정 (반 scope 또는 학생 scope)
+  const monthlyAdjustments = await db.monthlyAdjustment.findMany({
+    where: {
+      academyId: bill.academyId,
+      billingMonth: bill.month,
+      OR: [
+        { scope: 'class', classId: bill.classId },
+        { scope: 'student', studentId: bill.studentId },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // OoO 적용
+  let adjusted: number = bill.amount;
+
+  // 1) percent 규칙 (할인 먼저, 추가 나중 — 생성 순서 유지)
+  for (const rule of enrollmentRules) {
+    if (rule.amountType !== 'percent') continue;
+    const factor =
+      rule.direction === 'discount'
+        ? 1 - rule.amount / 100
+        : 1 + rule.amount / 100;
+    adjusted *= factor;
+  }
+
+  // 2) fixed 규칙
+  for (const rule of enrollmentRules) {
+    if (rule.amountType !== 'fixed') continue;
+    adjusted =
+      rule.direction === 'discount'
+        ? adjusted - rule.amount
+        : adjusted + rule.amount;
+  }
+
+  // 3) 월별 조정
+  for (const adj of monthlyAdjustments) {
+    adjusted =
+      adj.direction === 'discount'
+        ? adjusted - adj.amount
+        : adjusted + adj.amount;
+  }
+
+  const finalAmount = Math.max(0, Math.round(adjusted));
+
+  // 납부 상태 재계산 (DRAFT는 상태 보존)
+  let newStatus: BillStatus = bill.status;
+  if (bill.status !== BillStatus.DRAFT) {
+    if (finalAmount === 0) {
+      newStatus = bill.paidAmount > 0 ? BillStatus.PAID : BillStatus.UNPAID;
+    } else if (bill.paidAmount >= finalAmount) {
+      newStatus = BillStatus.PAID;
+    } else if (bill.paidAmount > 0) {
+      newStatus = BillStatus.PARTIAL;
+    } else {
+      newStatus = BillStatus.UNPAID;
+    }
+  }
+
+  await db.bill.update({
+    where: { id: billId },
+    data: { amount: finalAmount, status: newStatus },
+  });
 }
 
 // per-lesson 청구서의 출결 기반 amount를 계산 (재청구 시 사용)

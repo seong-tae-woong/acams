@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 청구서가 포함되어 있습니다.' }, { status: 400 });
     }
 
-    const alreadyPaid = bills.filter((b) => b.status === 'PAID');
-    if (alreadyPaid.length > 0) {
-      return NextResponse.json({ error: '이미 완납된 청구서가 포함되어 있습니다.' }, { status: 400 });
+    // 허용 목록: UNPAID / PARTIAL만 결제 가능 (DRAFT·PAID·CANCELLED 차단)
+    const notPayable = bills.filter((b) => b.status !== 'UNPAID' && b.status !== 'PARTIAL');
+    if (notPayable.length > 0) {
+      return NextResponse.json({ error: '결제할 수 없는 상태의 청구서가 포함되어 있습니다. (초안·완납·취소됨)' }, { status: 400 });
     }
 
     // 잔여 금액이 0인 청구서 차단 (부분납 상태이지만 이미 전액 납부된 경우 등)

@@ -121,13 +121,13 @@ export async function POST(req: NextRequest) {
       const item = items[i];
       const r = results[i];
 
-      // 이미 동일 월에 UNPAID/PARTIAL/PAID 청구서가 있으면 건너뜀
+      // 이미 동일 월에 DRAFT/UNPAID/PARTIAL/PAID 청구서가 있으면 건너뜀
       const alreadyActive = await prisma.bill.findFirst({
         where: {
           studentId: r.studentId,
           classId: r.classId,
           month: r.month,
-          status: { not: PrismaBS.CANCELLED },
+          status: { notIn: [PrismaBS.CANCELLED] },
         },
       });
       if (alreadyActive) continue;

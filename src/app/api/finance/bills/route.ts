@@ -3,18 +3,14 @@ import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
 import { calcInitialPerLessonAmount } from '@/lib/utils/billing';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { BILL_STATUS_KO } from '@/lib/utils/billStatus';
 
 // 한국 표준시(KST) 기준 날짜 문자열 반환 — 결제 시각 등 시간 정보가 있는 Date를 올바르게 표시
 function toKSTDate(d: Date): string {
   return new Intl.DateTimeFormat('sv', { timeZone: 'Asia/Seoul' }).format(d);
 }
 
-const BILL_STATUS_TO_UI: Record<PrismaBS, string> = {
-  [PrismaBS.PAID]: '완납',
-  [PrismaBS.UNPAID]: '미납',
-  [PrismaBS.PARTIAL]: '부분납',
-  [PrismaBS.CANCELLED]: '취소됨',
-};
+const BILL_STATUS_TO_UI = BILL_STATUS_KO;
 
 const METHOD_TO_UI: Record<PrismaPM, string> = {
   [PrismaPM.CARD]: '카드',

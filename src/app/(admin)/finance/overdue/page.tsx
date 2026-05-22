@@ -29,6 +29,7 @@ const RISK_STYLE: Record<string, { bg: string; text: string; border: string }> =
 };
 
 const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string }> = {
+  [BillStatus.DRAFT]:     { label: '초안',   bg: '#FFFBEB', text: '#92400E' },
   [BillStatus.PAID]:      { label: '완납',   bg: '#D1FAE5', text: '#065f46' },
   [BillStatus.UNPAID]:    { label: '미납',   bg: '#FEE2E2', text: '#991B1B' },
   [BillStatus.PARTIAL]:   { label: '부분납', bg: '#FEF3C7', text: '#92400E' },

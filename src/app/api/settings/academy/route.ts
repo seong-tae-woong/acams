@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
         profileEnabled: true,
         kakaoMapUrl: true,
         galleryImages: true,
+        siblingDiscountDefault: true,
       },
     });
 
@@ -62,6 +63,8 @@ export async function PATCH(req: NextRequest) {
       kakaoMapUrl, galleryImages,
       // 기본 정보도 함께 저장
       phone, address,
+      // 청구 설정
+      siblingDiscountDefault,
     } = body;
 
     // galleryImages: 명시적으로 전달된 경우에만 업데이트 (미전달 시 기존 값 유지)
@@ -83,6 +86,8 @@ export async function PATCH(req: NextRequest) {
         ...(profileEnabled !== undefined && { profileEnabled: Boolean(profileEnabled) }),
         ...(kakaoMapUrl  !== undefined && { kakaoMapUrl }),
         ...(cleanImages !== null && { galleryImages: cleanImages }),
+        ...(siblingDiscountDefault !== undefined && typeof siblingDiscountDefault === 'number' && siblingDiscountDefault >= 0
+          && { siblingDiscountDefault: Math.round(siblingDiscountDefault) }),
       },
       select: { slug: true, profileEnabled: true },
     });

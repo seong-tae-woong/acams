@@ -3,12 +3,13 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import Button from '@/components/shared/Button';
 import SearchInput from '@/components/shared/SearchInput';
 import { useFinanceStore } from '@/lib/stores/financeStore';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { useClassStore } from '@/lib/stores/classStore';
 import { BillStatus } from '@/lib/types/finance';
 import type { Bill } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban } from 'lucide-react';
+import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck } from 'lucide-react';
 import clsx from 'clsx';
 import { STATUS_STYLE, formatMonth, type BillingNotifTarget } from '../_shared';
 
@@ -40,8 +41,11 @@ export default function BillingTab({
   onOpenPay, onOpenAdjust, onOpenAdjustHistory, onOpenCancel, onOpenRebill,
   onBillingNotif,
 }: BillingTabProps) {
-  const { bills, availableMonths } = useFinanceStore();
+  const { bills, availableMonths, fetchBills } = useFinanceStore();
   const { classes } = useClassStore();
+  const { currentUser } = useAuthStore();
+  const isDirector = currentUser?.role === 'director' || currentUser?.role === 'super_admin';
+  const [confirmingDraft, setConfirmingDraft] = useState(false);
 
   // ── 청구 탭 상태 ──────────────────────────────────────
   const [monthDropOpen, setMonthDropOpen] = useState(false);
@@ -78,8 +82,35 @@ export default function BillingTab({
     return true;
   });
 
-  // 선택된 취소됨 청구서 목록
+  // 선택된 취소됨 / 초안 청구서 목록
   const selectedCancelledBills = filtered.filter((b) => selectedBillIds.has(b.id) && b.status === BillStatus.CANCELLED);
+  const selectedDraftBills = filtered.filter((b) => selectedBillIds.has(b.id) && b.status === BillStatus.DRAFT);
+
+  // DRAFT → UNPAID 일괄 확정
+  async function confirmDraftBills() {
+    if (selectedDraftBills.length === 0) return;
+    setConfirmingDraft(true);
+    try {
+      const res = await fetch('/api/finance/bills/draft-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billIds: selectedDraftBills.map((b) => b.id) }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast(err.error || '확정 실패', 'error');
+        return;
+      }
+      const data = await res.json() as { confirmed: number };
+      toast(`${data.confirmed}건 확정 완료 → 미납 상태로 전환되었습니다.`, 'success');
+      setSelectedBillIds(new Set());
+      await fetchBills();
+    } catch {
+      toast('확정 처리 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setConfirmingDraft(false);
+    }
+  }
 
   // ── 다중 선택 핸들러 ──────────────────────────────────
   const toggleBill = (id: string) => setSelectedBillIds((prev) => {
@@ -134,6 +165,7 @@ export default function BillingTab({
           <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" className="w-40" />
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as BillStatus | 'all')} className="text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 focus:outline-none cursor-pointer">
             <option value="all">전체 상태</option>
+            <option value={BillStatus.DRAFT}>초안</option>
             <option value={BillStatus.PAID}>완납</option>
             <option value={BillStatus.UNPAID}>미납</option>
             <option value={BillStatus.PARTIAL}>부분납</option>
@@ -175,6 +207,16 @@ export default function BillingTab({
           >
             <Send size={13} /> 청구서 발송
           </Button>
+          {selectedDraftBills.length > 0 && isDirector && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={confirmDraftBills}
+              disabled={confirmingDraft}
+            >
+              <CheckCheck size={13} /> 확정 {selectedDraftBills.length}건
+            </Button>
+          )}
           {selectedCancelledBills.length > 0 && (
             <Button
               variant="dark"
@@ -221,7 +263,12 @@ export default function BillingTab({
               const adj = b.adjustAmount ?? 0;
               const isSelected = selectedBillIds.has(b.id);
               return (
-                <tr key={b.id} className={clsx('hover:bg-[#f9fafb]', isSelected && 'bg-[#f0fdf8]', b.status === BillStatus.CANCELLED && 'opacity-60')}>
+                <tr key={b.id} className={clsx(
+                  'hover:bg-[#f9fafb]',
+                  isSelected && 'bg-[#f0fdf8]',
+                  b.status === BillStatus.DRAFT && !isSelected && 'bg-[#FFFBEB]',
+                  b.status === BillStatus.CANCELLED && 'opacity-60',
+                )}>
                   <td className="px-3 py-3 text-center">
                     <input
                       type="checkbox"
@@ -283,7 +330,20 @@ export default function BillingTab({
                   <td className="px-2 py-3 text-center"><span className="px-2 py-0.5 rounded-[20px] text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
                   <td className="px-2 py-3 text-center text-[#6b7280]">{b.method ?? '-'}</td>
                   <td className="px-2 py-3 text-center">
-                    {b.status !== BillStatus.PAID && b.status !== BillStatus.CANCELLED && (
+                    {b.status === BillStatus.DRAFT && isDirector && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedBillIds(new Set([b.id]));
+                          confirmDraftBills();
+                        }}
+                        title="이 청구서를 미납 상태로 확정"
+                      >
+                        확정
+                      </Button>
+                    )}
+                    {b.status !== BillStatus.PAID && b.status !== BillStatus.CANCELLED && b.status !== BillStatus.DRAFT && (
                       <Button variant="primary" size="sm" onClick={() => onOpenPay(b)}>수납</Button>
                     )}
                     {b.status === BillStatus.PAID && (

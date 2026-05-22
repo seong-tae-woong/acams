@@ -2,13 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { BILL_STATUS_KO } from '@/lib/utils/billStatus';
 
-const BILL_STATUS_TO_UI: Record<PrismaBS, string> = {
-  [PrismaBS.PAID]: '완납',
-  [PrismaBS.UNPAID]: '미납',
-  [PrismaBS.PARTIAL]: '부분납',
-  [PrismaBS.CANCELLED]: '취소됨',
-};
+const BILL_STATUS_TO_UI = BILL_STATUS_KO;
 
 const METHOD_TO_UI: Record<PrismaPM, string> = {
   [PrismaPM.CARD]: '카드',
@@ -42,8 +38,8 @@ export async function PATCH(
     if (!existing || existing.academyId !== academyId) {
       return NextResponse.json({ error: '청구서를 찾을 수 없습니다.' }, { status: 404 });
     }
-    if (existing.status === PrismaBS.CANCELLED) {
-      return NextResponse.json({ error: '취소된 청구서는 조정할 수 없습니다.' }, { status: 400 });
+    if (existing.status === PrismaBS.CANCELLED || existing.status === PrismaBS.DRAFT) {
+      return NextResponse.json({ error: '초안 또는 취소된 청구서는 레거시 조정을 사용할 수 없습니다.' }, { status: 400 });
     }
 
     const { adjustAmount, adjustMemo } = await req.json();

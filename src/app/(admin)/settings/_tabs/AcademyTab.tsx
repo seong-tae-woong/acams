@@ -1,16 +1,50 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { QrCode, Copy, ExternalLink } from 'lucide-react';
+import { QrCode, Copy, ExternalLink, Receipt } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
+import Button from '@/components/shared/Button';
 
 export default function AcademyTab() {
   const [kioskSlug, setKioskSlug] = useState('');
 
+  // 청구 설정
+  const [siblingDiscount, setSiblingDiscount] = useState(0);
+  const [siblingDiscountInput, setSiblingDiscountInput] = useState('0');
+  const [savingBilling, setSavingBilling] = useState(false);
+
   useEffect(() => {
     fetch('/api/settings/academy')
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.slug) setKioskSlug(data.slug); });
+      .then((data) => {
+        if (data?.slug) setKioskSlug(data.slug);
+        const v = data?.siblingDiscountDefault ?? 0;
+        setSiblingDiscount(v);
+        setSiblingDiscountInput(String(v));
+      });
   }, []);
+
+  async function saveBillingSettings() {
+    const amount = parseInt(siblingDiscountInput, 10);
+    if (isNaN(amount) || amount < 0) {
+      toast('할인 금액은 0 이상의 숫자여야 합니다.', 'error');
+      return;
+    }
+    setSavingBilling(true);
+    try {
+      const res = await fetch('/api/settings/academy', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siblingDiscountDefault: amount }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setSiblingDiscount(amount);
+      toast('청구 설정이 저장되었습니다.', 'success');
+    } catch (e) {
+      toast((e as Error).message || '저장 실패', 'error');
+    } finally {
+      setSavingBilling(false);
+    }
+  }
 
   return (
     <div className="space-y-4 max-w-xl">
@@ -53,6 +87,46 @@ export default function AcademyTab() {
             공개 페이지 탭에서 학원 슬러그를 먼저 설정해주세요.
           </p>
         )}
+      </div>
+
+      {/* 청구 설정 */}
+      <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Receipt size={14} className="text-[#4fc3a1]" />
+          <span className="text-[13px] font-semibold text-[#111827]">청구 기본 설정</span>
+        </div>
+        <p className="text-[11.5px] text-[#6b7280] mb-4">
+          수강 등록 규칙(Layer 2) 생성 시 기본으로 채워질 형제 할인 금액입니다.
+          개별 수강 등록에서 직접 수정할 수 있습니다.
+        </p>
+
+        <div className="space-y-1 mb-4">
+          <label className="text-[12px] font-medium text-[#374151]">형제 할인 기본값 (원)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              value={siblingDiscountInput}
+              onChange={(e) => setSiblingDiscountInput(e.target.value)}
+              className="w-40 border border-[#e2e8f0] rounded-[8px] px-3 py-2 text-[13px] text-[#111827] focus:outline-none focus:ring-1 focus:ring-[#4fc3a1]"
+              placeholder="0"
+            />
+            <span className="text-[12px] text-[#6b7280]">원</span>
+          </div>
+          {siblingDiscount !== parseInt(siblingDiscountInput, 10) && !isNaN(parseInt(siblingDiscountInput, 10)) && (
+            <p className="text-[11px] text-[#f59e0b]">저장하지 않은 변경사항이 있습니다.</p>
+          )}
+        </div>
+
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={saveBillingSettings}
+          disabled={savingBilling}
+        >
+          {savingBilling ? '저장 중…' : '저장'}
+        </Button>
       </div>
 
       <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">

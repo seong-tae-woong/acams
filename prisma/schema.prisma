@@ -28,6 +28,9 @@ model Academy {
   tossKeyUpdatedAt DateTime? // 마지막 키 등록/변경 일시
   tossKeyUpdatedBy String? // 변경한 super_admin userId (감사 로그)
 
+  // ── 청구 설정 ────────────────────────────────────────
+  siblingDiscountDefault Int @default(0) // 형제/자매 할인 기본값 (%) — 원장 참고용, 수강 등록 시 조건 입력에 사용
+
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
   intro          String? // 한 줄 소개
   directorName   String? // 대표자명
@@ -77,6 +80,8 @@ model Academy {
   clinicResults         ClinicResult[]
   makeupComments        MakeupComment[]
   makeupClinicResults   MakeupClinicResult[]
+  enrollmentRules       EnrollmentRule[]
+  monthlyAdjustments    MonthlyAdjustment[]
 
   @@map("academies")
 }
@@ -209,6 +214,7 @@ model Student {
   clinicResults       ClinicResult[]
   makeupComments      MakeupComment[]
   makeupClinicResults MakeupClinicResult[]
+  monthlyAdjustments  MonthlyAdjustment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -311,11 +317,12 @@ model Class {
   announcements  Announcement[]
   calendarEvents CalendarEvent[]
   classEvents    ClassEvent[]
-  lectureTargets LectureTarget[]
-  assignments    Assignment[]
-  reports        Report[]
-  lessonComments LessonComment[]
-  clinicResults  ClinicResult[]
+  lectureTargets     LectureTarget[]
+  assignments        Assignment[]
+  reports            Report[]
+  lessonComments     LessonComment[]
+  clinicResults      ClinicResult[]
+  monthlyAdjustments MonthlyAdjustment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -343,6 +350,8 @@ model ClassEnrollment {
   isActive   Boolean   @default(true)
   class      Class     @relation(fields: [classId], references: [id])
   student    Student   @relation(fields: [studentId], references: [id])
+
+  enrollmentRules EnrollmentRule[]
 
   @@unique([classId, studentId])
   @@map("class_enrollments")
@@ -611,6 +620,7 @@ model Assignment {
 // ─────────────────────────────────────────────
 
 enum BillStatus {
+  DRAFT
   PAID
   UNPAID
   PARTIAL
@@ -665,6 +675,50 @@ model Bill {
 
   @@index([studentId, classId, month])
   @@map("bills")
+}
+
+// ─── Layer 2: 수강 등록별 반복 조정 (형제할인 등) ───────────────
+// ClassEnrollment 1:N, 삭제 시 Cascade
+model EnrollmentRule {
+  id               String          @id @default(cuid())
+  academyId        String
+  enrollmentId     String          // ClassEnrollment.id
+  label            String          // 예: "형제할인", "교재비"
+  direction        String          // "add" | "discount"
+  amountType       String          @default("fixed") // "fixed" | "percent"
+  amount           Int             // fixed: 원 단위 / percent: 0-100 정수
+  memo             String          @default("")
+  createdAt        DateTime        @default(now())
+
+  academy    Academy         @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  enrollment ClassEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([academyId, enrollmentId])
+  @@map("enrollment_rules")
+}
+
+// ─── Layer 3: 월별 1회성 조정 (교재비, 특강비 등) ────────────────
+// scope: "class" | "student"
+// classId / studentId nullable — 삭제 시 SetNull (조정 이력 보존)
+model MonthlyAdjustment {
+  id           String  @id @default(cuid())
+  academyId    String
+  billingMonth String  // "YYYY-MM"
+  scope        String  // "class" | "student"
+  classId      String? // scope=class 시 필수
+  studentId    String? // scope=student 시 필수
+  label        String
+  direction    String  // "add" | "discount"
+  amount       Int     // 원 단위 고정금액
+  memo         String  @default("")
+  createdAt    DateTime @default(now())
+
+  academy Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  class   Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@index([academyId, billingMonth])
+  @@map("monthly_adjustments")
 }
 
 // 청구액 조정 이력 — 조정할 때마다 1건 기록 (감사 추적)

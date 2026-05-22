@@ -3,6 +3,14 @@
 import { BillStatus } from '@/lib/types/finance';
 import type { Bill } from '@/lib/types/finance';
 
+// Layer 2+3 조정 항목 (알림 메시지에 내역 삽입용)
+export interface AdjustmentLine {
+  label: string;
+  direction: 'discount' | 'add';
+  amount: number;
+  amountType: 'fixed' | 'percent';
+}
+
 export function generateBillingContent(academyName: string, studentName: string, bills: Bill[], monthStr: string): string {
   const lines = bills.map((b) => {
     const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
@@ -26,7 +34,58 @@ export function generateBillingContent(academyName: string, studentName: string,
   ].join('\n');
 }
 
+/**
+ * generateBillingContentWithAdjustments
+ * generateBillingContent의 확장판 — 반별 조정 내역(Layer 2+3)을 함께 표시.
+ * 조정 항목이 없는 반은 기존 포맷과 동일하게 출력.
+ */
+export function generateBillingContentWithAdjustments(
+  academyName: string,
+  studentName: string,
+  bills: (Bill & { adjustments?: AdjustmentLine[] })[],
+  monthStr: string,
+): string {
+  const lines: string[] = [];
+
+  for (const b of bills) {
+    const adjs = b.adjustments ?? [];
+    const effectiveAmt = b.amount - (b.adjustAmount ?? 0);
+
+    if (adjs.length === 0) {
+      lines.push(`• ${b.className} | ${effectiveAmt.toLocaleString()}원${b.adjustMemo ? ` (${b.adjustMemo})` : ''}`);
+    } else {
+      lines.push(`• ${b.className}`);
+      lines.push(`  기본 수강료: ${(b.amount).toLocaleString()}원`);  // 실제론 baseFee가 이상적이나 Bill 타입에 없으므로 amount 사용
+      for (const adj of adjs) {
+        const sign = adj.direction === 'discount' ? '-' : '+';
+        const val = adj.amountType === 'percent' ? `${adj.amount}%` : `${adj.amount.toLocaleString()}원`;
+        lines.push(`  ${sign} ${adj.label}: ${val}`);
+      }
+      lines.push(`  → 최종: ${effectiveAmt.toLocaleString()}원`);
+    }
+  }
+
+  const total = bills.reduce((s, b) => s + b.amount - (b.adjustAmount ?? 0), 0);
+
+  return [
+    `안녕하세요, ${academyName}입니다.`,
+    ``,
+    `${studentName} 학부모님, ${monthStr} 수강료가 청구되었습니다.`,
+    ``,
+    `📋 반별 청구 내역`,
+    ...lines,
+    ``,
+    `청구 총액: ${total.toLocaleString()}원`,
+    ``,
+    `아래 [결제하기] 버튼을 눌러 납부를 진행해 주시기 바랍니다.`,
+    `납부 기한을 확인하신 후 기한 내 납부해 주시기 바랍니다.`,
+    ``,
+    `감사합니다.`,
+  ].join('\n');
+}
+
 export const STATUS_STYLE: Record<BillStatus, { label: string; bg: string; text: string }> = {
+  [BillStatus.DRAFT]:     { label: '초안',   bg: '#FEF3C7', text: '#92400E' },
   [BillStatus.PAID]:      { label: '완납',   bg: '#D1FAE5', text: '#065f46' },
   [BillStatus.UNPAID]:    { label: '미납',   bg: '#FEE2E2', text: '#991B1B' },
   [BillStatus.PARTIAL]:   { label: '부분납', bg: '#FEF3C7', text: '#92400E' },
