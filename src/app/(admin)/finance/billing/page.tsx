@@ -20,6 +20,8 @@ import BillingNotifModal from './_components/BillingNotifModal';
 import GenerateModal from './_components/GenerateModal';
 import CancelModal from './_components/CancelModal';
 import RebillModal from './_components/RebillModal';
+import BillingSettingsModal from './_components/BillingSettingsModal';
+import { Settings } from 'lucide-react';
 
 export default function BillingPage() {
   const {
@@ -77,6 +79,7 @@ export default function BillingPage() {
   const [billingNotifMonthLabel, setBillingNotifMonthLabel] = useState('');
 
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Bill | null>(null);
@@ -115,9 +118,14 @@ export default function BillingPage() {
       <Topbar
         title="청구/수납/미납"
         actions={
-          <Button variant="dark" size="sm" onClick={() => setGenerateOpen(true)}>
-            청구 생성
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="default" size="sm" onClick={() => setSettingsOpen(true)}>
+              <Settings size={13} /> 청구 설정
+            </Button>
+            <Button variant="dark" size="sm" onClick={() => setGenerateOpen(true)}>
+              청구 생성
+            </Button>
+          </div>
         }
       />
 
@@ -185,6 +193,9 @@ export default function BillingPage() {
 
       {/* ── 청구 생성 모달 ── */}
       <GenerateModal open={generateOpen} onClose={() => setGenerateOpen(false)} refetchBills={refetchBills} />
+
+      {/* ── 청구 설정 모달 (형제 할인 + 명칭 사전) ── */}
+      <BillingSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* ── 청구서 취소 확인 모달 ── */}
       {cancelOpen && (
