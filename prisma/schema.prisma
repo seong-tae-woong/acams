@@ -32,6 +32,9 @@ model Academy {
   siblingDiscountDefault Int    @default(0) // 형제/자매 할인 금액 (type=fixed면 원, percent면 0-100)
   siblingDiscountType    String @default("fixed") // "fixed" | "percent"
 
+  // ── 알림 설정 ────────────────────────────────────────
+  smsEnabled Boolean @default(true) // 임시PW SMS 자동 발송 (false=테스트 모드: 폼에서 직접 지정, mustChangePassword 미강제)
+
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
   intro          String? // 한 줄 소개
   directorName   String? // 대표자명

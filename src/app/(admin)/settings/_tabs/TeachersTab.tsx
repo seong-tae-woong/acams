@@ -27,7 +27,7 @@ export default function TeachersTab({
 
   // 강사 추가 모달
   const [regForm, setRegForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
-  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string } | null>(null);
+  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string; smsEnabled: boolean } | null>(null);
 
   // 강사 추가 모달이 열릴 때 입력 폼 초기화
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function TeachersTab({
   // 비밀번호 초기화
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string; smsEnabled: boolean } | null>(null);
 
   const selected = teachers.find((t) => t.id === selectedId);
 
@@ -114,7 +114,7 @@ export default function TeachersTab({
     try {
       const result = await resetPassword(selectedId);
       setResetConfirmOpen(false);
-      setResetResult(result);
+      setResetResult({ loginId: result.loginId, tempPassword: result.tempPassword, smsEnabled: result.smsEnabled });
     } catch { /* store handles error */ } finally {
       setResetting(false);
     }
@@ -133,7 +133,7 @@ export default function TeachersTab({
     if (!regForm.name.trim()) { toast('강사 이름을 입력해주세요.', 'error'); return; }
     if (!regForm.email.trim()) { toast('이메일을 입력해주세요.', 'error'); return; }
     try {
-      const { tempPassword } = await addTeacher({
+      const { tempPassword, smsEnabled } = await addTeacher({
         name: regForm.name.trim(),
         subject: regForm.subject.trim(),
         phone: regForm.phone.trim(),
@@ -144,7 +144,7 @@ export default function TeachersTab({
         avatarColor: AVATAR_COLORS[teachers.length % AVATAR_COLORS.length],
       });
       setRegisterOpen(false);
-      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim(), tempPassword });
+      setCredentialModal({ name: regForm.name.trim(), email: regForm.email.trim(), tempPassword, smsEnabled });
       setRegForm({ name: '', subject: '', phone: '', email: '', classes: [] });
     } catch { /* store handles error */ }
   };
@@ -340,7 +340,14 @@ export default function TeachersTab({
               <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
+          {resetResult?.smsEnabled === false ? (
+            <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-3">
+              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">SMS 발송이 꺼져 있습니다 (테스트 모드)</p>
+              <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 강사에게 직접 전달해주세요.</p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
+          )}
         </div>
       </Modal>
 
@@ -437,7 +444,14 @@ export default function TeachersTab({
               <span className="font-mono font-semibold text-[#111827]">{credentialModal?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
+          {credentialModal?.smsEnabled === false ? (
+            <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-3">
+              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">SMS 발송이 꺼져 있습니다 (테스트 모드)</p>
+              <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 강사에게 직접 전달해주세요.</p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
+          )}
         </div>
       </Modal>
     </>

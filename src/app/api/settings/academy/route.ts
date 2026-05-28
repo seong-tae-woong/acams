@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
         galleryImages: true,
         siblingDiscountDefault: true,
         siblingDiscountType: true,
+        smsEnabled: true,
       },
     });
 
@@ -69,6 +70,8 @@ export async function PATCH(req: NextRequest) {
       // 청구 설정
       siblingDiscountDefault,
       siblingDiscountType,
+      // 알림 설정
+      smsEnabled,
     } = body;
 
     // galleryImages: 명시적으로 전달된 경우에만 업데이트 (미전달 시 기존 값 유지)
@@ -94,6 +97,7 @@ export async function PATCH(req: NextRequest) {
           && { siblingDiscountDefault: Math.round(siblingDiscountDefault) }),
         ...(siblingDiscountType !== undefined && (siblingDiscountType === 'fixed' || siblingDiscountType === 'percent')
           && { siblingDiscountType }),
+        ...(smsEnabled !== undefined && { smsEnabled: Boolean(smsEnabled) }),
       },
       select: { slug: true, profileEnabled: true },
     });

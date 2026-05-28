@@ -33,10 +33,14 @@ interface StudentStore {
   // Async API actions
   fetchStudents: () => Promise<void>;
   fetchStudentDetail: (id: string, signal?: AbortSignal) => Promise<void>;
-  addStudent: (student: Omit<Student, 'id' | 'qrCode'>) => Promise<{
+  addStudent: (student: Omit<Student, 'id' | 'qrCode'> & {
+    customStudentPassword?: string;
+    customParentPassword?: string;
+  }) => Promise<{
     studentLoginId: string | null;
     studentTempPassword: string | null;
     parentTempPassword: string | null;
+    smsEnabled: boolean;
     siblingCandidates: SiblingCandidate[];
   }>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<void>;
@@ -129,12 +133,14 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         studentLoginId,
         studentTempPassword,
         parentTempPassword,
+        smsEnabled,
         siblingCandidates,
         ...studentFull
       }: Student & {
         studentLoginId: string | null;
         studentTempPassword: string | null;
         parentTempPassword: string | null;
+        smsEnabled: boolean;
         siblingCandidates: SiblingCandidate[];
       } = await res.json();
 
@@ -159,6 +165,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         studentLoginId: studentLoginId ?? null,
         studentTempPassword: studentTempPassword ?? null,
         parentTempPassword: parentTempPassword ?? null,
+        smsEnabled: smsEnabled ?? true,
         siblingCandidates: siblingCandidates ?? [],
       };
     } catch (err) {

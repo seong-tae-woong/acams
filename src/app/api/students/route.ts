@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
 import { sendSms } from '@/lib/sms/solapi';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { validateTempPassword } from '@/lib/auth/passwordValidator';
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -149,6 +150,7 @@ export async function POST(req: NextRequest) {
     const {
       name, school, grade, phone, parentName, parentPhone,
       status, enrollDate, memo, avatarColor, attendanceNumber, birthDate,
+      customStudentPassword, customParentPassword,
     } = body;
 
     if (!name) return NextResponse.json({ error: '이름은 필수입니다.' }, { status: 400 });
@@ -163,8 +165,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 학원 loginKey 조회 — 학생 loginId = loginKey + attendanceNumber
-    const academy = await prisma.academy.findUnique({ where: { id: academyId }, select: { loginKey: true } });
+    // 학원 loginKey + smsEnabled 조회 — 학생 loginId = loginKey + attendanceNumber
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { loginKey: true, smsEnabled: true },
+    });
+    const smsEnabled = academy?.smsEnabled ?? true; // null/undefined 대비 안전 fallback (default true)
     const studentLoginId = academy?.loginKey && attendanceNumber
       ? `${academy.loginKey}${attendanceNumber}`
       : attendanceNumber ?? null;
@@ -179,8 +185,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const studentTempPassword = generateTempPassword();
-    const parentTempPassword = generateTempPassword();
+    // 비밀번호 결정:
+    // - smsEnabled=true: 8자 자동생성 (현재 동작)
+    // - smsEnabled=false: 원장이 직접 지정한 customStudentPassword/customParentPassword 사용, 약식 검증
+    let studentTempPassword: string;
+    let parentTempPassword: string;
+    if (smsEnabled) {
+      studentTempPassword = generateTempPassword();
+      parentTempPassword = generateTempPassword();
+    } else {
+      // 학생 계정이 생성되는 경우에만 학생 비번 검증 (studentLoginId 있을 때)
+      if (studentLoginId) {
+        const v = validateTempPassword(customStudentPassword ?? '', studentLoginId, name);
+        if (!v.valid) return NextResponse.json({ error: `학생 임시 비밀번호: ${v.error}` }, { status: 400 });
+        studentTempPassword = customStudentPassword;
+      } else {
+        studentTempPassword = '';
+      }
+      // 학부모 계정이 새로 생성되는 경우에만 학부모 비번 검증 (parentPhone 있을 때)
+      if (parentPhone) {
+        const v = validateTempPassword(customParentPassword ?? '', parentPhone, parentName ?? '');
+        if (!v.valid) return NextResponse.json({ error: `학부모 임시 비밀번호: ${v.error}` }, { status: 400 });
+        parentTempPassword = customParentPassword;
+      } else {
+        parentTempPassword = '';
+      }
+    }
 
     // bcrypt.hash은 트랜잭션 밖에서 미리 처리
     const studentPasswordHash = studentLoginId ? await bcrypt.hash(studentTempPassword, 12) : null;
@@ -198,6 +228,9 @@ export async function POST(req: NextRequest) {
             name,
             role: 'student',
             academyId,
+            // smsEnabled=true(자동생성/SMS 발송): 첫 로그인 시 변경 강제
+            // smsEnabled=false(테스트 모드/원장 지정): 같은 비번 재사용을 위해 강제 안 함
+            mustChangePassword: smsEnabled,
           },
         });
         studentUserId = studentUser.id;
@@ -256,6 +289,7 @@ export async function POST(req: NextRequest) {
                 name: parentName,
                 role: 'parent',
                 academyId,
+                mustChangePassword: smsEnabled,
               },
             });
             parentUserId = parentUser.id;
@@ -283,24 +317,27 @@ export async function POST(req: NextRequest) {
     });
 
     // 비밀번호 SMS 발송 (응답에서 제외)
+    // - smsEnabled=false면 원장이 화면에서 PW 확인 후 직접 전달 → 발송 스킵
     // - 학생 계정: 학생 phone 있으면 학생에게, 학부모 phone 있으면 학부모에게도 발송
     // - 학부모 계정: 신규 가입한 경우에만 학부모에게 발송
-    const smsPromises: Promise<void>[] = [];
-    if (studentLoginId) {
-      const studentMsg = `[학원로그] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`;
-      if (phone) {
-        smsPromises.push(sendSms(phone, studentMsg));
+    if (smsEnabled) {
+      const smsPromises: Promise<void>[] = [];
+      if (studentLoginId) {
+        const studentMsg = `[학원로그] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`;
+        if (phone) {
+          smsPromises.push(sendSms(phone, studentMsg));
+        }
+        if (parentPhone) {
+          smsPromises.push(
+            sendSms(parentPhone, `[학원로그] 자녀(${name}) 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`),
+          );
+        }
       }
-      if (parentPhone) {
-        smsPromises.push(
-          sendSms(parentPhone, `[학원로그] 자녀(${name}) 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`),
-        );
+      if (isNewParent && parentPhone) {
+        smsPromises.push(sendSms(parentPhone, `[학원로그] 학부모 계정\nID: ${parentPhone}\n임시PW: ${parentTempPassword}`));
       }
+      await Promise.all(smsPromises);
     }
-    if (isNewParent && parentPhone) {
-      smsPromises.push(sendSms(parentPhone, `[학원로그] 학부모 계정\nID: ${parentPhone}\n임시PW: ${parentTempPassword}`));
-    }
-    await Promise.all(smsPromises);
 
     // 형제/자매 후보 감지: 같은 학원 + 같은 보호자 전화번호를 가진 다른 학생
     // Parent 모델에 academyId 없으므로 Student.academyId + parentLinks 경유로 스코프
@@ -329,6 +366,7 @@ export async function POST(req: NextRequest) {
         studentLoginId: studentLoginId ?? null,
         studentTempPassword: studentLoginId ? studentTempPassword : null,
         parentTempPassword: isNewParent ? parentTempPassword : null,
+        smsEnabled, // 클라이언트에서 안내 문구 분기에 사용
         siblingCandidates,
       },
       { status: 201 }

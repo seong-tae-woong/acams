@@ -39,6 +39,12 @@ export async function POST(
       return NextResponse.json({ error: '강사 계정이 없습니다.' }, { status: 404 });
     }
 
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { smsEnabled: true },
+    });
+    const smsEnabled = academy?.smsEnabled ?? true;
+
     const tempPassword = generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
@@ -47,7 +53,7 @@ export async function POST(
       data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
     });
 
-    if (teacher.phone) {
+    if (smsEnabled && teacher.phone) {
       await sendSms(teacher.phone, `[학원로그] 비밀번호 초기화\nID: ${teacher.user.loginId ?? teacher.email}\n임시PW: ${tempPassword}`);
     }
 
@@ -59,7 +65,7 @@ export async function POST(
       target: teacher.user.id,
     });
 
-    return NextResponse.json({ loginId: teacher.user.loginId, tempPassword });
+    return NextResponse.json({ loginId: teacher.user.loginId, tempPassword, smsEnabled });
   } catch (err) {
     console.error('[POST /api/teachers/[id]/reset-password]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

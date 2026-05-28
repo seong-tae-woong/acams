@@ -27,6 +27,9 @@ export interface StudentForm {
   phone: string; parentName: string; parentPhone: string;
   status: StudentStatus; enrollDate: string; memo: string;
   birthDate: string;
+  // 학원 SMS OFF 시 원장이 직접 지정 (smsEnabled=true면 무시됨)
+  customStudentPassword: string;
+  customParentPassword: string;
 }
 
 export const SCHOOL_LEVELS = ['초등학교', '중학교', '고등학교', '대학교'] as const;
@@ -43,6 +46,7 @@ export const EMPTY_FORM: StudentForm = {
   phone: '', parentName: '', parentPhone: '',
   status: StudentStatus.ACTIVE, enrollDate: new Date().toISOString().slice(0, 10), memo: '',
   birthDate: '',
+  customStudentPassword: '', customParentPassword: '',
 };
 
 export interface PostRegisterInfo {
@@ -51,10 +55,20 @@ export interface PostRegisterInfo {
   parentLoginId: string;
   studentTempPassword: string | null;
   parentTempPassword: string | null;
+  smsEnabled: boolean; // false면 모달에서 "직접 전달" 안내 + PW 강조
   siblingCandidates: Array<{ id: string; name: string; school: string; grade: number; avatarColor: string }>;
 }
 
-export function StudentFormFields({ form, setForm }: { form: StudentForm; setForm: (f: StudentForm) => void }) {
+export function StudentFormFields({
+  form,
+  setForm,
+  showTempPasswords = false,
+}: {
+  form: StudentForm;
+  setForm: (f: StudentForm) => void;
+  /** 학원 SMS OFF 상태일 때만 true — 임시 비밀번호 입력 필드 노출 */
+  showTempPasswords?: boolean;
+}) {
   const fieldClass = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -132,6 +146,43 @@ export function StudentFormFields({ form, setForm }: { form: StudentForm; setFor
           placeholder="내부 메모 (보호자 비공개)"
         />
       </div>
+
+      {showTempPasswords && (
+        <div className="col-span-2 bg-[#fffbeb] border border-[#fcd34d] rounded-[8px] p-3 space-y-3">
+          <div className="text-[11.5px] text-[#92400E] font-medium">
+            테스트 모드 — SMS 발송이 꺼져 있어 임시 비밀번호를 직접 지정합니다.
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">학생 임시 비밀번호 *</label>
+              <input
+                type="text"
+                value={form.customStudentPassword}
+                onChange={(e) => setForm({ ...form, customStudentPassword: e.target.value })}
+                placeholder="6~20자, 영문/숫자 포함"
+                maxLength={20}
+                className={fieldClass}
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">학부모 임시 비밀번호 *</label>
+              <input
+                type="text"
+                value={form.customParentPassword}
+                onChange={(e) => setForm({ ...form, customParentPassword: e.target.value })}
+                placeholder="6~20자, 영문/숫자 포함"
+                maxLength={20}
+                className={fieldClass}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <p className="text-[10.5px] text-[#78350f]">
+            아이디·이름 포함 금지. 학생 첫 로그인 시 변경이 강제되지 않아 같은 비번을 계속 쓸 수 있습니다.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

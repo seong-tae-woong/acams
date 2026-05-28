@@ -78,6 +78,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '이미 사용 중인 이메일입니다.' }, { status: 409 });
     }
 
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { smsEnabled: true },
+    });
+    const smsEnabled = academy?.smsEnabled ?? true;
+
     const tempPassword = generateTempPassword();
 
     const teacher = await prisma.$transaction(async (tx) => {
@@ -106,11 +112,11 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    if (phone) {
+    if (smsEnabled && phone) {
       await sendSms(phone, `[학원로그] 강사 계정\nID: ${email}\n임시PW: ${tempPassword}`);
     }
 
-    return NextResponse.json({ ...mapTeacher(teacher), tempPassword }, { status: 201 });
+    return NextResponse.json({ ...mapTeacher(teacher), tempPassword, smsEnabled }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/teachers]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

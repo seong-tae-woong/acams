@@ -39,6 +39,12 @@ export async function POST(
       return NextResponse.json({ error: '학생을 찾을 수 없습니다.' }, { status: 404 });
     }
 
+    const academy = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { smsEnabled: true },
+    });
+    const smsEnabled = academy?.smsEnabled ?? true;
+
     const tempPassword = generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
@@ -52,7 +58,7 @@ export async function POST(
         where: { id: parentUser.id },
         data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
       });
-      if (parentPhone) {
+      if (smsEnabled && parentPhone) {
         await sendSms(parentPhone, `[학원로그] 비밀번호 초기화\nID: ${parentUser.loginId}\n임시PW: ${tempPassword}`);
       }
       await writeAuditLog({
@@ -62,7 +68,7 @@ export async function POST(
         academyId: academyId ?? undefined,
         target: parentUser.id,
       });
-      return NextResponse.json({ loginId: parentUser.loginId, tempPassword });
+      return NextResponse.json({ loginId: parentUser.loginId, tempPassword, smsEnabled });
     } else {
       // student (default)
       if (!student.user) {
@@ -73,22 +79,24 @@ export async function POST(
         data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
       });
       // 학생 phone 있으면 학생에게, 학부모 phone 있으면 학부모에게도 발송
-      const smsPromises: Promise<void>[] = [];
-      if (student.phone) {
-        smsPromises.push(
-          sendSms(student.phone, `[학원로그] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`),
-        );
+      if (smsEnabled) {
+        const smsPromises: Promise<void>[] = [];
+        if (student.phone) {
+          smsPromises.push(
+            sendSms(student.phone, `[학원로그] 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`),
+          );
+        }
+        const parentPhoneForStudentReset = student.parentLinks[0]?.parent?.phone;
+        if (parentPhoneForStudentReset) {
+          smsPromises.push(
+            sendSms(
+              parentPhoneForStudentReset,
+              `[학원로그] 자녀(${student.name}) 학생 계정 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`,
+            ),
+          );
+        }
+        await Promise.all(smsPromises);
       }
-      const parentPhoneForStudentReset = student.parentLinks[0]?.parent?.phone;
-      if (parentPhoneForStudentReset) {
-        smsPromises.push(
-          sendSms(
-            parentPhoneForStudentReset,
-            `[학원로그] 자녀(${student.name}) 학생 계정 비밀번호 초기화\nID: ${student.user.loginId}\n임시PW: ${tempPassword}`,
-          ),
-        );
-      }
-      await Promise.all(smsPromises);
       await writeAuditLog({
         action: 'PASSWORD_RESET',
         userId: req.headers.get('x-user-id') ?? undefined,
@@ -96,7 +104,7 @@ export async function POST(
         academyId: academyId ?? undefined,
         target: student.user.id,
       });
-      return NextResponse.json({ loginId: student.user.loginId, tempPassword });
+      return NextResponse.json({ loginId: student.user.loginId, tempPassword, smsEnabled });
     }
   } catch (err) {
     console.error('[POST /api/students/[id]/reset-password]', err instanceof Error ? err.message : String(err));

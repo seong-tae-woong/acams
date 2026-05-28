@@ -38,9 +38,18 @@ export default function StudentsPage() {
   } = useStudentStore();
   const { fetchClasses } = useClassStore();
 
+  // 학원 SMS 설정 — 등록 폼/완료 모달 분기에 사용
+  const [smsEnabled, setSmsEnabled] = useState<boolean>(true);
+
   useEffect(() => {
     fetchStudents();
     fetchClasses();
+    fetch('/api/settings/academy')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (typeof data?.smsEnabled === 'boolean') setSmsEnabled(data.smsEnabled);
+      })
+      .catch(() => { /* 실패해도 default true 유지 */ });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [detailTab, setDetailTab] = useState('info');
@@ -54,7 +63,7 @@ export default function StudentsPage() {
 
   // 비밀번호 초기화
   const [resetTarget, setResetTarget] = useState<'student' | 'parent' | null>(null);
-  const [resetResult, setResetResult] = useState<{ loginId: string | null; tempPassword: string | null; target: 'student' | 'parent' } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string | null; tempPassword: string | null; target: 'student' | 'parent'; smsEnabled: boolean } | null>(null);
   const [resetting, setResetting] = useState(false);
 
   // 출결 캘린더 팝업 (학생 목록 행 버튼)
@@ -75,6 +84,12 @@ export default function StudentsPage() {
     if (registerForm.phone.includes('-') || registerForm.parentPhone.includes('-')) {
       toast("전화번호는 '-' 없이 숫자만 입력해주세요.", 'error'); return;
     }
+    // SMS OFF(테스트 모드)일 때만 임시PW 사전 체크 — 본 검증은 서버 validateTempPassword가 수행
+    if (!smsEnabled) {
+      if (!registerForm.customStudentPassword || !registerForm.customParentPassword) {
+        toast('테스트 모드에서는 학생/학부모 임시 비밀번호를 모두 입력해주세요.', 'error'); return;
+      }
+    }
 
     const year = new Date().getFullYear();
     const yearCount = students.filter((s) => s.attendanceNumber.startsWith(String(year))).length;
@@ -82,7 +97,7 @@ export default function StudentsPage() {
 
     try {
       // siblingCandidates는 서버(POST /api/students)가 감지해서 응답에 포함 (D3)
-      const { studentLoginId, studentTempPassword, parentTempPassword, siblingCandidates } = await addStudent({
+      const { studentLoginId, studentTempPassword, parentTempPassword, smsEnabled: respSmsEnabled, siblingCandidates } = await addStudent({
         ...registerForm,
         school: `${registerForm.school.trim()}${registerForm.schoolLevel}`,
         grade: Number(registerForm.grade),
@@ -91,6 +106,9 @@ export default function StudentsPage() {
         avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
         attendanceNumber,
         birthDate: registerForm.birthDate || undefined,
+        // smsEnabled=false일 때만 서버에서 사용; true면 무시됨
+        customStudentPassword: registerForm.customStudentPassword,
+        customParentPassword: registerForm.customParentPassword,
       });
 
       // addStudent 성공 시 store가 selectedStudentId를 자동 세팅함
@@ -104,6 +122,7 @@ export default function StudentsPage() {
         parentLoginId: registerForm.parentPhone,
         studentTempPassword,
         parentTempPassword,
+        smsEnabled: respSmsEnabled,
         siblingCandidates,
       });
     } catch {
@@ -148,6 +167,8 @@ export default function StudentsPage() {
       phone: selected.phone, parentName: selected.parentName, parentPhone: selected.parentPhone,
       status: selected.status, enrollDate: selected.enrollDate, memo: selected.memo,
       birthDate: selected.birthDate ?? '',
+      // 정보 수정에서는 임시PW 미사용 — 빈 값 (StudentFormFields에서도 미노출, showTempPasswords 기본 false)
+      customStudentPassword: '', customParentPassword: '',
     });
     setEditOpen(true);
   };
@@ -174,7 +195,7 @@ export default function StudentsPage() {
         return;
       }
       setResetTarget(null);
-      setResetResult({ loginId: data.loginId, tempPassword: data.tempPassword ?? null, target });
+      setResetResult({ loginId: data.loginId, tempPassword: data.tempPassword ?? null, target, smsEnabled: data.smsEnabled ?? true });
     } catch {
       toast('네트워크 오류가 발생했습니다.', 'error');
     } finally {
@@ -339,7 +360,7 @@ export default function StudentsPage() {
           </>
         }
       >
-        <StudentFormFields form={registerForm} setForm={setRegisterForm} />
+        <StudentFormFields form={registerForm} setForm={setRegisterForm} showTempPasswords={!smsEnabled} />
       </Modal>
 
       {/* 정보 수정 모달 */}
@@ -436,7 +457,14 @@ export default function StudentsPage() {
               <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 학생/학부모에게 전달해주세요. 등록된 연락처로 SMS도 발송됩니다.</p>
+          {resetResult?.smsEnabled === false ? (
+            <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-3">
+              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">SMS 발송이 꺼져 있습니다 (테스트 모드)</p>
+              <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 직접 전달해주세요.</p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 학생/학부모에게 전달해주세요. 등록된 연락처로 SMS도 발송됩니다.</p>
+          )}
         </div>
       </Modal>
 
@@ -486,7 +514,14 @@ export default function StudentsPage() {
               </span>
             </div>
           </div>
-          <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 전달해주세요. 각 연락처로 SMS도 발송됩니다.</p>
+          {postRegister?.smsEnabled === false ? (
+            <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-3">
+              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">SMS 발송이 꺼져 있습니다 (테스트 모드)</p>
+              <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 학생/학부모에게 직접 전달해주세요. 학생 첫 로그인 시 변경이 강제되지 않습니다.</p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 전달해주세요. 각 연락처로 SMS도 발송됩니다.</p>
+          )}
           {postRegister?.siblingCandidates.length ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">
               <div className="text-[12.5px] font-semibold text-[#92400e] mb-2">형제/자매 감지</div>

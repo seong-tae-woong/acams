@@ -1,18 +1,45 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { QrCode, Copy, ExternalLink } from 'lucide-react';
+import { QrCode, Copy, ExternalLink, MessageSquare } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 
 export default function AcademyTab() {
   const [kioskSlug, setKioskSlug] = useState('');
+  const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null); // null=로딩중
+  const [smsSaving, setSmsSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings/academy')
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data?.slug) setKioskSlug(data.slug);
+        if (typeof data?.smsEnabled === 'boolean') setSmsEnabled(data.smsEnabled);
       });
   }, []);
+
+  const handleSmsToggle = async () => {
+    if (smsEnabled === null || smsSaving) return;
+    const next = !smsEnabled;
+    setSmsSaving(true);
+    try {
+      const res = await fetch('/api/settings/academy', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ smsEnabled: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error ?? 'SMS 설정 변경에 실패했습니다.', 'error');
+        return;
+      }
+      setSmsEnabled(next);
+      toast(next ? 'SMS 자동 발송이 켜졌습니다.' : 'SMS 자동 발송이 꺼졌습니다.', 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      setSmsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-4 max-w-xl">
@@ -63,13 +90,53 @@ export default function AcademyTab() {
         </p>
       </div>
 
+      {/* 임시 비밀번호 SMS 토글 */}
       <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[13px] font-semibold text-[#111827]">알림 설정</span>
+          <MessageSquare size={14} className="text-[#4fc3a1]" />
+          <span className="text-[13px] font-semibold text-[#111827]">임시 비밀번호 SMS 자동 발송</span>
+        </div>
+        <p className="text-[11.5px] text-[#6b7280] mb-3">
+          학생 등록 · 비밀번호 초기화 시 임시 비밀번호를 학생/학부모/강사에게 자동으로 SMS 발송합니다.
+          <br />
+          <span className="text-[#9ca3af]">끄면 등록 화면에서 비밀번호를 직접 지정합니다. 학생 첫 로그인 시 비밀번호 변경이 강제되지 않아 같은 비번을 재사용할 수 있습니다 (테스트 모드).</span>
+        </p>
+        <div className="flex items-center justify-between py-2.5 border-t border-[#f1f5f9]">
+          <div>
+            <div className="text-[12.5px] font-medium text-[#111827]">SMS 자동 발송</div>
+            <div className="text-[11px] text-[#6b7280]">
+              {smsEnabled === null ? '불러오는 중...'
+                : smsEnabled ? '발송 켜짐 — 실 운영 모드'
+                : '발송 꺼짐 — 테스트 모드'}
+            </div>
+          </div>
+          <button
+            onClick={handleSmsToggle}
+            disabled={smsEnabled === null || smsSaving}
+            className={
+              'w-9 h-5 rounded-full relative transition-colors ' +
+              (smsEnabled === null || smsSaving ? 'cursor-not-allowed opacity-60 ' : 'cursor-pointer ') +
+              (smsEnabled ? 'bg-[#4fc3a1]' : 'bg-[#e2e8f0]')
+            }
+            title={smsEnabled ? '끄기' : '켜기'}
+          >
+            <div
+              className={
+                'absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] transition-all ' +
+                (smsEnabled ? 'left-[19px]' : 'left-[3px]')
+              }
+            />
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[13px] font-semibold text-[#111827]">자동 알림</span>
           <span className="text-[10.5px] font-medium text-[#92400E] bg-[#FEF3C7] rounded-[20px] px-2 py-0.5">준비중</span>
         </div>
         <p className="text-[11.5px] text-[#9ca3af] mb-3">
-          자동 알림 기능은 아직 준비 중입니다. 현재는 어떤 알림도 자동으로 발송되지 않습니다.
+          아래 트리거 기반 자동 알림은 아직 준비 중입니다. (비밀번호 SMS는 위 설정과 무관하게 동작합니다.)
         </p>
         {[
           { label: '결석 시 학부모 자동 알림', desc: '출결 저장 20분 후 발송' },
