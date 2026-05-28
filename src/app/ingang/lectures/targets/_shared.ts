@@ -17,6 +17,8 @@ export type Lecture = {
   seriesId: string | null;
   episodeNumber: number | null;
   orderIndex: number;
+  cfVideoId: string | null;
+  videoUrl: string | null;
 };
 
 export type Series = {

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { type Lecture } from '../_shared';
+import { isYouTubeLecture, coerceExamCond } from '@/lib/lecture/source';
 
 // ─── Tab: 이수 조건 설정 ──────────────────────────────────────
 const COND_DEFAULTS = { passScore: 70, maxTries: 3, examCond: 'after100' as const, passWatchPct: 100 };
@@ -10,6 +11,8 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
   const [maxTries,  setMaxTries]  = useState(COND_DEFAULTS.maxTries);
   const [examCond,  setExamCond]  = useState<'after100' | 'anytime'>(COND_DEFAULTS.examCond);
   const [passWatchPct, setPassWatchPct] = useState<number>(COND_DEFAULTS.passWatchPct);
+
+  const isYoutube = selectedLec ? isYouTubeLecture(selectedLec) : false;
 
   const [condLoading, setCondLoading] = useState(false);
   const [saving,      setSaving]      = useState(false);
@@ -28,7 +31,9 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
         if (!alive) return;
         setPassScore(d?.passScore ?? COND_DEFAULTS.passScore);
         setMaxTries(d?.maxTries ?? COND_DEFAULTS.maxTries);
-        setExamCond(d?.examCond === 'anytime' ? 'anytime' : 'after100');
+        // YouTube 강의는 after100이 의미 없으므로 display 단계에서 anytime으로 강제 (server도 동일하게 coerce)
+        const rawExamCond = d?.examCond === 'anytime' ? 'anytime' : 'after100';
+        setExamCond(selectedLec ? coerceExamCond(selectedLec, rawExamCond) : rawExamCond);
         setPassWatchPct(
           typeof d?.passWatchPct === 'number'
             ? Math.max(50, Math.min(100, d.passWatchPct))
@@ -38,7 +43,7 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
       .catch(() => {})
       .finally(() => { if (alive) setCondLoading(false); });
     return () => { alive = false; };
-  }, [lecId]);
+  }, [lecId, selectedLec]);
 
   const handleReset = () => {
     setPassScore(COND_DEFAULTS.passScore);
@@ -87,14 +92,33 @@ export function CondContent({ selectedLec }: { selectedLec: Lecture | null }) {
         <div className="flex flex-col gap-2 mb-4">
           <span className="text-[13px] text-[#374151]">시험 응시 조건:</span>
           <div className="flex gap-2">
-            {(['after100','anytime'] as const).map((c) => (
-              <button key={c} onClick={() => { setExamCond(c); setSaved(false); }}
-                className="text-[12px] px-3 py-1.5 rounded-[8px] border-[1.5px] font-medium"
-                style={examCond === c ? { background: '#EEEDFE', color: '#534AB7', borderColor: '#a78bfa' } : { background: '#fff', color: '#6b7280', borderColor: '#e2e8f0' }}>
-                {c === 'after100' ? `영상 ${passWatchPct}% 시청 후 응시 가능` : '바로 응시 가능'}
-              </button>
-            ))}
+            {(['after100','anytime'] as const).map((c) => {
+              const disabled = isYoutube && c === 'after100';
+              return (
+                <button
+                  key={c}
+                  onClick={() => { if (disabled) return; setExamCond(c); setSaved(false); }}
+                  disabled={disabled}
+                  title={disabled ? 'YouTube 강의는 시청률 검증이 불가하여 "바로 응시"만 선택할 수 있습니다.' : undefined}
+                  className="text-[12px] px-3 py-1.5 rounded-[8px] border-[1.5px] font-medium disabled:cursor-not-allowed"
+                  style={
+                    disabled
+                      ? { background: '#f3f4f6', color: '#c4c4c4', borderColor: '#e2e8f0' }
+                      : examCond === c
+                        ? { background: '#EEEDFE', color: '#534AB7', borderColor: '#a78bfa' }
+                        : { background: '#fff', color: '#6b7280', borderColor: '#e2e8f0' }
+                  }
+                >
+                  {c === 'after100' ? `영상 ${passWatchPct}% 시청 후 응시 가능` : '바로 응시 가능'}
+                </button>
+              );
+            })}
           </div>
+          {isYoutube && (
+            <p className="text-[11px] text-[#9ca3af] mt-1">
+              💡 YouTube 강의는 시청률 추적이 불가하여 &lsquo;바로 응시&rsquo;만 가능합니다.
+            </p>
+          )}
         </div>
         {examCond === 'after100' && (
           <div className="flex items-center gap-3 mb-3.5 text-[13px] text-[#374151]">

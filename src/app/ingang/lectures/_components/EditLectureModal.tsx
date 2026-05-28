@@ -106,7 +106,11 @@ export function EditLectureModal({
                 <label className="text-[12px] font-semibold text-[#374151]">영상 등록</label>
                 <div className="flex rounded-[8px] overflow-hidden border border-[#e2e8f0] text-[11.5px] font-medium">
                   <button
-                    onClick={() => setEditVideoMode('youtube')}
+                    onClick={() => {
+                      setEditVideoMode('youtube');
+                      // YouTube 모드로 전환 시 cfVideoId clear (predicate가 cfVideoId 우선이라 이 정리가 없으면 강의가 Cloudflare로 잘못 분류됨)
+                      setEditDetail((prev) => (prev ? { ...prev, cfVideoId: null } : prev));
+                    }}
                     className="px-3 py-1 transition-colors"
                     style={editVideoMode === 'youtube'
                       ? { background: '#5B4FBE', color: '#fff' }
@@ -115,7 +119,11 @@ export function EditLectureModal({
                     YouTube URL
                   </button>
                   <button
-                    onClick={() => setEditVideoMode('cloudflare')}
+                    onClick={() => {
+                      setEditVideoMode('cloudflare');
+                      // Cloudflare 모드로 전환 시 videoUrl clear (두 필드 공존 방지)
+                      setEditDetail((prev) => (prev ? { ...prev, videoUrl: null } : prev));
+                    }}
                     className="px-3 py-1 border-l border-[#e2e8f0] transition-colors"
                     style={editVideoMode === 'cloudflare'
                       ? { background: '#5B4FBE', color: '#fff' }

@@ -12,7 +12,6 @@
 | `/ingang/lectures/new` (등록) | ✅ DB 연동 | Cloudflare Stream 업로드 포함 |
 | `/ingang/lectures/tags` | ✅ DB 연동 | AcademyTag 모델 + 기본 태그 하드코딩 |
 | `/ingang/lectures/targets` | ✅ DB 연동 | LectureTarget |
-| `/ingang/lectures/student-notes` | ✅ DB 연동 | StudentLectureNote |
 | `/ingang/exams` | 🟡 **mockup** | DB 모델은 있으나 페이지 하드코딩 |
 | `/ingang/completion` | 🟡 **mockup** | 이수 현황 (메모리에 "곧 개발" 기록됨) |
 | `/ingang/completion/stats` | 🟡 **mockup** | 시청·이수 통계 |
@@ -143,19 +142,6 @@ if (missing.length) {
 
 ---
 
-## 7. 인강 학생 노트 (StudentLectureNote)
-
-### 검증
-- 학생이 강의별 메모 작성 가능 (개인 노트)
-- API: `/api/lectures/[id]/student-notes`
-- requireAuth 사용 + studentId 검증
-
-### 사소한 권장
-- 노트 길이 제한 (현재 unlimited 의심) — DB 비대화 방지
-- XSS 방지 (노트 표시 시 sanitize)
-
----
-
 ## 종합
 
 | # | 항목 | 심각도 | 작업량 |
@@ -163,7 +149,6 @@ if (missing.length) {
 | 1 | mockup 4페이지 "샘플 데이터" 배너 | Medium | 10분 |
 | 2 | Cloudflare Stream 환경변수 빌드 검증 | Low | 5분 |
 | 3 | Cloudflare Stream Signed URL 의도 확인 | Medium | 30분 (확인만) |
-| 4 | 학생 노트 길이 제한·sanitize | Low | 30분 |
 
 **Pack B (인강 UX) 묶음에 #1, #2 포함 권장. 30분 작업.**
 

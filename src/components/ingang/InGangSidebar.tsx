@@ -11,7 +11,6 @@ const NAV = [
       { label: '강의 목록',    href: '/ingang/lectures' },
       { label: '강의 등록',    href: '/ingang/lectures/new' },
       { label: '강의 세부사항', href: '/ingang/lectures/targets' },
-      { label: '학생별 코멘트', href: '/ingang/lectures/student-notes' },
     ],
   },
   {

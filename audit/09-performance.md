@@ -103,18 +103,7 @@ const Chart = dynamic(() => import('@/components/charts'), { ssr: false });
 Prisma `include` 깊이 / `findMany` 후 map 안에서 `findOne` 호출 등은 정적으로 일부만 검출 가능.
 
 ### 의심 후보
-[`src/app/api/ingang-tablet/lookup/route.ts:91-131`](../src/app/api/ingang-tablet/lookup/route.ts):
-```typescript
-const classes = await Promise.all(
-  student.classEnrollments.map(async (enrollment) => {
-    // ... 각 enrollment마다 prisma.studentLectureNote.findMany 호출
-    const notes = await prisma.studentLectureNote.findMany({...});
-    ...
-  })
-);
-```
-
-수강 반 N개당 1개 쿼리 → N+1. 학생이 보통 2-5 반 수강하면 5-10ms 정도라 OK. 향후 학원 규모 커지면 단일 쿼리로 통합 고려.
+현재 정적 분석으로 명확히 식별된 N+1 쿼리는 없음 (학생 코멘트 N+1은 기능 제거와 함께 해소).
 
 ### 권장 (선택)
 - 의심 라우트 (lookup, analytics 등) 실제 측정 후 결정

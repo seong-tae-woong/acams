@@ -77,7 +77,6 @@ model Academy {
   reportTemplates       ReportTemplate[]
   reports               Report[]
   ingangViewSessions    IngangViewSession[]
-  studentLectureNotes   StudentLectureNote[]
   ingangDailyCodes      IngangDailyCode[]
   clinicTemplates       ClinicTemplate[]
   lessonComments        LessonComment[]
@@ -213,7 +212,6 @@ model Student {
   watchProgress       LectureWatchProgress[]
   reports             Report[]
   ingangViewSessions  IngangViewSession[]
-  lectureNotes        StudentLectureNote[]
   lectureTargets      LectureStudentTarget[]
   lessonComments      LessonComment[]
   clinicResults       ClinicResult[]
@@ -1097,7 +1095,6 @@ model Lecture {
   targets        LectureTarget[]
   studentTargets LectureStudentTarget[]
   quiz           LectureQuiz?
-  studentNotes   StudentLectureNote[]
   watchProgress  LectureWatchProgress[]
 
   createdAt DateTime @default(now())
@@ -1359,25 +1356,6 @@ model IngangViewSession {
   @@index([academyId, status, requestedAt])
   @@index([academyId, studentId, requestedAt])
   @@map("ingang_view_sessions")
-}
-
-// 강사가 인강 강의별로 특정 학생에게 남긴 코멘트
-model StudentLectureNote {
-  id        String   @id @default(cuid())
-  academyId String
-  academy   Academy  @relation(fields: [academyId], references: [id])
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
-  lectureId String
-  lecture   Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
-  note      String
-  authorId  String   // 작성한 teacher/director userId
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([studentId, lectureId])
-  @@index([academyId, lectureId])
-  @@map("student_lecture_notes")
 }
 
 // 학원별 일일 인강 인증 코드 (날짜 단위)

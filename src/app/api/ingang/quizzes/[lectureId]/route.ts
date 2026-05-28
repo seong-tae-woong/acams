@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { coerceExamCond, isYouTubeLecture } from '@/lib/lecture/source';
 
 type Ctx = { params: Promise<{ lectureId: string }> };
 
@@ -52,6 +53,12 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const lecture = await prisma.lecture.findFirst({ where: { id: lectureId, academyId } });
     if (!lecture) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
 
+    // YouTube 강의는 시청률 추적 불가 → examCond를 'anytime'으로 강제 (UI 가드의 fallback)
+    const safeExamCond = coerceExamCond(lecture, examCond);
+    if (isYouTubeLecture(lecture) && examCond === 'after100') {
+      console.warn(`[PUT quizzes/${lectureId}] examCond coerced after100→anytime (YouTube lecture)`);
+    }
+
     const pctClamped =
       typeof passWatchPct === 'number' && Number.isFinite(passWatchPct)
         ? Math.max(50, Math.min(100, Math.round(passWatchPct)))
@@ -67,14 +74,14 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         quizRecord = await tx.lectureQuiz.update({
           where: { id: existing.id },
           data: {
-            passScore, maxTries, examCond,
+            passScore, maxTries, examCond: safeExamCond,
             ...(pctClamped !== undefined ? { passWatchPct: pctClamped } : {}),
           },
         });
       } else {
         quizRecord = await tx.lectureQuiz.create({
           data: {
-            academyId, lectureId, passScore, maxTries, examCond,
+            academyId, lectureId, passScore, maxTries, examCond: safeExamCond,
             passWatchPct: pctClamped ?? 100,
           },
         });
@@ -135,6 +142,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const lecture = await prisma.lecture.findFirst({ where: { id: lectureId, academyId } });
     if (!lecture) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
 
+    // YouTube 강의는 시청률 추적 불가 → examCond를 'anytime'으로 강제 (UI 가드의 fallback)
+    // examCond가 undefined인 PATCH(다른 필드만 갱신)는 그대로 통과시킴
+    const safeExamCond = examCond !== undefined ? coerceExamCond(lecture, examCond) : undefined;
+    if (examCond === 'after100' && isYouTubeLecture(lecture)) {
+      console.warn(`[PATCH quizzes/${lectureId}] examCond coerced after100→anytime (YouTube lecture)`);
+    }
+    // create 경로(레코드 신규)도 동일하게 coerce
+    const createExamCond = coerceExamCond(lecture, examCond ?? 'after100');
+
     // passWatchPct는 50~100 범위로 강제 (UI에서 강제하지만 서버에서도 1차 방어)
     const pctClamped =
       typeof passWatchPct === 'number' && Number.isFinite(passWatchPct)
@@ -146,7 +162,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       update: {
         ...(passScore !== undefined ? { passScore } : {}),
         ...(maxTries !== undefined ? { maxTries } : {}),
-        ...(examCond !== undefined ? { examCond } : {}),
+        ...(safeExamCond !== undefined ? { examCond: safeExamCond } : {}),
         ...(pctClamped !== undefined ? { passWatchPct: pctClamped } : {}),
       },
       create: {
@@ -154,7 +170,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         lectureId,
         passScore: passScore ?? 70,
         maxTries: maxTries ?? 3,
-        examCond: examCond ?? 'after100',
+        examCond: createExamCond,
         passWatchPct: pctClamped ?? 100,
       },
     });

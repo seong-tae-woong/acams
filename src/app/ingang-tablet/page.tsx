@@ -7,7 +7,7 @@ import { LectureQuizModal } from '@/components/ingang/LectureQuizModal';
 // ────────────────────────────────────────────
 // 타입
 // ────────────────────────────────────────────
-type LectureInfo = { lectureId: string; title: string; duration: string; note: string | null };
+type LectureInfo = { lectureId: string; title: string; duration: string };
 type ClassInfo = { classId: string; className: string; subject: string; color: string; lectures: LectureInfo[] };
 type StudentInfo = { id: string; name: string; attendanceNumber: string; avatarColor: string };
 type FullLecture = LectureInfo & { description: string; cfVideoId: string | null; videoUrl: string | null; teacherName: string | null };
@@ -467,9 +467,6 @@ export default function IngangTabletPage() {
                         <p className="text-white text-[13px] font-medium truncate">{l.title}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-white/40 text-[11px]">{l.duration}</span>
-                          {l.note && (
-                            <span className="text-[#a78bfa] text-[11px]">💬 {l.note}</span>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -550,6 +547,9 @@ export default function IngangTabletPage() {
     const lecProgress = progressByLec[currentLecture.lectureId];
     const pct = lecProgress?.pct ?? 0;
     const completed = lecProgress?.completed ?? false;
+    // YouTube 강의(cfVideoId 없음 + videoUrl 있음)는 시청률 추적 불가 → 시험은 anytime으로 항상 응시 가능
+    const isYoutube = !currentLecture.cfVideoId && !!currentLecture.videoUrl;
+    const examReady = completed || isYoutube;
 
     return (
       <div className="min-h-screen flex flex-col bg-[#0f1a2b]">
@@ -575,14 +575,20 @@ export default function IngangTabletPage() {
           <button
             onClick={() => setShowQuiz(true)}
             className="flex items-center gap-1.5 text-[12px] cursor-pointer transition-colors rounded-[8px] px-3 py-1.5"
-            style={completed
+            style={examReady
               ? { background: '#a78bfa', color: 'white', boxShadow: '0 0 0 2px rgba(167,139,250,0.25)' }
               : { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.65)', border: '1px solid rgba(255,255,255,0.15)' }
             }
-            title={completed ? '완강하셨습니다 — 시험 보기' : '시험 응시 (영상 완강 후 활성화)'}
+            title={
+              isYoutube
+                ? 'YouTube 강의 — 시험 응시'
+                : completed
+                  ? '완강하셨습니다 — 시험 보기'
+                  : '시험 응시 (영상 완강 후 활성화)'
+            }
           >
             <CheckCircle size={13} />
-            {completed ? '시험 응시' : '시험'}
+            {examReady ? '시험 응시' : '시험'}
           </button>
           <button
             onClick={handleEnd}
@@ -609,7 +615,7 @@ export default function IngangTabletPage() {
               <p className="text-[14px]">영상이 준비되지 않았습니다.</p>
             </div>
           )}
-          {/* 진도 바 (영상 위 하단 오버레이) */}
+          {/* 진도 바 (영상 위 하단 오버레이) — Cloudflare Stream만 */}
           {currentLecture.cfVideoId && (
             <div className="absolute left-0 right-0 bottom-0 pointer-events-none">
               <div className="bg-gradient-to-t from-black/60 to-transparent px-5 pt-6 pb-2 flex items-center gap-3">
@@ -622,6 +628,16 @@ export default function IngangTabletPage() {
                 <div className="text-white/80 text-[11.5px] font-medium tabular-nums">
                   {lecProgress?.durationUnknown ? '영상 준비 중' : `${pct}%`}
                   {completed && <span className="ml-1.5 text-[#10b981]">완강</span>}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* YouTube 강의 — 시청률 미추적 안내 */}
+          {isYoutube && (
+            <div className="absolute left-0 right-0 bottom-0 pointer-events-none">
+              <div className="bg-gradient-to-t from-black/60 to-transparent px-5 pt-6 pb-2 flex items-center justify-end">
+                <div className="text-white/70 text-[11.5px] font-medium bg-black/30 rounded-full px-2.5 py-1">
+                  YouTube — 시청률 미추적
                 </div>
               </div>
             </div>
@@ -640,14 +656,6 @@ export default function IngangTabletPage() {
 
         {/* 하단 네비게이션 */}
         <div className="shrink-0 border-t border-white/10 bg-[#1a2535]">
-          {/* 코멘트 */}
-          {currentLecture.note && (
-            <div className="px-5 py-2.5 border-b border-white/10 flex items-start gap-2">
-              <span className="text-[#a78bfa] text-[13px] shrink-0">💬</span>
-              <p className="text-[#a78bfa] text-[12.5px] leading-relaxed">{currentLecture.note}</p>
-            </div>
-          )}
-
           {/* 강의 목록 */}
           <div className="flex items-center gap-3 px-4 py-3 overflow-x-auto">
             {hasPrev && (

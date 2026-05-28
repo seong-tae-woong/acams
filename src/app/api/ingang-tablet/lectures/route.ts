@@ -6,6 +6,7 @@
  * classId가 가상 분류('__direct__')면 전체 공개·개별 지정 강의를 반환.
  * role=tablet 전용. cfVideoId는 인강 재생에 필요하므로 여기서만 내려줌.
  */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
@@ -51,7 +52,6 @@ export async function GET(req: NextRequest) {
       orderIndex: number;
       status: string;
       teacher: { name: string } | null;
-      studentNotes: { note: string }[];
     };
 
     let lectureList: LectureRow[];
@@ -71,7 +71,6 @@ export async function GET(req: NextRequest) {
           cfVideoId: true, videoUrl: true, seriesId: true,
           episodeNumber: true, orderIndex: true, status: true,
           teacher: { select: { name: true } },
-          studentNotes: { where: { studentId: session.studentId }, select: { note: true } },
         },
       });
     } else {
@@ -85,7 +84,6 @@ export async function GET(req: NextRequest) {
               cfVideoId: true, videoUrl: true, seriesId: true,
               episodeNumber: true, orderIndex: true, status: true,
               teacher: { select: { name: true } },
-              studentNotes: { where: { studentId: session.studentId }, select: { note: true } },
             },
           },
         },
@@ -110,7 +108,6 @@ export async function GET(req: NextRequest) {
         cfVideoId: l.cfVideoId,
         videoUrl: l.videoUrl,
         teacherName: l.teacher?.name ?? null,
-        note: l.studentNotes[0]?.note ?? null,
       }));
 
     return NextResponse.json({ lectures });

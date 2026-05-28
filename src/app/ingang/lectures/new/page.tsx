@@ -269,6 +269,9 @@ function LectureNewForm() {
                   placeholder="https://www.youtube.com/embed/VIDEO_ID"
                   className="text-[13px] px-3 py-2 border border-[#e2e8f0] rounded-[8px] bg-[#f9fafb] text-[#374151] placeholder-[#c4c4c4] outline-none focus:border-[#a78bfa] focus:bg-white w-full"
                 />
+                <p className="text-[11px] text-[#a78bfa] bg-[#EEEDFE] rounded-[6px] px-2.5 py-1.5 leading-relaxed">
+                  ⚠️ YouTube 영상은 시청률 추적이 불가합니다. 시험을 출제하면 응시 조건은 자동으로 &lsquo;바로 응시&rsquo;로 설정됩니다.
+                </p>
               </div>
             )}
 

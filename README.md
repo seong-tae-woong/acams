@@ -292,7 +292,6 @@ API 라우트는 대부분 `requireAuth(req)`로 인증 + 멀티테넌트(`acade
 | `LectureQuestionOption` | 인강 시험 보기 — 텍스트·정답 여부 |
 | `LectureQuizAttempt` | 인강 시험 응시 기록 — 점수·합격 여부 |
 | `LectureRetryPermission` | 인강 시험 재응시 허가 |
-| `StudentLectureNote` | 강사가 강의별 학생에게 남긴 코멘트 |
 | `IngangViewSession` | 학생 인강 시청 세션 (인증요청→승인→시청→종료) |
 | `IngangDailyCode` | 학원별 일일 인강 인증 코드 (6자리) |
 
@@ -455,7 +454,6 @@ API 라우트는 대부분 `requireAuth(req)`로 인증 + 멀티테넌트(`acade
 |--------|------|------|
 | GET·POST | /api/lectures | 강의 목록 / 등록 |
 | GET·PATCH·DELETE | /api/lectures/[id] | 강의 상세 / 수정 / 삭제 |
-| GET·PUT·DELETE | /api/lectures/[id]/student-notes | 강의별 학생 코멘트 조회 / upsert / 삭제 |
 | GET·PUT | /api/lectures/[id]/targets | 강의 수강 대상 조회 / 저장 |
 | GET·POST | /api/lectures/tags | 커스텀 태그 목록 / 추가 |
 | DELETE | /api/lectures/tags/[id] | 커스텀 태그 삭제 |
@@ -622,7 +620,7 @@ API 라우트는 대부분 `requireAuth(req)`로 인증 + 멀티테넌트(`acade
 - [x] 인강 시청 인증 (태블릿): `IngangViewSession`·`IngangDailyCode` — 출결번호 조회 → 일일코드 강사 승인 → 시청 → 종료
 - [x] 인강 시험 출제·응시·자동 채점: `LectureQuiz`·`LectureQuestion`·`LectureQuestionOption`·`LectureQuizAttempt`
 - [x] 인강 시험 재응시 허용: `LectureRetryPermission`
-- [x] 강의 시리즈(`LectureSeries`)·개별 학생 수강대상(`LectureStudentTarget`)·강의별 학생 코멘트(`StudentLectureNote`)
+- [x] 강의 시리즈(`LectureSeries`)·개별 학생 수강대상(`LectureStudentTarget`)
 - [x] 성적 리포트: `ReportTemplate`·`Report` — 시험별/정기 양식·미리보기·발행 (브라우저 인쇄 PDF)
 - [x] 과제 관리(`Assignment`), 시험 카테고리 계층(`ExamCategory`)
 - [x] 청구액 조정 이력(`BillAdjustment`), 청구 취소·재청구
