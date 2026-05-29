@@ -219,14 +219,18 @@ export default function CompletionDashboardPage() {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-      <header style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e1b2e', marginBottom: 4 }}>이수관리 홈</h1>
-        <p style={{ fontSize: 12, color: '#6b7280' }}>위험 학생에게 알림을 보내고, 시리즈 완주자에게 이수증을 발급합니다.</p>
-      </header>
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Topbar — 다른 인강 페이지와 동일한 50px 헤더 패턴 */}
+      <div className="h-[50px] bg-white border-b border-[#e2e8f0] flex items-center px-5 gap-3 shrink-0">
+        <span className="text-[15px] font-semibold text-[#1a2535]">이수관리 홈</span>
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium" style={{ background: '#EEEDFE', color: '#534AB7' }}>인강 · 이수 관리</span>
+        <span className="ml-auto text-[11.5px] text-[#6b7280]">위험 학생 알림 발송 · 시리즈 완주자 이수증 발급</span>
+      </div>
 
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
       {/* KPI 카드 */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         <KpiCard label="전체 이수율" value={kpiLoading ? '…' : `${kpi?.completionRate ?? 0}%`} hint={kpi ? `${kpi.seriesCompletionCount}건 완주 / ${kpi.seriesCount}개 시리즈` : ''} />
         <KpiCard label="미시청자" value={kpiLoading ? '…' : `${kpi?.notStarted ?? 0}명`} hint="한 번도 시청하지 않은 학생" tone="warning" />
         <KpiCard label="시험 대기" value={kpiLoading ? '…' : `${kpi?.examPending ?? 0}건`} hint="시청을 끝냈지만 시험을 통과하지 못한 학생" tone="warning" />
@@ -236,10 +240,10 @@ export default function CompletionDashboardPage() {
       {/* 좌우 패널 */}
       <section style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
         {/* 위험 학생 패널 */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <header style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <header style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1e1b2e' }}>개입 대상 (위험 학생)</h2>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: '#1a2535' }}>개입 대상 (위험 학생)</h2>
               <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>선택 후 인앱 알림 발송 (모바일 PWA 알림함)</p>
             </div>
             <button
@@ -336,10 +340,10 @@ export default function CompletionDashboardPage() {
         </div>
 
         {/* 발급 가능자 패널 */}
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-          <header style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <header style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1e1b2e' }}>이수증 발급 대기</h2>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: '#1a2535' }}>이수증 발급 대기</h2>
               <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>시리즈 완주, 미발급</p>
             </div>
             <button
@@ -405,14 +409,15 @@ export default function CompletionDashboardPage() {
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 }
 
 function KpiCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'warning' | 'accent' }) {
-  const valueColor = tone === 'warning' ? '#92400e' : tone === 'accent' ? '#5B4FBE' : '#1e1b2e';
+  const valueColor = tone === 'warning' ? '#92400e' : tone === 'accent' ? '#5B4FBE' : '#1a2535';
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16 }}>
+    <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: 16 }}>
       <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, marginBottom: 8 }}>{label}</p>
       <p style={{ fontSize: 22, color: valueColor, fontWeight: 700, marginBottom: 4 }}>{value}</p>
       {hint && <p style={{ fontSize: 10, color: '#9ca3af' }}>{hint}</p>}
