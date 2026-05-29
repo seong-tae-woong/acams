@@ -228,9 +228,9 @@ export default function CompletionDashboardPage() {
       {/* KPI 카드 */}
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
         <KpiCard label="전체 이수율" value={kpiLoading ? '…' : `${kpi?.completionRate ?? 0}%`} hint={kpi ? `${kpi.seriesCompletionCount}건 완주 / ${kpi.seriesCount}개 시리즈` : ''} />
-        <KpiCard label="미시청자" value={kpiLoading ? '…' : `${kpi?.notStarted ?? 0}명`} hint="시청 진도 기록 없음" tone="warning" />
-        <KpiCard label="시험 대기" value={kpiLoading ? '…' : `${kpi?.examPending ?? 0}건`} hint="after100 강의 시청 완료 + 시험 미응시·미합격" tone="warning" />
-        <KpiCard label="발급 가능" value={kpiLoading ? '…' : `${kpi?.eligibleCount ?? 0}명`} hint="시리즈 완주, 이수증 미발급" tone="accent" />
+        <KpiCard label="미시청자" value={kpiLoading ? '…' : `${kpi?.notStarted ?? 0}명`} hint="한 번도 시청하지 않은 학생" tone="warning" />
+        <KpiCard label="시험 대기" value={kpiLoading ? '…' : `${kpi?.examPending ?? 0}건`} hint="시청을 끝냈지만 시험을 통과하지 못한 학생" tone="warning" />
+        <KpiCard label="발급 가능" value={kpiLoading ? '…' : `${kpi?.eligibleCount ?? 0}명`} hint="시리즈를 완주했지만 이수증 미발급" tone="accent" />
       </section>
 
       {/* 좌우 패널 */}
@@ -240,7 +240,7 @@ export default function CompletionDashboardPage() {
           <header style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1e1b2e' }}>개입 대상 (위험 학생)</h2>
-              <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>선택 후 카카오/인앱 알림 발송</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>선택 후 인앱 알림 발송 (모바일 PWA 알림함)</p>
             </div>
             <button
               onClick={sendNotifications}
