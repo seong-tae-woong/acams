@@ -1,6 +1,8 @@
-// Vercel Cron 엔드포인트: 매 5분 호출되어 결석/지각 자동 알림 발송.
+// Cron 엔드포인트: 매 5분 호출되어 결석/지각 자동 알림 발송.
 //
-// 호출자: Vercel Cron (vercel.json에 등록). `Authorization: Bearer <CRON_SECRET>` 헤더로 인증.
+// 호출자: GitHub Actions 스케줄(.github/workflows/attendance-notify.yml).
+//   Hobby 플랜은 Vercel Cron 5분 간격을 허용하지 않아 외부 스케줄로 호출한다.
+//   `Authorization: Bearer <CRON_SECRET>` 헤더로 인증.
 // 인증 우회 방지 — proxy.ts의 PUBLIC_PATHS에 /api/cron 추가되어 있음 (JWT 미적용).
 //
 // 흐름:

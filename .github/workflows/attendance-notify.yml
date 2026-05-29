@@ -1,0 +1,26 @@
+name: Attendance Notify Cron
+
+# Hobby 플랜은 Vercel Cron을 하루 1회만 허용하므로, 5분 간격 호출을
+# GitHub Actions 스케줄로 대체한다. 공개 엔드포인트를 Bearer 토큰으로 호출.
+# 주의: GitHub 스케줄은 best-effort라 수 분 지연/누락될 수 있다.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {} # 수동 실행 허용 (디버그용)
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call attendance-notify endpoint
+        run: |
+          code=$(curl -s -o /tmp/body.txt -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://acams-jmi3.vercel.app/api/cron/attendance-notify")
+          echo "HTTP $code"
+          cat /tmp/body.txt
+          if [ "$code" != "200" ]; then
+            echo "::error::attendance-notify returned $code"
+            exit 1
+          fi
