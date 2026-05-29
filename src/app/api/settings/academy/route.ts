@@ -35,6 +35,9 @@ export async function GET(req: NextRequest) {
         siblingDiscountDefault: true,
         siblingDiscountType: true,
         smsEnabled: true,
+        attendanceNotifyEnabled: true,
+        attendanceLateMinutes: true,
+        attendanceAbsentMinutes: true,
       },
     });
 
@@ -72,7 +75,33 @@ export async function PATCH(req: NextRequest) {
       siblingDiscountType,
       // 알림 설정
       smsEnabled,
+      // 자동 알림 (결석/지각)
+      attendanceNotifyEnabled,
+      attendanceLateMinutes,
+      attendanceAbsentMinutes,
     } = body;
+
+    // 임계값 검증: 정수, 1 <= late < absent <= 60
+    const lateNum = typeof attendanceLateMinutes === 'number' ? Math.trunc(attendanceLateMinutes) : undefined;
+    const absentNum = typeof attendanceAbsentMinutes === 'number' ? Math.trunc(attendanceAbsentMinutes) : undefined;
+    if (lateNum !== undefined && (lateNum < 1 || lateNum > 59)) {
+      return NextResponse.json({ error: '지각 임계값은 1-59분 범위여야 합니다.' }, { status: 400 });
+    }
+    if (absentNum !== undefined && (absentNum < 2 || absentNum > 60)) {
+      return NextResponse.json({ error: '결석 임계값은 2-60분 범위여야 합니다.' }, { status: 400 });
+    }
+    // 두 값이 함께 들어온 경우, 그리고 한 값만 들어온 경우(저장된 값과 비교) 모두 검증
+    if (lateNum !== undefined || absentNum !== undefined) {
+      const current = await prisma.academy.findUnique({
+        where: { id: academyId },
+        select: { attendanceLateMinutes: true, attendanceAbsentMinutes: true },
+      });
+      const nextLate = lateNum ?? current?.attendanceLateMinutes ?? 10;
+      const nextAbsent = absentNum ?? current?.attendanceAbsentMinutes ?? 20;
+      if (nextLate >= nextAbsent) {
+        return NextResponse.json({ error: '지각 임계값은 결석 임계값보다 작아야 합니다.' }, { status: 400 });
+      }
+    }
 
     // galleryImages: 명시적으로 전달된 경우에만 업데이트 (미전달 시 기존 값 유지)
     const cleanImages = Array.isArray(galleryImages)
@@ -98,6 +127,9 @@ export async function PATCH(req: NextRequest) {
         ...(siblingDiscountType !== undefined && (siblingDiscountType === 'fixed' || siblingDiscountType === 'percent')
           && { siblingDiscountType }),
         ...(smsEnabled !== undefined && { smsEnabled: Boolean(smsEnabled) }),
+        ...(attendanceNotifyEnabled !== undefined && { attendanceNotifyEnabled: Boolean(attendanceNotifyEnabled) }),
+        ...(lateNum !== undefined && { attendanceLateMinutes: lateNum }),
+        ...(absentNum !== undefined && { attendanceAbsentMinutes: absentNum }),
       },
       select: { slug: true, profileEnabled: true },
     });

@@ -35,6 +35,11 @@ model Academy {
   // ── 알림 설정 ────────────────────────────────────────
   smsEnabled Boolean @default(true) // 임시PW SMS 자동 발송 (false=테스트 모드: 폼에서 직접 지정, mustChangePassword 미강제)
 
+  // ── 자동 알림: 결석/지각 (출석 미체크 학생의 학부모에게 PWA 푸시 발송) ──
+  attendanceNotifyEnabled  Boolean @default(false) // on/off
+  attendanceLateMinutes    Int     @default(10)    // 수업 시작 후 N분 → 지각 알림
+  attendanceAbsentMinutes  Int     @default(20)    // 수업 시작 후 M분 → 결석 알림 (반드시 Late < Absent)
+
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
   intro          String? // 한 줄 소개
   directorName   String? // 대표자명
@@ -55,6 +60,7 @@ model Academy {
   exams                    Exam[]
   gradeRecords             GradeRecord[]
   attendance               AttendanceRecord[]
+  attendanceNotifyLogs     AttendanceNotificationLog[]
   makeupClasses            MakeupClass[]
   calendarEvents           CalendarEvent[]
   classEvents              ClassEvent[]
@@ -910,10 +916,32 @@ model NotificationTemplate {
   title    String
   content  String
 
+  // 시스템 시드 템플릿 식별용. NULL = 사용자가 만든 자유 템플릿, 'ATTENDANCE_LATE_AUTO' 같은 값 = 시드 템플릿.
+  // (academyId, code) UNIQUE → 학원마다 시드 1개 + 자유 템플릿 다수.
+  code String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([academyId, code])
   @@map("notification_templates")
+}
+
+// 자동 알림 중복 발송 방지 로그. (classId, studentId, date, kind) UNIQUE 로
+// cron이 매 5분 재실행돼도 같은 알림이 두 번 가지 않도록 보장.
+model AttendanceNotificationLog {
+  id        String   @id @default(cuid())
+  academyId String
+  academy   Academy  @relation(fields: [academyId], references: [id])
+  classId   String
+  studentId String
+  date      DateTime // 자정(00:00) 기준 정규화
+  kind      String   // 'LATE' | 'ABSENT'
+  sentAt    DateTime @default(now())
+
+  @@unique([classId, studentId, date, kind])
+  @@index([academyId, sentAt])
+  @@map("attendance_notification_logs")
 }
 
 // ─────────────────────────────────────────────

@@ -14,6 +14,8 @@ const REQUIRED = [
   // Cloudflare Stream (인강 영상 업로드)
   'CF_ACCOUNT_ID',
   'CF_STREAM_API_TOKEN',
+  // Vercel Cron (결석/지각 자동 알림 인증)
+  'CRON_SECRET',
 ];
 
 const missing = REQUIRED.filter((k) => !process.env[k]);

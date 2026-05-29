@@ -103,3 +103,50 @@ export async function sendPushToClass(classId: string, payload: PushPayload): Pr
   });
   await sendPushToStudents(enrollments.map((e) => e.studentId), payload);
 }
+
+// userId 목록 직접 지정해서 Web Push 발송. 자동 알림(결석/지각)에서 학생 본인은
+// 빼고 학부모에게만 보내는 시나리오 등에 사용. payload.title에 prefix를 붙이지
+// 않으니, 호출자가 [학생명] 같은 prefix가 필요하면 직접 title에 포함해야 함.
+// 실패한 구독(404/410)은 자동 정리.
+export async function sendPushToUserIds(userIds: string[], payload: PushPayload): Promise<void> {
+  if (userIds.length === 0) return;
+  if (!configureVapid()) {
+    console.warn('[sendPush] VAPID not configured, skipping');
+    return;
+  }
+
+  try {
+    const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
+    if (subs.length === 0) return;
+
+    const body = JSON.stringify(payload);
+    const expiredEndpoints: string[] = [];
+
+    await Promise.allSettled(
+      subs.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            body,
+            { urgency: 'high', TTL: 86400 },
+          );
+        } catch (err: unknown) {
+          const e = err as { statusCode?: number };
+          if (e.statusCode === 404 || e.statusCode === 410) {
+            expiredEndpoints.push(sub.endpoint);
+          } else {
+            console.warn('[sendPush] error:', err);
+          }
+        }
+      }),
+    );
+
+    if (expiredEndpoints.length > 0) {
+      await prisma.pushSubscription.deleteMany({
+        where: { endpoint: { in: expiredEndpoints } },
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[sendPushToUserIds] fatal:', err instanceof Error ? err.message : String(err));
+  }
+}

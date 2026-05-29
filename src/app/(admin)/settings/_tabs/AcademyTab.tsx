@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { QrCode, Copy, ExternalLink, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
+import { QrCode, Copy, ExternalLink, MessageSquare, Bell } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 
 export default function AcademyTab() {
@@ -8,12 +9,29 @@ export default function AcademyTab() {
   const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null); // null=로딩중
   const [smsSaving, setSmsSaving] = useState(false);
 
+  // 자동 알림 (결석/지각)
+  const [attendNotifyEnabled, setAttendNotifyEnabled] = useState<boolean | null>(null);
+  const [attendNotifySaving, setAttendNotifySaving] = useState(false);
+  const [lateMin, setLateMin] = useState<number>(10);
+  const [absentMin, setAbsentMin] = useState<number>(20);
+  const [lateInput, setLateInput] = useState<string>('10');
+  const [absentInput, setAbsentInput] = useState<string>('20');
+
   useEffect(() => {
     fetch('/api/settings/academy')
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data?.slug) setKioskSlug(data.slug);
         if (typeof data?.smsEnabled === 'boolean') setSmsEnabled(data.smsEnabled);
+        if (typeof data?.attendanceNotifyEnabled === 'boolean') setAttendNotifyEnabled(data.attendanceNotifyEnabled);
+        if (typeof data?.attendanceLateMinutes === 'number') {
+          setLateMin(data.attendanceLateMinutes);
+          setLateInput(String(data.attendanceLateMinutes));
+        }
+        if (typeof data?.attendanceAbsentMinutes === 'number') {
+          setAbsentMin(data.attendanceAbsentMinutes);
+          setAbsentInput(String(data.attendanceAbsentMinutes));
+        }
       });
   }, []);
 
@@ -38,6 +56,67 @@ export default function AcademyTab() {
       toast('네트워크 오류가 발생했습니다.', 'error');
     } finally {
       setSmsSaving(false);
+    }
+  };
+
+  const handleAttendNotifyToggle = async () => {
+    if (attendNotifyEnabled === null || attendNotifySaving) return;
+    const next = !attendNotifyEnabled;
+    setAttendNotifySaving(true);
+    try {
+      const res = await fetch('/api/settings/academy', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendanceNotifyEnabled: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error ?? '자동 알림 설정 변경에 실패했습니다.', 'error');
+        return;
+      }
+      setAttendNotifyEnabled(next);
+      toast(next ? '결석/지각 자동 알림이 켜졌습니다.' : '결석/지각 자동 알림이 꺼졌습니다.', 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+    } finally {
+      setAttendNotifySaving(false);
+    }
+  };
+
+  // 임계값 저장 (blur 시): 두 값을 묶어서 PATCH. 검증 실패 시 입력값을 저장값으로 되돌림.
+  const handleThresholdSave = async () => {
+    const nextLate = parseInt(lateInput, 10);
+    const nextAbsent = parseInt(absentInput, 10);
+    if (!Number.isFinite(nextLate) || !Number.isFinite(nextAbsent)) {
+      setLateInput(String(lateMin));
+      setAbsentInput(String(absentMin));
+      toast('임계값은 숫자로 입력해주세요.', 'error');
+      return;
+    }
+    if (nextLate === lateMin && nextAbsent === absentMin) return; // 변경 없음
+    try {
+      const res = await fetch('/api/settings/academy', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attendanceLateMinutes: nextLate,
+          attendanceAbsentMinutes: nextAbsent,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error ?? '임계값 저장에 실패했습니다.', 'error');
+        setLateInput(String(lateMin));
+        setAbsentInput(String(absentMin));
+        return;
+      }
+      setLateMin(nextLate);
+      setAbsentMin(nextAbsent);
+      toast('임계값이 저장되었습니다.', 'success');
+    } catch {
+      toast('네트워크 오류가 발생했습니다.', 'error');
+      setLateInput(String(lateMin));
+      setAbsentInput(String(absentMin));
     }
   };
 
@@ -132,27 +211,85 @@ export default function AcademyTab() {
 
       <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
         <div className="flex items-center gap-2 mb-1">
+          <Bell size={14} className="text-[#4fc3a1]" />
           <span className="text-[13px] font-semibold text-[#111827]">자동 알림</span>
-          <span className="text-[10.5px] font-medium text-[#92400E] bg-[#FEF3C7] rounded-[20px] px-2 py-0.5">준비중</span>
         </div>
-        <p className="text-[11.5px] text-[#9ca3af] mb-3">
-          아래 트리거 기반 자동 알림은 아직 준비 중입니다. (비밀번호 SMS는 위 설정과 무관하게 동작합니다.)
+        <p className="text-[11.5px] text-[#6b7280] mb-3">
+          수업 시작 후 일정 시간이 지나도 출석 체크가 되지 않은 학생의 학부모에게 PWA 알림을 자동 발송합니다.
         </p>
-        {[
-          { label: '결석 시 학부모 자동 알림', desc: '출결 저장 20분 후 발송' },
-          { label: '수강료 미납 자동 알림', desc: '납부기한 다음날 발송' },
-          { label: '성적 등록 알림', desc: '시험 성적 등록 시 발송' },
-        ].map((item) => (
-          <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-[#f1f5f9] last:border-0">
-            <div>
-              <div className="text-[12.5px] font-medium text-[#9ca3af]">{item.label}</div>
-              <div className="text-[11px] text-[#9ca3af]">{item.desc}</div>
-            </div>
-            <div className="w-9 h-5 rounded-full bg-[#e2e8f0] relative cursor-not-allowed" title="준비중">
-              <div className="absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] left-[3px]" />
+
+        <div className="flex items-center justify-between py-2.5 border-t border-[#f1f5f9]">
+          <div>
+            <div className="text-[12.5px] font-medium text-[#111827]">결석 시 학부모 자동 알림</div>
+            <div className="text-[11px] text-[#6b7280]">
+              {attendNotifyEnabled === null ? '불러오는 중...'
+                : attendNotifyEnabled ? '발송 켜짐 — 지각·결석 임계값 도달 시 PWA 알림'
+                : '발송 꺼짐'}
             </div>
           </div>
-        ))}
+          <button
+            onClick={handleAttendNotifyToggle}
+            disabled={attendNotifyEnabled === null || attendNotifySaving}
+            className={
+              'w-9 h-5 rounded-full relative transition-colors ' +
+              (attendNotifyEnabled === null || attendNotifySaving ? 'cursor-not-allowed opacity-60 ' : 'cursor-pointer ') +
+              (attendNotifyEnabled ? 'bg-[#4fc3a1]' : 'bg-[#e2e8f0]')
+            }
+            title={attendNotifyEnabled ? '끄기' : '켜기'}
+          >
+            <div
+              className={
+                'absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] transition-all ' +
+                (attendNotifyEnabled ? 'left-[19px]' : 'left-[3px]')
+              }
+            />
+          </button>
+        </div>
+
+        {attendNotifyEnabled && (
+          <div className="pt-3 pl-1 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[11.5px] text-[#6b7280] w-20">지각 임계값</span>
+              <span className="text-[11.5px] text-[#6b7280]">수업 시작 후</span>
+              <input
+                type="number"
+                min={1}
+                max={59}
+                value={lateInput}
+                onChange={(e) => setLateInput(e.target.value)}
+                onBlur={handleThresholdSave}
+                className="w-14 text-[12px] border border-[#e2e8f0] rounded-[6px] px-2 py-1 text-center focus:outline-none focus:border-[#4fc3a1]"
+              />
+              <span className="text-[11.5px] text-[#6b7280]">분 후 지각 알림</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11.5px] text-[#6b7280] w-20">결석 임계값</span>
+              <span className="text-[11.5px] text-[#6b7280]">수업 시작 후</span>
+              <input
+                type="number"
+                min={2}
+                max={60}
+                value={absentInput}
+                onChange={(e) => setAbsentInput(e.target.value)}
+                onBlur={handleThresholdSave}
+                className="w-14 text-[12px] border border-[#e2e8f0] rounded-[6px] px-2 py-1 text-center focus:outline-none focus:border-[#4fc3a1]"
+              />
+              <span className="text-[11.5px] text-[#6b7280]">분 후 결석 알림</span>
+            </div>
+            <p className="text-[10.5px] text-[#9ca3af] pt-1 leading-relaxed">
+              예) 지각 {lateMin}분 / 결석 {absentMin}분 → 수업 시작 {lateMin}분 후 미체크 학생은 지각 알림,
+              {' '}{absentMin}분 후에도 여전히 미체크면 결석 알림.
+              <br />
+              알림은 학부모 PWA에서 확인할 수 있어요. 학원 키오스크/강사 체크로 출석 처리된 학생은 발송 대상에서 자동 제외됩니다.
+            </p>
+            <Link
+              href="/communication/notifications?tab=templates&category=출결알림"
+              className="inline-block text-[11px] text-[#4fc3a1] hover:underline mt-1"
+            >
+              알림 문구 편집 →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
