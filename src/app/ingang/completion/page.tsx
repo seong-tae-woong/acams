@@ -1,177 +1,331 @@
 'use client';
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 
-type TabId = 'view' | 'exam';
+/**
+ * 이수관리 홈 (개입 대시보드)
+ *
+ * - 상단 4개 KPI 카드
+ * - 좌측: 위험 학생 패널 — 체크박스 선택 후 일괄 알림 발송
+ * - 우측: 이수증 발급 가능 패널 — 체크박스 선택 후 일괄 발급
+ *
+ * 데이터:
+ * - GET /api/ingang/completion/dashboard (KPI)
+ * - GET /api/ingang/completion/at-risk?filter=&cursor=
+ * - GET /api/ingang/completion/eligible?cursor=
+ *
+ * 액션:
+ * - POST /api/ingang/completion/notify (학생 집계 + 7일 throttle)
+ * - POST /api/ingang/certificates (일괄 발급)
+ * - GET /api/ingang/certificates/{id}/pdf (다운로드)
+ */
 
-const VIEW_ROWS = [
-  { name: '김도윤', av: '김', avBg: '#DBEAFE', avColor: '#1d4ed8', prog: 100, lastDate: '04.08', cnt: '2회', status: '완료' },
-  { name: '이수아', av: '이', avBg: '#D1FAE5', avColor: '#065f46', prog: 100, lastDate: '04.07', cnt: '1회', status: '완료' },
-  { name: '박준서', av: '박', avBg: '#DBEAFE', avColor: '#1d4ed8', prog: 100, lastDate: '04.06', cnt: '3회', status: '완료' },
-  { name: '최하은', av: '최', avBg: '#D1FAE5', avColor: '#065f46', prog: 72,  lastDate: '04.09', cnt: '1회', status: '시청 중' },
-  { name: '정민재', av: '정', avBg: '#DBEAFE', avColor: '#1d4ed8', prog: 45,  lastDate: '04.07', cnt: '1회', status: '시청 중' },
-  { name: '강서윤', av: '강', avBg: '#D1FAE5', avColor: '#065f46', prog:  0,  lastDate: '-',     cnt: '0회', status: '미시청' },
-];
-const EXAM_ROWS = [
-  { name: '이수아', av: '이', avBg: '#D1FAE5', avColor: '#065f46', tries: '1회', best: '100점', last: '100점', result: '합격', note: '-' },
-  { name: '김도윤', av: '김', avBg: '#DBEAFE', avColor: '#1d4ed8', tries: '2회', best: '92점',  last: '92점',  result: '합격', note: '1회 재응시' },
-  { name: '최하은', av: '최', avBg: '#D1FAE5', avColor: '#065f46', tries: '1회', best: '78점',  last: '78점',  result: '합격', note: '-' },
-  { name: '정민재', av: '정', avBg: '#DBEAFE', avColor: '#1d4ed8', tries: '1회', best: '72점',  last: '72점',  result: '합격', note: '-' },
-  { name: '박준서', av: '박', avBg: '#DBEAFE', avColor: '#1d4ed8', tries: '3회', best: '58점',  last: '58점',  result: '불합격', note: '재응시 허용 →' },
-  { name: '강서윤', av: '강', avBg: '#D1FAE5', avColor: '#065f46', tries: '0회', best: '-',     last: '-',     result: '미응시', note: '알림톡 발송 →' },
-];
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from '@/lib/stores/toastStore';
 
-function progColor(v: number) {
-  if (v >= 80) return '#a78bfa';
-  if (v >= 40) return '#f59e0b';
-  return '#f87171';
-}
-function progTextColor(v: number) {
-  if (v >= 80) return '#534AB7';
-  if (v >= 40) return '#92400e';
-  return '#9ca3af';
-}
-function statusBadge(s: string) {
-  if (s === '완료')   return { bg: '#D1FAE5', color: '#065f46' };
-  if (s === '시청 중') return { bg: '#EEEDFE', color: '#534AB7' };
-  return { bg: '#f1f5f9', color: '#6b7280' };
-}
-function resultBadge(r: string) {
-  if (r === '합격')   return { bg: '#D1FAE5', color: '#065f46' };
-  if (r === '불합격') return { bg: '#FEE2E2', color: '#991b1b' };
-  return { bg: '#f1f5f9', color: '#6b7280' };
-}
+type Kpi = {
+  totalEnrolled: number;
+  notStarted: number;
+  examPending: number;
+  eligibleCount: number;
+  completionRate: number;
+  seriesCount: number;
+  seriesCompletionCount: number;
+};
 
-const SCORE_DIST = [
-  { range: '0~59',  cnt: 1, h: 20 },
-  { range: '60~69', cnt: 1, h: 20 },
-  { range: '70~79', cnt: 2, h: 40, hi: true },
-  { range: '80~89', cnt: 1, h: 20, hi: true },
-  { range: '90~100',cnt: 1, h: 20, hi: true },
-];
+type AtRiskRow = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  lectureId: string;
+  lectureTitle: string;
+  seriesTitle: string | null;
+  progressPct: number;
+  status: 'not_started' | 'in_progress' | 'exam_pending' | 'failed';
+};
 
-function PageContent() {
-  const searchParams = useSearchParams();
-  const router       = useRouter();
-  const tabParam     = searchParams.get('tab') as TabId | null;
-  const [tab, setTab] = useState<TabId>(tabParam === 'exam' ? 'exam' : 'view');
+type EligibleRow = {
+  seriesCompletionId: string;
+  studentId: string;
+  studentName: string;
+  seriesId: string;
+  seriesTitle: string;
+  completedAt: string;
+  scoreSnapshot: number | null;
+};
+
+const STATUS_LABEL: Record<AtRiskRow['status'], { label: string; color: string; bg: string }> = {
+  not_started: { label: '미시청', color: '#6b7280', bg: '#f1f5f9' },
+  in_progress: { label: '시청 중', color: '#92400e', bg: '#fef3c7' },
+  exam_pending: { label: '시험 대기', color: '#534AB7', bg: '#EEEDFE' },
+  failed: { label: '불합격', color: '#b91c1c', bg: '#fee2e2' },
+};
+
+export default function CompletionDashboardPage() {
+  const [kpi, setKpi] = useState<Kpi | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(true);
+
+  const [atRisk, setAtRisk] = useState<AtRiskRow[]>([]);
+  const [atRiskLoading, setAtRiskLoading] = useState(true);
+  const [atRiskFilter, setAtRiskFilter] = useState<'all' | AtRiskRow['status']>('all');
+  const [selectedRisk, setSelectedRisk] = useState<Set<string>>(new Set()); // row.id 기준
+
+  const [eligible, setEligible] = useState<EligibleRow[]>([]);
+  const [eligibleLoading, setEligibleLoading] = useState(true);
+  const [selectedEligible, setSelectedEligible] = useState<Set<string>>(new Set()); // seriesCompletionId 기준
+
+  const [sending, setSending] = useState(false);
+  const [issuing, setIssuing] = useState(false);
+
+  const loadKpi = useCallback(async () => {
+    setKpiLoading(true);
+    try {
+      const res = await fetch('/api/ingang/completion/dashboard');
+      if (!res.ok) throw new Error('KPI load failed');
+      setKpi(await res.json());
+    } catch (err) {
+      console.error(err);
+      toast('KPI 로드 실패', 'error');
+    } finally {
+      setKpiLoading(false);
+    }
+  }, []);
+
+  const loadAtRisk = useCallback(async (filter: typeof atRiskFilter) => {
+    setAtRiskLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: '100' });
+      if (filter !== 'all') params.set('filter', filter);
+      const res = await fetch(`/api/ingang/completion/at-risk?${params}`);
+      if (!res.ok) throw new Error('at-risk load failed');
+      const data = await res.json();
+      setAtRisk(data.items ?? []);
+    } catch (err) {
+      console.error(err);
+      toast('위험 학생 로드 실패', 'error');
+    } finally {
+      setAtRiskLoading(false);
+    }
+  }, []);
+
+  const loadEligible = useCallback(async () => {
+    setEligibleLoading(true);
+    try {
+      const res = await fetch('/api/ingang/completion/eligible?limit=100');
+      if (!res.ok) throw new Error('eligible load failed');
+      const data = await res.json();
+      setEligible(data.items ?? []);
+    } catch (err) {
+      console.error(err);
+      toast('이수증 발급 대기 로드 실패', 'error');
+    } finally {
+      setEligibleLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (tabParam === 'exam') setTab('exam');
-    else setTab('view');
-  }, [tabParam]);
+    loadKpi();
+    loadAtRisk(atRiskFilter);
+    loadEligible();
+  }, [loadKpi, loadAtRisk, loadEligible, atRiskFilter]);
 
-  const handleTab = (t: TabId) => {
-    setTab(t);
-    router.replace(t === 'exam' ? '/ingang/completion?tab=exam' : '/ingang/completion');
+  const toggleRisk = (id: string) => {
+    setSelectedRisk((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAllRisk = () => {
+    setSelectedRisk((prev) =>
+      prev.size === atRisk.length ? new Set() : new Set(atRisk.map((r) => r.id)),
+    );
+  };
+  const toggleEligible = (id: string) => {
+    setSelectedEligible((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAllEligible = () => {
+    setSelectedEligible((prev) =>
+      prev.size === eligible.length ? new Set() : new Set(eligible.map((r) => r.seriesCompletionId)),
+    );
   };
 
-  const title = tab === 'view' ? '시청 현황' : '시험 응시 현황';
+  const sendNotifications = async () => {
+    if (selectedRisk.size === 0) {
+      toast('학생을 선택하세요', 'info');
+      return;
+    }
+    // 학생별로 강의 목록 집계
+    const byStudent = new Map<string, string[]>();
+    for (const id of selectedRisk) {
+      const row = atRisk.find((r) => r.id === id);
+      if (!row) continue;
+      const arr = byStudent.get(row.studentId) ?? [];
+      arr.push(row.lectureId);
+      byStudent.set(row.studentId, arr);
+    }
+    const items = [...byStudent.entries()].map(([studentId, lectureIds]) => ({ studentId, lectureIds }));
+
+    setSending(true);
+    try {
+      const res = await fetch('/api/ingang/completion/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? 'notify failed');
+      toast(
+        `발송 ${data.sentCount}건 / 7일 throttle 차단 ${data.skippedCount}건`,
+        data.sentCount > 0 ? 'success' : 'info',
+      );
+      setSelectedRisk(new Set());
+      await loadKpi();
+    } catch (err) {
+      console.error(err);
+      toast(err instanceof Error ? err.message : '발송 실패', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const issueCertificates = async () => {
+    if (selectedEligible.size === 0) {
+      toast('대상을 선택하세요', 'info');
+      return;
+    }
+    setIssuing(true);
+    try {
+      const res = await fetch('/api/ingang/certificates', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ seriesCompletionIds: [...selectedEligible] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? 'issue failed');
+      toast(`이수증 ${data.issuedCount}건 발급 (skip ${data.skippedCount})`, 'success');
+      setSelectedEligible(new Set());
+      await Promise.all([loadKpi(), loadEligible()]);
+    } catch (err) {
+      console.error(err);
+      toast(err instanceof Error ? err.message : '발급 실패', 'error');
+    } finally {
+      setIssuing(false);
+    }
+  };
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      {/* Topbar */}
-      <div className="h-[50px] bg-white border-b border-[#e2e8f0] flex items-center px-5 gap-3 shrink-0">
-        <span className="text-[15px] font-semibold text-[#1a2535]">{title}</span>
-        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium" style={{ background: '#EEEDFE', color: '#534AB7' }}>인강 · 이수 관리</span>
-        <div className="ml-auto">
-          <button className="px-3.5 py-1.5 rounded-[8px] text-[12.5px] border border-[#e2e8f0] bg-white text-[#374151] font-medium hover:bg-gray-50">엑셀 내보내기</button>
-        </div>
-      </div>
+    <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1e1b2e', marginBottom: 4 }}>이수관리 홈</h1>
+        <p style={{ fontSize: 12, color: '#6b7280' }}>위험 학생에게 알림을 보내고, 시리즈 완주자에게 이수증을 발급합니다.</p>
+      </header>
 
-      {/* 샘플 데이터 배너 — Phase F (DB 연동) 개발 예정 */}
-      <div className="shrink-0 mx-4 mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-lg">
-        <span>🔔</span>
-        <span>샘플 데이터입니다. 이 화면은 DB 연동 개발 예정입니다.</span>
-      </div>
+      {/* KPI 카드 */}
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        <KpiCard label="전체 이수율" value={kpiLoading ? '…' : `${kpi?.completionRate ?? 0}%`} hint={kpi ? `${kpi.seriesCompletionCount}건 완주 / ${kpi.seriesCount}개 시리즈` : ''} />
+        <KpiCard label="미시청자" value={kpiLoading ? '…' : `${kpi?.notStarted ?? 0}명`} hint="시청 진도 기록 없음" tone="warning" />
+        <KpiCard label="시험 대기" value={kpiLoading ? '…' : `${kpi?.examPending ?? 0}건`} hint="after100 강의 시청 완료 + 시험 미응시·미합격" tone="warning" />
+        <KpiCard label="발급 가능" value={kpiLoading ? '…' : `${kpi?.eligibleCount ?? 0}명`} hint="시리즈 완주, 이수증 미발급" tone="accent" />
+      </section>
 
-      {/* Page tabs */}
-      <div className="bg-white border-b border-[#e2e8f0] flex px-5 shrink-0">
-        {(['view','exam'] as TabId[]).map((t) => (
-          <button key={t} onClick={() => handleTab(t)}
-            className="py-2.5 px-4 text-[13px] border-b-2 transition-colors -mb-px"
-            style={tab === t ? { color: '#a78bfa', borderColor: '#a78bfa', fontWeight: 600 } : { color: '#6b7280', borderColor: 'transparent' }}>
-            {t === 'view' ? '시청 현황' : '시험 응시 현황'}
-          </button>
-        ))}
-      </div>
+      {/* 좌우 패널 */}
+      <section style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+        {/* 위험 학생 패널 */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          <header style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1e1b2e' }}>개입 대상 (위험 학생)</h2>
+              <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>선택 후 카카오/인앱 알림 발송</p>
+            </div>
+            <button
+              onClick={sendNotifications}
+              disabled={sending || selectedRisk.size === 0}
+              style={{
+                padding: '8px 14px',
+                background: sending || selectedRisk.size === 0 ? '#cbd5e1' : '#5B4FBE',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 8,
+                border: 'none',
+                cursor: sending || selectedRisk.size === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {sending ? '발송 중…' : `선택 ${selectedRisk.size}명에게 알림 발송`}
+            </button>
+          </header>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3.5">
-        {/* Filter */}
-        <div className="flex items-center gap-2.5">
-          <select className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none">
-            <option>초등수학 기초 1강</option>
-            <option>초등수학 기초 2강</option>
-            <option>영어 파닉스 1강</option>
-          </select>
-          <select className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none">
-            <option>전체 반</option>
-            <option>초등수학 기초반</option>
-          </select>
-          {tab === 'view' && (
-            <select className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none">
-              <option>전체 상태</option>
-              <option>완료</option>
-              <option>시청 중</option>
-              <option>미시청</option>
-            </select>
-          )}
-          <input type="text" placeholder="학생 이름 검색" className="text-[12.5px] px-2.5 py-1.5 border border-[#e2e8f0] rounded-[8px] bg-white text-[#374151] outline-none w-40" />
-        </div>
+          {/* 필터 */}
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(['all', 'not_started', 'in_progress', 'exam_pending', 'failed'] as const).map((f) => {
+              const active = atRiskFilter === f;
+              const labels: Record<typeof f, string> = { all: '전체', not_started: '미시청', in_progress: '시청 중', exam_pending: '시험 대기', failed: '불합격' };
+              return (
+                <button
+                  key={f}
+                  onClick={() => { setAtRiskFilter(f); setSelectedRisk(new Set()); }}
+                  style={{
+                    padding: '4px 10px',
+                    background: active ? '#5B4FBE' : '#fff',
+                    color: active ? '#fff' : '#6b7280',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    borderRadius: 999,
+                    border: `1px solid ${active ? '#5B4FBE' : '#e5e7eb'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {labels[f]}
+                </button>
+              );
+            })}
+          </div>
 
-        {/* KPI */}
-        <div className="grid grid-cols-4 gap-3">
-          {tab === 'view' ? (
-            <>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">전체 수강생</p><p className="text-[22px] font-bold text-[#1a2535]">14명</p></div>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">시청 완료</p><p className="text-[22px] font-bold" style={{ color: '#534AB7' }}>8명</p></div>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">시청 중</p><p className="text-[22px] font-bold" style={{ color: '#f59e0b' }}>4명</p></div>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">미시청</p><p className="text-[22px] font-bold" style={{ color: '#991b1b' }}>2명</p></div>
-            </>
-          ) : (
-            <>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">응시 가능 학생</p><p className="text-[22px] font-bold text-[#1a2535]">8명</p></div>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">응시 완료</p><p className="text-[22px] font-bold" style={{ color: '#534AB7' }}>6명</p></div>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">합격</p><p className="text-[22px] font-bold" style={{ color: '#065f46' }}>4명</p></div>
-              <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3.5"><p className="text-[11px] text-[#6b7280] mb-1.5">평균 점수</p><p className="text-[22px] font-bold text-[#1a2535]">76.2점</p></div>
-            </>
-          )}
-        </div>
-
-        {/* Table */}
-        {tab === 'view' ? (
-          <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#1a2535]">초등수학 기초 1강 — 학생별 시청 현황</div>
-            <table className="w-full border-collapse">
-              <thead>
+          {/* 테이블 */}
+          <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 12 }}>
+              <thead style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
                 <tr>
-                  {['학생명','시청 진도','마지막 시청','총 시청 횟수','상태'].map((h) => (
-                    <th key={h} className="py-2.5 px-3.5 bg-[#f9fafb] text-[11.5px] font-semibold text-[#6b7280] text-left border-b border-[#e2e8f0]">{h}</th>
-                  ))}
+                  <th style={{ padding: '8px 12px', textAlign: 'left', width: 40 }}>
+                    <input
+                      type="checkbox"
+                      checked={atRisk.length > 0 && selectedRisk.size === atRisk.length}
+                      onChange={toggleAllRisk}
+                    />
+                  </th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: 600 }}>학생</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: 600 }}>강의 (시리즈)</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>진도</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: 600 }}>상태</th>
                 </tr>
               </thead>
               <tbody>
-                {VIEW_ROWS.map((r, i) => {
-                  const badge = statusBadge(r.status);
+                {atRiskLoading ? (
+                  <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#6b7280' }}>로딩 중…</td></tr>
+                ) : atRisk.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#6b7280' }}>해당 조건의 학생이 없습니다.</td></tr>
+                ) : atRisk.map((r) => {
+                  const sb = STATUS_LABEL[r.status];
                   return (
-                    <tr key={i} className="hover:bg-[#fafafa]">
-                      <td className="py-2.5 px-3.5 text-[12.5px] border-b border-[#f1f5f9]">
-                        <span className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold mr-2" style={{ background: r.avBg, color: r.avColor }}>{r.av}</span>
-                        {r.name}
+                    <tr key={r.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '8px 12px' }}>
+                        <input type="checkbox" checked={selectedRisk.has(r.id)} onChange={() => toggleRisk(r.id)} />
                       </td>
-                      <td className="py-2.5 px-3.5 border-b border-[#f1f5f9]">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-[#e2e8f0] rounded-full overflow-hidden max-w-[100px]">
-                            <div className="h-full rounded-full" style={{ width: `${r.prog}%`, background: progColor(r.prog) }} />
-                          </div>
-                          <span className="text-[12px] font-semibold" style={{ color: progTextColor(r.prog) }}>{r.prog}%</span>
-                        </div>
+                      <td style={{ padding: '8px 12px', color: '#111827', fontWeight: 600 }}>{r.studentName}</td>
+                      <td style={{ padding: '8px 12px', color: '#374151' }}>
+                        {r.lectureTitle}
+                        {r.seriesTitle && <span style={{ marginLeft: 6, color: '#9ca3af', fontSize: 10 }}>· {r.seriesTitle}</span>}
                       </td>
-                      <td className="py-2.5 px-3.5 text-[11.5px] text-[#6b7280] border-b border-[#f1f5f9]">{r.lastDate}</td>
-                      <td className="py-2.5 px-3.5 text-[12.5px] text-[#6b7280] text-center border-b border-[#f1f5f9]">{r.cnt}</td>
-                      <td className="py-2.5 px-3.5 border-b border-[#f1f5f9]">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: badge.bg, color: badge.color }}>{r.status}</span>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#6b7280' }}>{r.progressPct}%</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{ padding: '2px 8px', borderRadius: 999, background: sb.bg, color: sb.color, fontSize: 11, fontWeight: 600 }}>
+                          {sb.label}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -179,64 +333,89 @@ function PageContent() {
               </tbody>
             </table>
           </div>
-        ) : (
-          <div className="bg-white border border-[#e2e8f0] rounded-[10px] overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#1a2535] flex items-center justify-between">
-              점수 분포 <span className="text-[12px] font-normal text-[#9ca3af]">합격 기준 70점</span>
+        </div>
+
+        {/* 발급 가능자 패널 */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+          <header style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#1e1b2e' }}>이수증 발급 대기</h2>
+              <p style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>시리즈 완주, 미발급</p>
             </div>
-            {/* Score distribution bar */}
-            <div className="flex items-end gap-1.5 px-4 py-4 h-24 border-b border-[#f1f5f9]">
-              {SCORE_DIST.map((s) => (
-                <div key={s.range} className="flex flex-col items-center flex-1">
-                  <span className="text-[10px] font-semibold mb-1" style={{ color: s.hi ? '#534AB7' : '#9ca3af' }}>{s.cnt}</span>
-                  <div className="w-full rounded-t" style={{ height: s.h, background: s.hi ? '#a78bfa' : '#EEEDFE' }} />
-                  <span className="text-[10px] text-[#9ca3af] mt-1">{s.range}</span>
-                </div>
-              ))}
-            </div>
-            <table className="w-full border-collapse">
-              <thead>
+            <button
+              onClick={issueCertificates}
+              disabled={issuing || selectedEligible.size === 0}
+              style={{
+                padding: '8px 14px',
+                background: issuing || selectedEligible.size === 0 ? '#cbd5e1' : '#5B4FBE',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 8,
+                border: 'none',
+                cursor: issuing || selectedEligible.size === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {issuing ? '발급 중…' : `선택 ${selectedEligible.size}건 일괄 발급`}
+            </button>
+          </header>
+          <div style={{ maxHeight: 540, overflowY: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 12 }}>
+              <thead style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
                 <tr>
-                  {['학생명','응시 횟수','최고 점수','최근 점수','결과','비고'].map((h) => (
-                    <th key={h} className="py-2.5 px-3.5 bg-[#f9fafb] text-[11.5px] font-semibold text-[#6b7280] text-left border-b border-[#e2e8f0]">{h}</th>
-                  ))}
+                  <th style={{ padding: '8px 12px', textAlign: 'left', width: 40 }}>
+                    <input
+                      type="checkbox"
+                      checked={eligible.length > 0 && selectedEligible.size === eligible.length}
+                      onChange={toggleAllEligible}
+                    />
+                  </th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: 600 }}>학생</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: 600 }}>시리즈</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>점수</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: 600 }}>완주일</th>
                 </tr>
               </thead>
               <tbody>
-                {EXAM_ROWS.map((r, i) => {
-                  const badge = resultBadge(r.result);
-                  return (
-                    <tr key={i} className="hover:bg-[#fafafa]">
-                      <td className="py-2.5 px-3.5 text-[12.5px] border-b border-[#f1f5f9]">
-                        <span className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold mr-2" style={{ background: r.avBg, color: r.avColor }}>{r.av}</span>
-                        {r.name}
-                      </td>
-                      <td className="py-2.5 px-3.5 text-[12.5px] text-[#6b7280] text-center border-b border-[#f1f5f9]" style={r.result === '불합격' ? { color: '#991b1b', fontWeight: 600 } : {}}>{r.tries}</td>
-                      <td className="py-2.5 px-3.5 text-[12.5px] font-bold border-b border-[#f1f5f9]" style={r.result === '불합격' ? { color: '#991b1b' } : { color: '#534AB7' }}>{r.best}</td>
-                      <td className="py-2.5 px-3.5 text-[12.5px] text-[#6b7280] border-b border-[#f1f5f9]">{r.last}</td>
-                      <td className="py-2.5 px-3.5 border-b border-[#f1f5f9]">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: badge.bg, color: badge.color }}>{r.result}</span>
-                      </td>
-                      <td className="py-2.5 px-3.5 text-[11.5px] border-b border-[#f1f5f9]"
-                        style={r.note !== '-' ? { color: '#a78bfa', cursor: 'pointer' } : { color: '#9ca3af' }}>
-                        {r.note}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {eligibleLoading ? (
+                  <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#6b7280' }}>로딩 중…</td></tr>
+                ) : eligible.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#6b7280' }}>발급 대기자가 없습니다.</td></tr>
+                ) : eligible.map((r) => (
+                  <tr key={r.seriesCompletionId} style={{ borderTop: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedEligible.has(r.seriesCompletionId)}
+                        onChange={() => toggleEligible(r.seriesCompletionId)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 12px', color: '#111827', fontWeight: 600 }}>{r.studentName}</td>
+                    <td style={{ padding: '8px 12px', color: '#374151' }}>{r.seriesTitle}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#534AB7', fontWeight: 600 }}>
+                      {r.scoreSnapshot != null ? `${r.scoreSnapshot}점` : '-'}
+                    </td>
+                    <td style={{ padding: '8px 12px', color: '#6b7280' }}>
+                      {new Date(r.completedAt).toLocaleDateString('ko-KR')}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
 
-export default function CompletionPage() {
+function KpiCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'warning' | 'accent' }) {
+  const valueColor = tone === 'warning' ? '#92400e' : tone === 'accent' ? '#5B4FBE' : '#1e1b2e';
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[#9ca3af]">로딩 중...</div>}>
-      <PageContent />
-    </Suspense>
+    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16 }}>
+      <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, marginBottom: 8 }}>{label}</p>
+      <p style={{ fontSize: 22, color: valueColor, fontWeight: 700, marginBottom: 4 }}>{value}</p>
+      {hint && <p style={{ fontSize: 10, color: '#9ca3af' }}>{hint}</p>}
+    </div>
   );
 }

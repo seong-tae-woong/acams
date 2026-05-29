@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
         questions: {
           include: { options: { select: { id: true, isCorrect: true } } },
         },
+        lecture: { select: { seriesId: true } },
       },
     });
     if (!quiz || quiz.questions.length === 0) {
@@ -126,6 +127,16 @@ export async function POST(req: NextRequest) {
 
     const triesRemaining = Math.max(0, quiz.maxTries - (attemptCount + 1));
     log('attempt', { studentId, lectureId, quizId: quiz.id, score: scorePct, isPassed, attemptNo: attemptCount + 1, triesRemaining, usedRetryPerm: !!usedRetryPerm });
+
+    // 시험 통과 시 시리즈 완주 stamp trigger (try/catch로 응답 흐름 보호)
+    if (isPassed && quiz.lecture?.seriesId) {
+      try {
+        const { checkAndStampSeriesCompletion } = await import('@/lib/ingang/completion');
+        await checkAndStampSeriesCompletion(prisma, academyId, studentId, quiz.lecture.seriesId);
+      } catch (err) {
+        console.error('[quiz/submit] series completion stamp failed:', err instanceof Error ? err.message : String(err));
+      }
+    }
 
     return NextResponse.json({
       attemptId: attempt.id,

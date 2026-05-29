@@ -14,13 +14,11 @@ const NAV = [
     ],
   },
   {
-    group: '이수 관리 (준비 중)',
+    group: '이수 관리',
     items: [
-      { label: '시청 현황',      href: '/ingang/completion' },
-      { label: '시험 응시 현황',  href: '/ingang/completion', tab: 'exam' },
-      { label: '이수율 통계',    href: '/ingang/completion/stats' },
-      { label: '미이수 알림 발송', href: '/ingang/completion/notifications' },
-      { label: '이수증 발급',    href: '/ingang/completion/notifications', tab: 'cert' },
+      { label: '이수관리 홈',  href: '/ingang/completion' },
+      { label: '학생 진도',    href: '/ingang/completion/students' },
+      { label: '강의 분석',    href: '/ingang/completion/lectures' },
     ],
   },
   {
@@ -32,10 +30,7 @@ const NAV = [
 ] as const;
 
 // Tab-aware pages — active only when no tab present
-const TAB_PAGES = [
-  '/ingang/completion',
-  '/ingang/completion/notifications',
-];
+const TAB_PAGES: string[] = [];
 
 function DailyCodeWidget() {
   const [code, setCode]         = useState<string | null>(null);

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     // 강의 + durationSec
     const lecture = await prisma.lecture.findFirst({
       where: { id: lectureId, academyId },
-      select: { cfVideoId: true, durationSec: true, quiz: { select: { passWatchPct: true, examCond: true } } },
+      select: { cfVideoId: true, durationSec: true, seriesId: true, quiz: { select: { passWatchPct: true, examCond: true } } },
     });
     if (!lecture) {
       return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
@@ -145,7 +145,18 @@ export async function POST(req: NextRequest) {
           where: { id: created.id, completedAt: null },
           data: { completedAt: new Date() },
         });
-        if (set.count > 0) completedAt = new Date();
+        if (set.count > 0) {
+          completedAt = new Date();
+          // 시리즈 완주 stamp trigger (try/catch로 응답 흐름 보호)
+          if (lecture.seriesId) {
+            try {
+              const { checkAndStampSeriesCompletion } = await import('@/lib/ingang/completion');
+              await checkAndStampSeriesCompletion(prisma, academyId, studentId, lecture.seriesId);
+            } catch (err) {
+              console.error('[progress] series completion stamp failed:', err instanceof Error ? err.message : String(err));
+            }
+          }
+        }
       }
       log('created', { studentId, lectureId, pct, completedAt: !!completedAt });
       return NextResponse.json({ watchedSeconds: created.watchedSeconds, pct, completed: !!completedAt });
@@ -183,6 +194,7 @@ export async function POST(req: NextRequest) {
     const examCondAfter = lecture.quiz?.examCond === 'after100';
 
     let completed = !!prior.completedAt;
+    let justCompletedNow = false;
     if (!completed && examCondAfter && pct >= threshold) {
       const set = await prisma.lectureWatchProgress.updateMany({
         where: { id: prior.id, completedAt: null },
@@ -190,7 +202,18 @@ export async function POST(req: NextRequest) {
       });
       if (set.count > 0) {
         completed = true;
+        justCompletedNow = true;
         log('completed', { studentId, lectureId, pct, threshold });
+      }
+    }
+
+    // 시리즈 완주 stamp trigger (방금 강의 이수 시점에만 + try/catch로 응답 보호)
+    if (justCompletedNow && lecture.seriesId) {
+      try {
+        const { checkAndStampSeriesCompletion } = await import('@/lib/ingang/completion');
+        await checkAndStampSeriesCompletion(prisma, academyId, studentId, lecture.seriesId);
+      } catch (err) {
+        console.error('[progress] series completion stamp failed:', err instanceof Error ? err.message : String(err));
       }
     }
 

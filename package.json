@@ -5,14 +5,18 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/check-env.mjs && prisma generate && next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@fontsource/noto-sans-kr": "^5.2.9",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@tosspayments/tosspayments-sdk": "^2.7.0",
     "@vercel/blob": "^2.3.3",
     "bcryptjs": "^3.0.3",
@@ -44,9 +48,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
+    "@vitest/ui": "^4.1.7",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.7"
   }
 }
