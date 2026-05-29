@@ -72,7 +72,7 @@ export default function TabletTab() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-xl">
+    <div className="space-y-4 max-w-xl">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[13px] font-semibold text-[#111827]">인강 태블릿 계정</p>

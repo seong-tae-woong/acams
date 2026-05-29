@@ -32,52 +32,53 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <Topbar title="계정 관리" />
-      {loading ? <LoadingSpinner /> : <div className="flex flex-1 overflow-hidden">
-        {/* 좌측: 탭 + 강사 목록 */}
-        <div className="w-52 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col">
-          <div className="flex flex-wrap border-b border-[#e2e8f0]">
-            {([
-              { key: 'teachers', label: '강사 계정' },
-              { key: 'academy',  label: '학원 정보' },
-              { key: 'profile',  label: '공개 페이지' },
-              { key: 'tablet',   label: '태블릿' },
-            ] as const).map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={clsx(
-                  'flex-1 py-3 text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap',
-                  activeTab === key ? 'border-b-2 border-[#4fc3a1] text-[#111827]' : 'text-[#6b7280] hover:text-[#374151]',
-                )}
-              >
-                {label}
-              </button>
-            ))}
+      <Topbar title="설정" />
+      {loading ? <LoadingSpinner /> : <div className="flex flex-col flex-1 overflow-hidden">
+        {/* 상단 가로 탭바 */}
+        <div className="flex gap-1 px-5 pt-3 border-b border-[#e2e8f0] bg-white shrink-0">
+          {([
+            { key: 'teachers', label: '강사 계정' },
+            { key: 'academy',  label: '학원 정보' },
+            { key: 'profile',  label: '공개 페이지' },
+            { key: 'tablet',   label: '태블릿' },
+          ] as const).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={clsx(
+                'px-4 py-2.5 -mb-px text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap border-b-2',
+                activeTab === key
+                  ? 'border-[#4fc3a1] text-[#111827]'
+                  : 'border-transparent text-[#6b7280] hover:text-[#374151]',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* 콘텐츠 */}
+        {activeTab === 'teachers' ? (
+          <div className="flex flex-1 overflow-hidden">
+            {/* 강사 목록 (강사 계정 탭 전용 좌측 패널) */}
+            <div className="w-56 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col">
+              <TeachersList
+                selectedId={selectedId}
+                setSelectedId={setSelectedId}
+                openRegister={() => setRegisterOpen(true)}
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <TeachersTab selectedId={selectedId} registerOpen={registerOpen} setRegisterOpen={setRegisterOpen} />
+            </div>
           </div>
-
-          {activeTab === 'teachers' && (
-            <TeachersList
-              selectedId={selectedId}
-              setSelectedId={setSelectedId}
-              openRegister={() => setRegisterOpen(true)}
-            />
-          )}
-        </div>
-
-        {/* 우측: 상세 */}
-        <div className="flex-1 overflow-y-auto p-5">
-          {activeTab === 'teachers' && (
-            <TeachersTab selectedId={selectedId} registerOpen={registerOpen} setRegisterOpen={setRegisterOpen} />
-          )}
-
-          {activeTab === 'academy' && <AcademyTab />}
-
-          {/* ── 태블릿 계정 관리 탭 ──────────────────────────── */}
-          {activeTab === 'tablet' && <TabletTab />}
-
-          {activeTab === 'profile' && <ProfileTab />}
-        </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-5">
+            {activeTab === 'academy' && <AcademyTab />}
+            {activeTab === 'profile' && <ProfileTab />}
+            {activeTab === 'tablet' && <TabletTab />}
+          </div>
+        )}
       </div>}
     </div>
   );

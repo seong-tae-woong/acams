@@ -61,9 +61,9 @@ const NAV: NavSection[] = [
     ],
   },
   {
-    label: '설정',
+    label: '',
     items: [
-      { href: '/settings', label: '계정 관리', icon: Settings },
+      { href: '/settings', label: '설정', icon: Settings },
     ],
   },
 ];
@@ -84,10 +84,12 @@ export default function Sidebar() {
     >
       <div className="flex-1 py-3">
         {NAV.map((section) => (
-          <div key={section.label} className="mb-1">
-            <div className="px-4 py-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">
-              {section.label}
-            </div>
+          <div key={section.label || section.items[0]?.href} className="mb-1">
+            {section.label && (
+              <div className="px-4 py-2 text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                {section.label}
+              </div>
+            )}
             {section.items.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
