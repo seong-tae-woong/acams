@@ -56,11 +56,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '이 학원 소속 학생이 아닙니다.' }, { status: 403 });
   }
 
-  const now = new Date();
-  const todayDow = now.getDay() || 7; // 1=월 ... 7=일
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const checkInTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  // 시간은 모두 KST 기준으로 계산한다. 서버(Vercel)는 UTC라 now.getHours() 등을
+  // 그대로 쓰면 수업 시간(KST 'HH:mm')·요일·날짜가 최대 9시간 어긋나고,
+  // 저장 date도 cron의 KST 날짜 키와 불일치한다.
+  const nowUtc = new Date();
+  const kst = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000); // getUTC*로 읽으면 KST 벽시계 값
+  const todayDow = kst.getUTCDay() || 7; // 1=월 ... 7=일
+  const todayStr = `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}`;
+  const nowMinutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  const checkInTime = `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
 
   // 출석 체크 가능 시간: 수업 시작 30분 전 ~ 시작 후 30분
   // 출석: 시작 30분 전 ~ 시작 후 10분 / 지각: 시작 후 10분 ~ 30분
@@ -121,7 +125,7 @@ export async function POST(req: NextRequest) {
       date: dateObj,
       status,
       checkInTime,
-      checkedAt: now,
+      checkedAt: nowUtc,
     },
   });
 
