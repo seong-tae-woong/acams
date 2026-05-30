@@ -100,19 +100,21 @@ export async function GET(req: NextRequest) {
       const enrolledIds = sched.class.enrollments.map((e) => e.studentId);
       if (enrolledIds.length === 0) continue;
 
-      // PRESENT 기록된 학생 제외 (LATE/ABSENT/EARLY_LEAVE는 임계값 윈도우 시점에는 의미 없음 — 단,
-      // 강사가 미리 결석으로 찍은 경우에도 시간 기반 정책상 그대로 알림을 보낸다)
-      const presentRecords = await prisma.attendanceRecord.findMany({
+      // 등원이 확인된 학생(출석/지각/조퇴)은 자동 알림 대상에서 제외한다.
+      // 지각/조퇴로 수동 처리된 학생은 교실에 있는데도 PRESENT가 아니므로,
+      // PRESENT만 거르면 결석 알림이 학부모에게 잘못 발송된다.
+      // 강사가 수동으로 ABSENT로 찍은 경우는 시간 기반 정책상 그대로 발송한다.
+      const attendedRecords = await prisma.attendanceRecord.findMany({
         where: {
           classId,
           date: midnightUtc,
           studentId: { in: enrolledIds },
-          status: AttendanceStatus.PRESENT,
+          status: { in: [AttendanceStatus.PRESENT, AttendanceStatus.LATE, AttendanceStatus.EARLY_LEAVE] },
         },
         select: { studentId: true },
       });
-      const presentSet = new Set(presentRecords.map((r) => r.studentId));
-      const candidates = enrolledIds.filter((sid) => !presentSet.has(sid));
+      const attendedSet = new Set(attendedRecords.map((r) => r.studentId));
+      const candidates = enrolledIds.filter((sid) => !attendedSet.has(sid));
       if (candidates.length === 0) continue;
       stats.studentsTargeted += candidates.length;
 
