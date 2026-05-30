@@ -27,11 +27,13 @@ export function toKstParts(nowUtc: Date): {
   const minute = kst.getUTCMinutes();
   const totalMinutes = hour * 60 + minute;
 
-  // KST 자정 = 같은 날짜의 00:00 KST = 그 UTC 시각 - 9시간
-  const kstMidnight = new Date(Date.UTC(
+  // 출결 저장 컨벤션: AttendanceRecord.date = new Date('YYYY-MM-DD')
+  //   = 'KST 달력 날짜'의 UTC 자정 (admin attendance/route.ts, kiosk check-in 모두 동일).
+  // 따라서 cron의 출석 조회 키도 'KST 달력 날짜의 UTC 자정'이어야 매칭된다.
+  // 여기서 오프셋을 빼면 9시간 어긋나 출석한 학생도 결석 대상이 되므로 빼지 않는다.
+  const midnightUtc = new Date(Date.UTC(
     kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), 0, 0, 0, 0
   ));
-  const midnightUtc = new Date(kstMidnight.getTime() - KST_OFFSET_MIN * 60 * 1000);
 
   return { dayOfWeek, totalMinutes, midnightUtc };
 }

@@ -78,7 +78,8 @@ describe('toKstParts', () => {
     // 2026-05-29는 금요일 → dayOfWeek=5
     expect(dayOfWeek).toBe(5);
     expect(totalMinutes).toBe(0);
-    expect(midnightUtc.toISOString()).toBe('2026-05-28T15:00:00.000Z');
+    // midnightUtc는 'KST 달력 날짜(2026-05-29)의 UTC 자정' — 출결 저장 컨벤션과 일치해야 함
+    expect(midnightUtc.toISOString()).toBe('2026-05-29T00:00:00.000Z');
   });
 
   it('일요일 변환: jsDay 0 → AcaMS dayOfWeek 7', () => {
@@ -102,7 +103,25 @@ describe('toKstParts', () => {
     const utc = new Date('2026-05-29T14:59:00.000Z');
     const { totalMinutes, midnightUtc } = toKstParts(utc);
     expect(totalMinutes).toBe(23 * 60 + 59);
-    // 같은 KST 날짜의 자정 = 2026-05-29 00:00 KST = 2026-05-28 15:00 UTC
-    expect(midnightUtc.toISOString()).toBe('2026-05-28T15:00:00.000Z');
+    // KST 달력 날짜(2026-05-29)의 UTC 자정
+    expect(midnightUtc.toISOString()).toBe('2026-05-29T00:00:00.000Z');
+  });
+
+  // Regression: 출석한 학생에게도 거짓 결석 알림 — 날짜 키가 저장 컨벤션과 9시간 어긋남
+  // Found by /qa on 2026-05-30
+  // 출결 저장은 new Date('YYYY-MM-DD') = KST 달력 날짜의 UTC 자정. cron 조회 키도 같아야 매칭됨.
+  it('midnightUtc가 출결 저장 컨벤션(new Date(YYYY-MM-DD))과 정확히 일치한다', () => {
+    // 저녁 수업 시간대(20:00 KST = 11:00 UTC)에 cron이 도는 전형적 상황
+    const utc = new Date('2026-05-29T11:00:00.000Z'); // 2026-05-29 20:00 KST
+    const { midnightUtc } = toKstParts(utc);
+    // 관리자/키오스크가 저장하는 값과 동일해야 PRESENT 제외가 동작한다
+    expect(midnightUtc.getTime()).toBe(new Date('2026-05-29').getTime());
+  });
+
+  it('KST 날짜가 UTC 날짜보다 하루 앞서는 늦은 밤에도 KST 날짜 기준', () => {
+    // 2026-05-30 00:30 KST = 2026-05-29 15:30 UTC → KST 달력 날짜는 05-30
+    const utc = new Date('2026-05-29T15:30:00.000Z');
+    const { midnightUtc } = toKstParts(utc);
+    expect(midnightUtc.getTime()).toBe(new Date('2026-05-30').getTime());
   });
 });
