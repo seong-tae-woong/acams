@@ -8,6 +8,7 @@
 // 흐름:
 //   1. KST 기준 현재 요일/시각 계산
 //   2. 자동 알림 활성화된 학원의 오늘 요일 ClassSchedule 모두 조회
+//   2.5. 오늘이 휴원일(CLOSED_DAY)인 학원의 수업은 제외 (쉬는 날 결석 알림 방지)
 //   3. 임계값 윈도우(LATE 또는 ABSENT)에 진입한 수업만 필터
 //   4. 해당 수업의 활성 수강생 중 PRESENT 기록 없는 학생 = 알림 대상
 //   5. AttendanceNotificationLog INSERT (UNIQUE 충돌 = 이미 보냄, skip)
@@ -32,6 +33,7 @@ const WINDOW_GRACE_MIN = 20;
 
 type CronStats = {
   schedulesScanned: number;
+  schedulesSkippedClosed: number;
   windowsHit: number;
   studentsTargeted: number;
   alertsSent: number;
@@ -48,6 +50,7 @@ export async function GET(req: NextRequest) {
 
   const stats: CronStats = {
     schedulesScanned: 0,
+    schedulesSkippedClosed: 0,
     windowsHit: 0,
     studentsTargeted: 0,
     alertsSent: 0,
@@ -89,7 +92,24 @@ export async function GET(req: NextRequest) {
 
     stats.schedulesScanned = schedules.length;
 
+    // 휴원일(CLOSED_DAY) 자동 제외 — 학원이 오늘 쉬면 결석/지각 알림을 보내지 않는다.
+    // CalendarEvent.date는 'KST 달력 날짜'의 UTC 자정으로 저장되므로(calendar POST, makeup 제외 로직과 동일)
+    // cron의 midnightUtc와 직접 비교할 수 있다. 휴원일은 학원 단위로 처리한다(makeup 보강 슬롯 제외와 일관).
+    const academyIds = [...new Set(schedules.map((s) => s.class.academyId))];
+    const closedEvents = academyIds.length
+      ? await prisma.calendarEvent.findMany({
+          where: { academyId: { in: academyIds }, type: 'CLOSED_DAY', date: midnightUtc },
+          select: { academyId: true },
+        })
+      : [];
+    const closedAcademies = new Set(closedEvents.map((e) => e.academyId));
+
     for (const sched of schedules) {
+      if (closedAcademies.has(sched.class.academyId)) {
+        stats.schedulesSkippedClosed += 1;
+        continue;
+      }
+
       const startMin = parseHHMM(sched.startTime);
       if (startMin === null) continue;
 
