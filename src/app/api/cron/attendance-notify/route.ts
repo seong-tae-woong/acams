@@ -118,52 +118,29 @@ export async function GET(req: NextRequest) {
       if (candidates.length === 0) continue;
       stats.studentsTargeted += candidates.length;
 
-      // 중복 발송 방지: INSERT 시도 → UNIQUE 충돌(P2002)이면 이미 보냄
-      const freshIds: string[] = [];
-      for (const studentId of candidates) {
-        try {
-          await prisma.attendanceNotificationLog.create({
-            data: { academyId, classId, studentId, date: midnightUtc, kind },
-          });
-          freshIds.push(studentId);
-        } catch (err: unknown) {
-          // P2002 = unique constraint violation → 이미 발송됨
-          const code = (err as { code?: string })?.code;
-          if (code === 'P2002') {
-            stats.alertsSkipped += 1;
-            continue;
-          }
-          console.warn('[cron/attendance-notify] log insert error:', err);
-        }
-      }
-      if (freshIds.length === 0) continue;
-
-      // 템플릿 + 학생/학부모 정보 한 번에 로드
+      // 템플릿을 먼저 확인한다 — 없으면 dedup 로그를 소비하지 않고 건너뛴다.
+      // (로그를 먼저 박으면 시드 후에도 다음 cron에서 영영 재시도되지 않으므로)
       const tplCode = kind === 'LATE' ? 'ATTENDANCE_LATE_AUTO' : 'ATTENDANCE_ABSENT_AUTO';
-      const [tpl, students] = await Promise.all([
-        prisma.notificationTemplate.findUnique({
-          where: { academyId_code: { academyId, code: tplCode } },
-        }),
-        prisma.student.findMany({
-          where: { id: { in: freshIds } },
-          select: {
-            id: true,
-            name: true,
-            parentLinks: {
-              select: {
-                parent: { select: { userId: true } },
-              },
-            },
-          },
-        }),
-      ]);
-
+      const tpl = await prisma.notificationTemplate.findUnique({
+        where: { academyId_code: { academyId, code: tplCode } },
+      });
       if (!tpl) {
         console.warn(`[cron/attendance-notify] missing template ${tplCode} for academy ${academyId}`);
-        // 시드 없으면 발송 못 함 — log는 이미 들어갔으므로 다음 cron에서 retry 안 됨.
-        // 운영 케이스로 alerting 필요시 audit log 추가 고려.
         continue;
       }
+
+      const students = await prisma.student.findMany({
+        where: { id: { in: candidates } },
+        select: {
+          id: true,
+          name: true,
+          parentLinks: {
+            select: {
+              parent: { select: { userId: true } },
+            },
+          },
+        },
+      });
 
       const classTime = `${sched.startTime} - ${sched.endTime}`;
       const thresholdMin = kind === 'LATE' ? lateMin : absentMin;
@@ -178,19 +155,36 @@ export async function GET(req: NextRequest) {
         const title = renderTemplate(tpl.title, vars);
         const content = renderTemplate(tpl.content, vars);
 
-        // PWA 알림 페이지에 보이도록 Notification + NotificationRecipient 생성
-        await prisma.notification.create({
-          data: {
-            academyId,
-            type: 'ATTENDANCE_ALERT',
-            title,
-            content,
-            sentById: '', // system 발송 (빈 문자열은 기존 컨벤션 유지)
-            recipients: { create: { studentId: s.id } },
-          },
-        });
+        // dedup 로그 + in-app 알림을 한 트랜잭션으로 묶는다.
+        // - 로그 INSERT가 UNIQUE 충돌(P2002)이면 이미 발송됨 → skip
+        // - 알림 생성이 실패하면 로그도 함께 롤백되어 다음 cron에서 재시도된다(영구 누락 방지)
+        try {
+          await prisma.$transaction(async (tx) => {
+            await tx.attendanceNotificationLog.create({
+              data: { academyId, classId, studentId: s.id, date: midnightUtc, kind },
+            });
+            await tx.notification.create({
+              data: {
+                academyId,
+                type: 'ATTENDANCE_ALERT',
+                title,
+                content,
+                sentById: '', // system 발송 (빈 문자열은 기존 컨벤션 유지)
+                recipients: { create: { studentId: s.id } },
+              },
+            });
+          });
+        } catch (err: unknown) {
+          const code = (err as { code?: string })?.code;
+          if (code === 'P2002') {
+            stats.alertsSkipped += 1;
+            continue;
+          }
+          console.warn('[cron/attendance-notify] notify tx error:', err);
+          continue;
+        }
 
-        // Web Push: 학부모 userId만 (학생 본인 제외)
+        // Web Push는 best-effort — 실패해도 in-app 알림은 이미 저장됨(재발송 안 함).
         const parentUserIds = s.parentLinks
           .map((l) => l.parent.userId)
           .filter((v): v is string => Boolean(v));
