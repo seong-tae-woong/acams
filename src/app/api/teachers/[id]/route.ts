@@ -40,6 +40,14 @@ export async function PATCH(
       include: { classes: { select: { classId: true } } },
     });
 
+    // 권한 변경 시 연결된 강사 계정의 tokenVersion 증가 → 기존 토큰 무효화(재로그인 후 새 권한 반영)
+    if (permissions !== undefined && existing.userId) {
+      await prisma.user.update({
+        where: { id: existing.userId },
+        data: { tokenVersion: { increment: 1 } },
+      });
+    }
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,

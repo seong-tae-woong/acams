@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import type { TeacherPermissions } from '@/lib/types/teacher';
 
 export interface JwtPayload {
   userId: string;
@@ -7,6 +8,7 @@ export interface JwtPayload {
   name: string;
   tokenVersion: number;
   mustChangePassword: boolean;
+  permissions?: TeacherPermissions;
 }
 
 const SECRET = process.env.JWT_SECRET!;

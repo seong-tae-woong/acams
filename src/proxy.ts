@@ -32,6 +32,70 @@ const PUBLIC_PATHS = [
 // tablet 역할이 접근 가능한 경로
 const TABLET_ALLOWED = ['/ingang-tablet', '/api/ingang-tablet'];
 
+// 강사(role==='teacher') 메뉴 권한 enforce — director/super_admin은 제외, admin 권한이면 전체 통과
+// permKey 'admin'은 admin 권한 보유자만 접근(예: /settings) — admin은 아래 분기에서 이미 전체 통과하므로 사실상 차단
+type PermKey =
+  | 'manageStudents' | 'manageClasses' | 'manageAttendance' | 'manageGrades'
+  | 'manageFinance' | 'manageNotifications' | 'viewReports' | 'admin';
+
+// 경로 접두사 → 필요 권한. 더 구체적인 경로가 먼저 와야 함(앞에서부터 매칭)
+const TEACHER_PAGE_RULES: Array<[string, PermKey]> = [
+  ['/students/lessons', 'manageGrades'],
+  ['/students/attendance', 'manageAttendance'],
+  ['/students/grades', 'manageGrades'],
+  ['/students', 'manageStudents'],
+  ['/classes/attendance', 'manageAttendance'],
+  ['/classes/lessons', 'manageGrades'],
+  ['/classes/makeup', 'manageClasses'],
+  ['/classes', 'manageClasses'],
+  ['/finance', 'manageFinance'],
+  ['/communication', 'manageNotifications'],
+  ['/analytics', 'viewReports'],
+  ['/settings', 'admin'],
+];
+
+const TEACHER_API_RULES: Array<[string, PermKey]> = [
+  ['/api/students', 'manageStudents'],
+  ['/api/attendance', 'manageAttendance'],
+  ['/api/exam-categories', 'manageGrades'],
+  ['/api/exams', 'manageGrades'],
+  ['/api/grades', 'manageGrades'],
+  ['/api/lessons', 'manageGrades'],
+  ['/api/assignments', 'manageGrades'],
+  ['/api/makeup', 'manageClasses'],
+  ['/api/teachers', 'manageClasses'],
+  ['/api/classes', 'manageClasses'],
+  ['/api/finance', 'manageFinance'],
+  ['/api/communication', 'manageNotifications'],
+  ['/api/report-templates', 'viewReports'],
+  ['/api/reports', 'viewReports'],
+  ['/api/analytics', 'viewReports'],
+  ['/api/settings', 'admin'],
+];
+
+function matchPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(prefix + '/');
+}
+
+// 반·학생 목록은 거의 모든 페이지(출결·수업·리포트 등)의 기초 조회 의존성 —
+// GET(읽기)은 모든 강사 허용, 생성/수정/삭제는 위 RULES의 권한대로 차단
+const SHARED_READ_API = ['/api/classes', '/api/students'];
+function isSharedRead(pathname: string, method: string) {
+  return method === 'GET' && SHARED_READ_API.some((p) => matchPrefix(pathname, p));
+}
+
+// 권한 없는 강사가 접근 시 리다이렉트할 첫 허용 페이지 (없으면 항상 접근 가능한 /calendar)
+function firstAllowedPage(perms: Partial<Record<PermKey, boolean>>): string {
+  if (perms.manageStudents) return '/students';
+  if (perms.manageClasses) return '/classes';
+  if (perms.manageAttendance) return '/classes/attendance';
+  if (perms.manageGrades) return '/classes/lessons';
+  if (perms.manageFinance) return '/finance/billing';
+  if (perms.manageNotifications) return '/communication/notifications';
+  if (perms.viewReports) return '/analytics';
+  return '/calendar';
+}
+
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
@@ -64,7 +128,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { userId?: string; role?: string; academyId?: string | null; name?: string; tokenVersion?: number; mustChangePassword?: boolean };
+  let payload: { userId?: string; role?: string; academyId?: string | null; name?: string; tokenVersion?: number; mustChangePassword?: boolean; permissions?: Partial<Record<PermKey, boolean>> };
   try {
     const { payload: p } = await jwtVerify(token, SECRET);
     payload = p as typeof payload;
@@ -137,6 +201,25 @@ export async function proxy(req: NextRequest) {
   // 학부모/학생이 관리자 영역 또는 인강 영역 직접 접근 시 → /mobile
   if ((isAdminPage || pathname.startsWith('/ingang')) && (role === 'parent' || role === 'student')) {
     return NextResponse.redirect(new URL('/mobile', req.url));
+  }
+
+  // 강사 메뉴 권한 enforce — director/super_admin은 전체 접근, teacher만 권한별 제어
+  // admin 권한 강사는 전체 통과. /calendar·/ingang 등 매핑 없는 경로는 기본 허용.
+  if (role === 'teacher') {
+    const perms = payload.permissions ?? {};
+    if (!perms.admin) {
+      const rules = isApi ? TEACHER_API_RULES : TEACHER_PAGE_RULES;
+      const matched = rules.find(([prefix]) => matchPrefix(pathname, prefix));
+      if (matched && !perms[matched[1]] && !(isApi && isSharedRead(pathname, req.method))) {
+        if (isApi) {
+          return new NextResponse(JSON.stringify({ error: '접근 권한이 없습니다.' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return NextResponse.redirect(new URL(firstAllowedPage(perms), req.url));
+      }
+    }
   }
 
   // 하위 컴포넌트에 유저 정보 전달 (헤더 주입)

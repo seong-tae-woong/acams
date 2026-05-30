@@ -9,6 +9,10 @@ export interface CurrentUser {
   role: UserRole;
   academyId: string | null;
   academyName: string;
+  permissions?: Partial<Record<
+    'manageStudents' | 'manageClasses' | 'manageAttendance' | 'manageGrades'
+    | 'manageFinance' | 'manageNotifications' | 'viewReports' | 'admin', boolean
+  >> | null;
 }
 
 interface AuthStore {

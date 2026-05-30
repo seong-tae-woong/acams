@@ -11,20 +11,20 @@
 
 | 도메인 | UI 페이지 (`src/app/`) | API 라우트 (`src/app/api/`) | Store (`src/lib/stores/`) | Type (`src/lib/types/`) | Prisma 모델 |
 |--------|-----------------------|-----------------------------|---------------------------|-------------------------|-------------|
-| 학생 | `(admin)/students/*` (목록·출결·성적·리포트) | `students/`, `students/[id]/`, `students/[id]/reset-password/` | `studentStore.ts` | `student.ts` | Student, Parent, StudentParent, StudentSibling |
+| 학생 | `(admin)/students/*` (목록·출결·수업이력, 상세 모달 탭: 정보/반/출결/성적/수납/상담) | `students/`, `students/[id]/`, `students/[id]/reset-password/` | `studentStore.ts` | `student.ts` | Student, Parent, StudentParent, StudentSibling |
 | 반 | `(admin)/classes/*` (목록·커리큘럼·보강·강사) | `classes/`, `classes/[id]/`, `classes/[id]/curriculum/`, `classes/[id]/textbooks/`, `teachers/`, `teachers/[id]/`, `teachers/[id]/reset-password/`, `makeup/`, `makeup/[id]/` | `classStore.ts`, `teacherStore.ts`, `makeupStore.ts` | `class.ts`, `teacher.ts` | Class, ClassTeacher, ClassEnrollment, ClassSchedule, MakeupClass, MakeupClassTarget, Teacher, CurriculumRow, Textbook |
 | 출결 | `(admin)/classes/attendance`, `(admin)/students/attendance` | `attendance/`, `attendance/[id]/` | `attendanceStore.ts` | `attendance.ts` | AttendanceRecord |
-| 성적 | `(admin)/students/grades` | `exams/`, `exams/[id]/`, `grades/`, `grades/[id]/` | `gradeStore.ts` | `grade.ts` | Exam, GradeRecord |
+| 성적 | `(admin)/students` 상세 모달 성적 탭 (`students/_tabs/GradeTab.tsx`) | `exams/`, `exams/[id]/`, `grades/`, `grades/[id]/` | `gradeStore.ts` | `grade.ts` | Exam, GradeRecord |
 | 재무 | `(admin)/finance/*` (billing·payments·receipts·overdue·settlement) | `finance/bills/`, `finance/bills/[id]/pay/`, `finance/expenses/`, `finance/receipts/` | `financeStore.ts` | `finance.ts` | Bill, Receipt, Expense |
 | 소통 | `(admin)/communication/*` (announcements·consultation·notifications) | `communication/announcements/`, `communication/consultations/`, `communication/consultations/[id]/`, `communication/notifications/`, `communication/inquiries/`, `communication/inquiries/[id]/`, `communication/notification-templates/` | `communicationStore.ts` | `notification.ts` | Notification, NotificationRecipient, NotificationTemplate, ConsultationRecord, Announcement, PublicInquiry |
 | 캘린더 | `(admin)/calendar` | `calendar/`, `calendar/[id]/` (classId 지원) | `calendarStore.ts` | — | CalendarEvent |
 | 통계 | `(admin)/analytics` | `analytics/monthly/` | — | — | (집계 쿼리, 별도 모델 없음) |
-| 인강 | `ingang/*` (lectures·lectures/new·lectures/tags·lectures/targets·exams·completion·completion/stats·completion/notifications) | `lectures/`, `lectures/[id]/`, `lectures/tags/`, `lectures/tags/[id]/`, `lectures/upload-url/`, `lecture-series/`, `lecture-series/[id]/` | — | — | Lecture, LectureTarget, AcademyTag, LectureSeries |
+| 인강 | `ingang/*` (lectures·lectures/new·lectures/tags·lectures/targets·exams·completion·completion/lectures·completion/students) | `lectures/`, `lectures/[id]/`, `lectures/tags/`, `lectures/tags/[id]/`, `lectures/upload-url/`, `lecture-series/`, `lecture-series/[id]/` | — | — | Lecture, LectureTarget, AcademyTag, LectureSeries |
 | 과제 | `(admin)/classes/lessons` | `assignments/`, `assignments/[id]/` | — | — | Assignment |
 | 수업이력 | `(admin)/classes/lessons` | `lessons/comments/`, `lessons/clinic-templates/`, `lessons/clinic-templates/[id]/`, `lessons/clinic-results/` | — | — | LessonComment, ClinicTemplate, ClinicResult |
-| 리포트 | `(admin)/students/grades` | `reports/`, `reports/[id]/`, `reports/publish/`, `reports/publish-periodic/`, `reports/batches/`, `report-templates/`, `report-templates/[id]/` | — | — | Report, ReportTemplate |
+| 리포트 | `(admin)/classes/lessons` (리포트 발행) | `reports/`, `reports/[id]/`, `reports/publish/`, `reports/publish-periodic/`, `reports/batches/`, `report-templates/`, `report-templates/[id]/` | — | — | Report, ReportTemplate |
 | 반 이벤트 | `(admin)/calendar` | `class-events/`, `class-events/[id]/` | — | — | ClassEvent |
-| 모바일 PWA | `mobile/*` (홈·grades·announcements·calendar·attendance·schedule·payments·notifications·profile) | `mobile/me/`, `mobile/children/`, `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/`, `mobile/attendance/`, `mobile/schedule/`, `mobile/notifications/` | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
+| 모바일 PWA | `mobile/*` (홈·grades·announcements·calendar·attendance·schedule·payments·notifications·profile) | `mobile/me/`, `mobile/children/`, `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/`, `mobile/attendance/`, `mobile/makeup/`, `mobile/notifications/`, `mobile/reports/`, `mobile/push/` (schedule 페이지는 `mobile/me` 사용, 별도 API 없음) | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
 | 모바일 결제 | `mobile/payments/*` (목록·success·fail) | `mobile/payments/`, `mobile/payments/order/`, `mobile/payments/toss-client-key/`, `mobile/payments/toss/confirm/` | — | — | Bill, Receipt, PaymentOrder |
 | 키오스크 | `kiosk/` (QR/수동 학번) | `kiosk/session/`, `kiosk/recent/`, `kiosk/check-in/` (인증 불필요) | `classStore` 일부 | — | AttendanceRecord |
 | 슈퍼어드민 | `super-admin/*` (학원 목록·상세·신규) | `super-admin/academies/`, `.../[id]/`, `.../[id]/users/[userId]/`, `.../[id]/toss-key/`, `super-admin/profile/password/` | — | — | Academy, User |
@@ -50,6 +50,14 @@ parent, student   → /mobile/*
 ```
 
 > 인강 메뉴는 GNB 탭(`/ingang/lectures` 진입)으로 분리. 사이드바는 보라색 테마(`#1e1b2e`)를 쓰는 `src/components/ingang/InGangSidebar.tsx`이고, 같은 페이지의 탭 구분은 `?tab=cond|retry|exam|cert` URL search param으로 처리.
+
+### 강사 메뉴 권한 enforce
+- `teacher` 역할은 `Teacher.permissions`(8키 boolean)로 페이지·API 접근 제어. `director`/`super_admin`은 전체 접근, `admin` 권한 강사도 전체 통과.
+- **enforce 위치**: `src/proxy.ts`(edge) — 로그인 시 권한을 JWT에 임베드(`signToken`), `TEACHER_PAGE_RULES`/`TEACHER_API_RULES` 경로 접두사 맵으로 차단(UI는 첫 허용 페이지로 redirect, API는 403).
+- **공유 읽기 예외**: `GET /api/classes`·`GET /api/students`는 모든 강사 허용(출결·수업 등 기초 조회 의존성). 생성/수정/삭제는 권한대로 차단.
+- **권한 키 없는 경로**: `/calendar`·`/ingang`은 모든 강사 허용, `/settings`는 `admin` 권한 필요.
+- **권한 변경 반영**: 원장이 권한 수정(`PATCH /api/teachers/[id]`) 시 해당 강사 `User.tokenVersion` 증가 → 기존 토큰 무효화 → 재로그인 후 새 권한 적용.
+- 사이드바(`src/components/admin/Sidebar.tsx`)는 `/api/auth/me`의 permissions로 권한 없는 메뉴 숨김.
 
 ---
 
@@ -101,7 +109,7 @@ if (role !== 'super_admin') return 403;    // 역할 제한이 필요한 경우
 
 ### 라우트 및 API
 - UI: `src/app/mobile/*` — 5탭 (홈·출결·성적·공지·내정보), 캘린더·일정·결제·알림 탭 포함
-- API: `src/app/api/mobile/` — me · children · grades · announcements · calendar · attendance · schedule · notifications · payments/order · payments/toss-client-key · payments/toss/confirm
+- API: `src/app/api/mobile/` — me · children · grades · announcements · calendar · attendance · makeup · reports · notifications · push · payments/order · payments/toss-client-key · payments/toss/confirm (schedule 전용 API 없음 — 시간표는 `me` 응답 사용)
 - 레이아웃: `src/app/mobile/layout.tsx` — manifest·SW·ToastContainer 포함
 - 서비스 워커: `public/sw.js`, 등록: `src/components/mobile/SwRegister.tsx`
 - PWA manifest: `public/manifest.json` (start_url=/mobile, scope=/mobile)
@@ -162,7 +170,7 @@ prisma.calendarEvent.findMany({
 - **영상 업로드**: `tus-js-client`(동적 import) + Cloudflare Stream Direct Creator Upload → `POST /api/lectures/upload-url` → `{ uploadURL, uid }` → TUS 업로드 → `cfVideoId` 저장
   - 재생: `https://iframe.videodelivery.net/{cfVideoId}` (iframe)
   - 환경변수 필요: `CF_ACCOUNT_ID`, `CF_STREAM_API_TOKEN`
-- **미구현(목업) 영역**: exams·completion·completion/stats·completion/notifications — 페이지 내 하드코딩 데이터, DB 연동 미구현
+- **미구현(목업) 영역**: exams·completion/lectures·completion/students — 페이지 내 하드코딩 데이터, DB 연동 미구현 (completion 루트 페이지는 DB 연동 완료)
 - 디자인 토큰 (인강 전용): bg `#1e1b2e` · accent `#a78bfa` · sub-accent `#5B4FBE` · highlight `#EEEDFE`
 - 진입: GNB의 "인강" 링크(`src/components/admin/GNB.tsx`) → `/ingang/lectures` 리다이렉트
 

@@ -31,12 +31,22 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    let permissions: unknown;
+    if (user.role === 'teacher') {
+      const teacher = await prisma.teacher.findUnique({
+        where: { userId: user.id },
+        select: { permissions: true },
+      });
+      permissions = teacher?.permissions ?? null;
+    }
+
     return NextResponse.json({
       id: user.id,
       name: user.name,
       role: user.role,
       academyId: user.academyId,
       academyName: user.academy?.name ?? null,
+      ...(user.role === 'teacher' && { permissions }),
     });
   } catch (err) {
     console.error('[me]', err instanceof Error ? err.message : String(err));
