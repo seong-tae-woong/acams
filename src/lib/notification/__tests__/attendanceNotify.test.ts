@@ -64,9 +64,35 @@ describe('classifyWindow', () => {
   });
 
   it('cron interval 1분으로 좁히면 윈도우도 좁아진다', () => {
-    // elapsed 10분, cron 1분 → [10, 11) 만 LATE
+    // elapsed 10분, grace 1분 → [10, 11) 만 LATE
     expect(classifyWindow(9 * 60 + 10, 9 * 60, 10, 20, 1)).toBe('LATE');
     expect(classifyWindow(9 * 60 + 11, 9 * 60, 10, 20, 1)).toBe('NONE');
+  });
+
+  // Regression: GitHub Actions 스케줄 지연/누락 시 단일 5분 윈도우면 그 반은 알림 누락
+  // Found by /qa on 2026-05-30
+  describe('grace 윈도우 (지연 틱 내성)', () => {
+    it('기본 grace 20분: 결석 임계값 후 18분 지연 도착해도 ABSENT 발송', () => {
+      // 09:00 시작, 결석 20분 → 09:38(elapsed 38)에 cron이 늦게 돌아도 [20,40) 안
+      expect(classifyWindow(9 * 60 + 38, 9 * 60, 10, 20)).toBe('ABSENT');
+    });
+
+    it('grace 5분(옛 동작)이면 같은 지연에서 놓친다', () => {
+      // 동일 상황이지만 grace 5분이면 [20,25) 밖이라 NONE → 누락
+      expect(classifyWindow(9 * 60 + 38, 9 * 60, 10, 20, 5)).toBe('NONE');
+    });
+
+    it('LATE 윈도우는 결석 임계값에서 capped — 겹쳐도 ABSENT 우선', () => {
+      // late 10 / absent 20 / grace 20 → elapsed 20은 ABSENT (LATE 아님)
+      expect(classifyWindow(9 * 60 + 20, 9 * 60, 10, 20, 20)).toBe('ABSENT');
+      // elapsed 19는 아직 LATE
+      expect(classifyWindow(9 * 60 + 19, 9 * 60, 10, 20, 20)).toBe('LATE');
+    });
+
+    it('grace 윈도우를 완전히 벗어나면 NONE', () => {
+      // absent 20 + grace 20 = 40 이후
+      expect(classifyWindow(9 * 60 + 41, 9 * 60, 10, 20, 20)).toBe('NONE');
+    });
   });
 });
 

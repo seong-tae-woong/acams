@@ -25,7 +25,10 @@ import {
   type WindowKind,
 } from '@/lib/notification/attendanceNotify';
 
-const CRON_INTERVAL_MIN = 5;
+// 임계값 도달 후 발송을 허용하는 윈도우 폭(분). cron 주기(5분)보다 넉넉히 두어
+// GitHub Actions 스케줄의 지연/누락에도 알림이 빠지지 않게 한다.
+// (중복은 AttendanceNotificationLog UNIQUE로 차단)
+const WINDOW_GRACE_MIN = 20;
 
 type CronStats = {
   schedulesScanned: number;
@@ -91,7 +94,7 @@ export async function GET(req: NextRequest) {
       if (startMin === null) continue;
 
       const { attendanceLateMinutes: lateMin, attendanceAbsentMinutes: absentMin } = sched.class.academy;
-      const kind: WindowKind = classifyWindow(nowMin, startMin, lateMin, absentMin, CRON_INTERVAL_MIN);
+      const kind: WindowKind = classifyWindow(nowMin, startMin, lateMin, absentMin, WINDOW_GRACE_MIN);
       if (kind === 'NONE') continue;
       stats.windowsHit += 1;
 

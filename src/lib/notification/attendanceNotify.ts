@@ -51,23 +51,28 @@ export function parseHHMM(s: string): number | null {
 export type WindowKind = 'NONE' | 'LATE' | 'ABSENT';
 
 // 수업 시작 분(startMin) 기준으로 현재 분(nowMin)이 어떤 임계값 윈도우인지 판정.
-// 5분 cron 주기 가정: 임계값 도달 후 첫 cron tick(0~cronIntervalMin 분)에 발송.
+// 임계값 도달 후 graceMin 분 동안 발송을 허용한다.
 //
-// 우선순위: ABSENT > LATE (같은 cron tick에서 두 윈도우가 겹칠 일은 없지만,
-// 결석 임계값이 더 늦으므로 결석이 트리거되면 그 학생은 결석으로 처리).
+// graceMin을 cron 주기보다 넉넉히 두는 이유: 호출자가 GitHub Actions 스케줄인데
+// best-effort라 5분 틱이 지연/누락될 수 있다. 단일 5분 윈도우만 발송하면 틱이
+// 한 번 밀리는 순간 그 반은 알림을 영영 못 받는다. 윈도우를 넓혀도 중복 발송은
+// AttendanceNotificationLog UNIQUE 제약으로 차단되므로 안전하다.
+//
+// 우선순위: ABSENT > LATE — 결석 임계값이 더 늦으므로, elapsed가 결석 임계값을
+// 넘으면 LATE 윈도우와 겹치더라도 결석으로 처리한다(LATE는 [lateMin, absentMin)로 capped).
 export function classifyWindow(
   nowMin: number,
   startMin: number,
   lateMin: number,
   absentMin: number,
-  cronIntervalMin: number = 5,
+  graceMin: number = 20,
 ): WindowKind {
   // 자정 넘어가는 수업은 운영상 거의 없지만, 음수 elapsed는 그냥 NONE으로 흘림.
   const elapsed = nowMin - startMin;
   if (elapsed < 0) return 'NONE';
 
   // 결석 윈도우 먼저 검사 (lateMin < absentMin 이 검증되었다고 가정)
-  if (elapsed >= absentMin && elapsed < absentMin + cronIntervalMin) return 'ABSENT';
-  if (elapsed >= lateMin && elapsed < lateMin + cronIntervalMin) return 'LATE';
+  if (elapsed >= absentMin && elapsed < absentMin + graceMin) return 'ABSENT';
+  if (elapsed >= lateMin && elapsed < lateMin + graceMin) return 'LATE';
   return 'NONE';
 }
