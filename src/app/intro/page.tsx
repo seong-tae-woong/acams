@@ -83,12 +83,28 @@ export default function IntroPage() {
             <div className="i-kicker">지금, 이렇게 일하고 계신가요?</div>
             <h2>도구가 흩어져 있으면<br />매일 잔업이 쌓입니다</h2>
           </div>
-          <div className="i-pain-grid">
-            <div className="i-pain-card"><div className="e">📄</div><h3>출결은 종이로</h3><p>수기 출석부를 매번 옮겨 적고, 빠진 학생은 따로 카톡으로 확인합니다.</p></div>
-            <div className="i-pain-card"><div className="e">📊</div><h3>정산은 엑셀로</h3><p>수납·미납을 엑셀에 직접 정리하다 보면 숫자가 어긋나 다시 검산합니다.</p></div>
-            <div className="i-pain-card"><div className="e">💬</div><h3>공지는 카톡으로</h3><p>학부모 한 명 한 명에게 직접 메시지를 보내느라 저녁 시간이 사라집니다.</p></div>
+          <div className="i-pain-flow">
+            <div className="i-pain-asis">
+              <span className="i-pain-tag">지금</span>
+              <div className="i-pain-chips">
+                <div className="i-pain-chip"><span className="ic">📄</span><div><b>종이 출석부</b><span className="sub">옮겨 적고 또 확인</span></div></div>
+                <div className="i-pain-chip"><span className="ic">📊</span><div><b>엑셀 정산</b><span className="sub">숫자 어긋나 재검산</span></div></div>
+                <div className="i-pain-chip"><span className="ic">💬</span><div><b>카톡 공지</b><span className="sub">한 명씩 저녁 내내</span></div></div>
+                <div className="i-pain-chip"><span className="ic">🧮</span><div><b>계산기·메모</b><span className="sub">여기저기 흩어짐</span></div></div>
+              </div>
+            </div>
+            <div className="i-pain-pivot"><span className="arrow">→</span></div>
+            <div className="i-pain-tobe-wrap">
+              <span className="i-pain-tag i-pain-tag-on">학원로그로</span>
+              <div className="i-pain-tobe">
+                <div className="i-pain-tobe-head"><BrandMark size={20} /><b>통합 대시보드</b></div>
+                <div className="i-pain-tobe-row"><span className="ck">✓</span>출결 자동 집계</div>
+                <div className="i-pain-tobe-row"><span className="ck">✓</span>수납 현황 한눈에</div>
+                <div className="i-pain-tobe-row"><span className="ck">✓</span>공지 일괄 발송</div>
+              </div>
+            </div>
           </div>
-          <div className="i-pain-arrow">↓ 학원로그 하나로 통합하면, 이 모든 잔업이 사라집니다</div>
+          <div className="i-pain-arrow">흩어진 도구도, 학원로그 하나로 모으면 잔업이 사라집니다</div>
         </div>
       </section>
 
