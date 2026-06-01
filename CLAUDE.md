@@ -100,6 +100,7 @@ if (role !== 'super_admin') return 403;    // 역할 제한이 필요한 경우
 ## §4. 공용 자원
 
 - 컴포넌트 (`src/components/shared/`): `Button` (variant: default/dark/primary/danger/ghost · size: sm/md/lg) · `Modal` · `Badge` · `Avatar` · `SearchInput` · `FilterTags` · `Tabs` · `ToastContainer` — **중복 구현 금지**
+- **브랜드 로고/아이콘**: `BrandMark`(HL 마크) · `Wordmark`(학원로그 텍스트). 규격·좌표·재생성은 **`DESIGN.md` §7 브랜드 마크**가 단일 출처. "로고 그려줘" 류 요청 → `src/components/shared/BrandMark.tsx` 좌표 그대로 따르고 색/형태 변경 금지. PNG는 `node scripts/gen-brand-icons.mjs`로 일괄 재생성.
 - 토스트: `import { toast } from '@/lib/stores/toastStore'; toast(msg, 'success'|'error'|'info')`
 - 디자인 토큰: primary `#1a2535` · accent `#4fc3a1` · border `#e2e8f0` · text `#111827` / muted `#6b7280` / faint `#9ca3af` · radius card 12 / input 10 / btn 8 · 기본 13px · header 50px
 
@@ -176,7 +177,17 @@ prisma.calendarEvent.findMany({
 
 ---
 
-## §7. 작업 지침 (토큰 절약)
+## §7. 마케팅 페이지 (`/intro`)
+
+- 공개 마케팅 라우트 `/intro` — 신규 학원 원장 유치용 전환 자산. 디자인 시스템 전체는 **`DESIGN.md`** 참조.
+- 미학: Refined Minimal (Toss-clean). 제품 `globals.css` 토큰 상속(teal/navy), **인강 보라는 인강 섹션에만 한정**.
+- 메시지 위계: 1차=통합/잔업 소멸(teal·navy), 2차=인강 수익(보라). 기능 7종은 "없애주는 잔업" 중심.
+- 제약: "영국책방" 등 특정 학원명·실데이터 금지(더미만), 브랜드명 "학원로그", 1차 CTA=카톡 채널.
+- proxy: `src/proxy.ts` `PUBLIC_PATHS`에 `/intro` 추가(범위 좁게). SEO: SSG/SSR + metadata + sitemap/robots.
+
+---
+
+## §8. 작업 지침 (토큰 절약)
 
 - **Read 후에만 Edit** — 미열람 파일 수정 금지
 - **단일 도메인 집중** — 한 번에 §1의 1행만

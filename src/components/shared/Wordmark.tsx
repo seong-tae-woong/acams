@@ -21,7 +21,7 @@ export default function Wordmark({ size = 22, hakwonColor = '#e5e7eb', className
       }}
     >
       <span style={{ color: hakwonColor }}>학원</span>
-      <span style={{ color: '#34d399' }}>로그</span>
+      <span style={{ color: '#12B886' }}>로그</span>
     </span>
   );
 }

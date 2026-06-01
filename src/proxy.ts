@@ -20,6 +20,8 @@ const PUBLIC_PATHS = [
   '/sw.js',
   '/manifest.json',
   '/icon-',
+  '/intro',             // 마케팅 랜딩 페이지 (공개)
+  '/api/intro',         // 마케팅 상담 신청 API (공개)
   '/academy',           // 학원 공개 소개 페이지
   '/api/academy',       // 학원 공개 API
   '/api/gallery-proxy', // Private Blob 이미지 프록시

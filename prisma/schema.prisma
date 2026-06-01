@@ -1541,3 +1541,30 @@ model ClinicResult {
   @@index([academyId, sessionDate])
   @@map("clinic_results")
 }
+
+// 마케팅 페이지(/intro) 상담 신청 — 기존 고객이 아닌 잠재 원장 리드. 학원에 종속되지 않음(플랫폼 전역).
+enum DemoRequestStatus {
+  NEW // 신규 (미연락)
+  CONTACTED // 연락함
+  CONVERTED // 가입 전환
+  CLOSED // 종료/보류
+}
+
+model DemoRequest {
+  id String @id @default(cuid())
+
+  name         String // 신청자 이름
+  phone        String // 연락처
+  academyName  String  @default("") // 학원명 (선택)
+  studentCount String  @default("") // 학생 규모 (선택, 자유 텍스트)
+  message      String  @default("") // 문의 내용 (선택)
+
+  status DemoRequestStatus @default(NEW)
+  memo   String            @default("") // 슈퍼어드민 메모
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@map("demo_requests")
+}

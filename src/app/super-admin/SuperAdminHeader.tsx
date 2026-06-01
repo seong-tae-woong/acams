@@ -2,11 +2,19 @@
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useEffect, useState } from 'react';
 import { LogOut, KeyRound, X } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { toast } from '@/lib/stores/toastStore';
 import Wordmark from '@/components/shared/Wordmark';
 
+const NAV = [
+  { href: '/super-admin', label: '학원 관리' },
+  { href: '/super-admin/demo-requests', label: '상담 신청' },
+];
+
 export default function SuperAdminHeader() {
   const { currentUser, hydrate, logout } = useAuthStore();
+  const pathname = usePathname();
   const [pwOpen, setPwOpen] = useState(false);
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [loading, setLoading] = useState(false);
@@ -51,9 +59,27 @@ export default function SuperAdminHeader() {
   return (
     <>
       <header className="bg-[#1a2535] h-[50px] flex items-center px-6 justify-between">
-        <div className="flex items-center gap-2">
-          <Wordmark size={16} />
-          <span className="text-[#6b7280] text-[12px] ml-2">슈퍼 관리자</span>
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2">
+            <Wordmark size={16} />
+            <span className="text-[#6b7280] text-[12px] ml-2">슈퍼 관리자</span>
+          </div>
+          <nav className="flex items-center gap-1">
+            {NAV.map((n) => {
+              const active = n.href === '/super-admin' ? pathname === n.href : pathname.startsWith(n.href);
+              return (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  className={`text-[12.5px] px-3 py-1.5 rounded-[7px] transition-colors ${
+                    active ? 'text-white bg-[#243347]' : 'text-[#9ca3af] hover:text-white'
+                  }`}
+                >
+                  {n.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-[#9ca3af] text-[12.5px]">{currentUser?.name}</span>
