@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>학원로그 · 디자인 시스템 미리보기</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+  :root {
+    /* === 제품에서 상속한 토큰 (globals.css) === */
+    --teal: #0D9E7A;
+    --teal-bright: #4fc3a1;
+    --teal-tint: #E1F5EE;
+    --teal-text: #0F6E56;
+    --navy: #1a2535;
+    --navy-light: #243347;
+    --purple: #5B4FBE;
+    --purple-bright: #a78bfa;
+    --purple-tint: #EEEDFE;
+    --surface: #f4f6f8;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --ink: #111827;
+    --ink-2: #374151;
+    --muted: #6b7280;
+    --faint: #9ca3af;
+
+    --radius-card: 16px;
+    --radius-btn: 10px;
+    --radius-pill: 999px;
+
+    --space: 8px;
+    --section-pad: 96px;
+
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.10);
+    --shadow-md: 0 4px 12px rgba(16,24,40,.08), 0 2px 4px rgba(16,24,40,.04);
+    --shadow-lg: 0 18px 40px rgba(16,24,40,.12), 0 6px 12px rgba(16,24,40,.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    color: var(--ink);
+    background: var(--card);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'tnum';
+  }
+
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* === 미리보기 골격 === */
+  .doc-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 14px;
+    font-size: 13px; color: var(--muted);
+  }
+  .doc-bar strong { color: var(--navy); font-weight: 700; }
+  .doc-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  .doc-section { padding: 56px 0; border-bottom: 1px dashed var(--border); }
+  .doc-label {
+    display: inline-block;
+    font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    color: var(--teal-text); background: var(--teal-tint);
+    padding: 5px 12px; border-radius: var(--radius-pill);
+    margin-bottom: 20px;
+  }
+  .doc-title { font-size: 22px; font-weight: 800; color: var(--navy); margin-bottom: 6px; }
+  .doc-desc { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+
+  /* === 색상 스와치 === */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .swatch { border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+  .swatch .chip { height: 72px; }
+  .swatch .meta { padding: 10px 12px; font-size: 12px; }
+  .swatch .meta b { display: block; font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+  .swatch .meta span { color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  /* === 타이포 스펙 === */
+  .type-row { display: flex; align-items: baseline; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .type-row:last-child { border-bottom: none; }
+  .type-row .tag { width: 130px; flex-shrink: 0; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .t-hero { font-size: 44px; font-weight: 800; letter-spacing: -.02em; color: var(--navy); line-height: 1.15; }
+  .t-h2 { font-size: 30px; font-weight: 800; letter-spacing: -.015em; color: var(--navy); }
+  .t-h3 { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .t-body { font-size: 16px; font-weight: 400; color: var(--ink-2); }
+  .t-small { font-size: 14px; font-weight: 500; color: var(--muted); }
+
+  /* ====================================================== */
+  /* === 실제 랜딩 페이지 목업 (마스킹된 더미 콘텐츠) === */
+  /* ====================================================== */
+  .mock { background: var(--card); }
+
+  /* 네비 */
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 9px; font-size: 19px; font-weight: 800; color: var(--navy); letter-spacing: -.01em; }
+  .brand .logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--teal), var(--teal-bright)); display: grid; place-items: center; color: #fff; font-size: 16px; }
+  .nav-cta { font-size: 14px; font-weight: 700; color: #fff; background: var(--teal); padding: 10px 18px; border-radius: var(--radius-btn); text-decoration: none; }
+
+  /* 히어로 */
+  .hero { text-align: center; padding: 72px 0 64px; }
+  .hero .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; color: var(--teal-text); background: var(--teal-tint); padding: 7px 15px; border-radius: var(--radius-pill); margin-bottom: 24px; }
+  .hero h1 { font-size: 52px; font-weight: 800; letter-spacing: -.025em; line-height: 1.18; color: var(--navy); margin-bottom: 22px; }
+  .hero h1 .accent { color: var(--teal); }
+  .hero p { font-size: 19px; color: var(--ink-2); max-width: 560px; margin: 0 auto 34px; line-height: 1.6; }
+  .hero-actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 56px; }
+  .btn-primary { font-size: 16px; font-weight: 700; color: #fff; background: var(--teal); padding: 15px 30px; border-radius: var(--radius-btn); text-decoration: none; box-shadow: var(--shadow-md); transition: transform .15s, box-shadow .15s; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .btn-ghost { font-size: 16px; font-weight: 700; color: var(--ink-2); background: var(--surface); padding: 15px 30px; border-radius: var(--radius-btn); text-decoration: none; border: 1px solid var(--border); }
+
+  .hero-shot { border-radius: 18px; border: 1px solid var(--border); box-shadow: var(--shadow-lg); overflow: hidden; background: var(--surface); }
+  .hero-shot .browser-bar { height: 38px; background: #fff; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 7px; padding: 0 14px; }
+  .hero-shot .browser-bar i { width: 11px; height: 11px; border-radius: 50%; background: #e2e6ea; display: inline-block; }
+  .shot-canvas { padding: 26px; min-height: 340px; background: linear-gradient(180deg, #fbfcfd, #f4f6f8); }
+
+  /* 대시보드 목업 (통합) */
+  .dash { display: grid; grid-template-columns: 200px 1fr; gap: 18px; }
+  .dash-side { background: var(--navy); border-radius: 12px; padding: 18px 14px; color: #fff; }
+  .dash-side .s-brand { font-size: 14px; font-weight: 700; margin-bottom: 18px; opacity: .95; }
+  .dash-side .s-item { font-size: 12.5px; padding: 9px 11px; border-radius: 8px; color: #aab4c4; margin-bottom: 3px; }
+  .dash-side .s-item.active { background: var(--navy-light); color: #fff; }
+  .dash-main { display: flex; flex-direction: column; gap: 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .kpi { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .kpi .k-label { font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+  .kpi .k-val { font-size: 24px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; }
+  .kpi .k-delta { font-size: 11px; font-weight: 700; color: var(--teal); }
+  .panel { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .panel .p-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+  .bars { display: flex; align-items: flex-end; gap: 12px; height: 110px; }
+  .bars .bar { flex: 1; background: var(--teal-tint); border-radius: 6px 6px 0 0; position: relative; }
+  .bars .bar::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: var(--h); background: linear-gradient(180deg, var(--teal-bright), var(--teal)); border-radius: 6px 6px 0 0; }
+
+  /* 섹션 공통 */
+  .sec { padding: var(--section-pad) 0; }
+  .sec-head { text-align: center; max-width: 640px; margin: 0 auto 52px; }
+  .sec-head .kicker { font-size: 14px; font-weight: 700; color: var(--teal); margin-bottom: 12px; }
+  .sec-head h2 { font-size: 36px; font-weight: 800; letter-spacing: -.02em; color: var(--navy); line-height: 1.25; margin-bottom: 14px; }
+  .sec-head p { font-size: 17px; color: var(--muted); }
+
+  /* 공감 섹션 (현재의 고통) */
+  .pain { background: var(--surface); }
+  .pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .pain-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-card); padding: 26px 22px; }
+  .pain-card .emoji { font-size: 26px; margin-bottom: 14px; }
+  .pain-card h3 { font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+  .pain-card p { font-size: 14px; color: var(--muted); line-height: 1.55; }
+  .pain-arrow { text-align: center; margin: 36px 0 0; font-size: 15px; font-weight: 700; color: var(--teal-text); }
+
+  /* 인강 수익 섹션 (보라 — 이 섹션에만 한정) */
+  .ingang { background: linear-gradient(180deg, var(--purple-tint), #fff); position: relative; overflow: hidden; }
+  .ingang .sec-head .kicker { color: var(--purple); }
+  .ingang .ingang-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .ingang-copy .badge-p { display: inline-block; font-size: 13px; font-weight: 700; color: var(--purple); background: #fff; border: 1px solid var(--purple-bright); padding: 6px 14px; border-radius: var(--radius-pill); margin-bottom: 18px; }
+  .ingang-copy h2 { font-size: 38px; font-weight: 800; letter-spacing: -.02em; color: var(--navy); line-height: 1.22; margin-bottom: 18px; }
+  .ingang-copy h2 em { font-style: normal; color: var(--purple); }
+  .ingang-copy p { font-size: 16px; color: var(--ink-2); line-height: 1.65; margin-bottom: 26px; }
+  .ingang-stats { display: flex; gap: 30px; }
+  .ingang-stats .stat .s-num { font-size: 40px; font-weight: 800; color: var(--purple); font-variant-numeric: tabular-nums; line-height: 1; }
+  .ingang-stats .stat .s-cap { font-size: 13px; color: var(--muted); margin-top: 7px; }
+  .ingang-visual { background: #fff; border: 1px solid var(--purple-bright); border-radius: 18px; box-shadow: 0 18px 40px rgba(91,79,190,.14); padding: 22px; }
+  .ig-row { display: flex; align-items: center; gap: 13px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+  .ig-row:last-child { border-bottom: none; }
+  .ig-thumb { width: 60px; height: 42px; border-radius: 8px; background: linear-gradient(135deg, var(--purple-bright), var(--purple)); flex-shrink: 0; display: grid; place-items: center; color: #fff; font-size: 14px; }
+  .ig-row .ig-meta b { display: block; font-size: 14px; font-weight: 700; color: var(--ink); }
+  .ig-row .ig-meta span { font-size: 12.5px; color: var(--muted); }
+  .ig-row .ig-prog { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--purple); font-variant-numeric: tabular-nums; }
+
+  /* 기능 섹션 (고통 제거 중심) */
+  .features { background: #fff; }
+  .feat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .feat-card { display: flex; gap: 16px; padding: 26px; border: 1px solid var(--border); border-radius: var(--radius-card); transition: box-shadow .18s, transform .18s; }
+  .feat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .feat-icon { width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px; background: var(--teal-tint); display: grid; place-items: center; font-size: 22px; }
+  .feat-card h3 { font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+  .feat-card .pain-kill { font-size: 13px; font-weight: 700; color: var(--teal-text); margin-bottom: 7px; }
+  .feat-card p { font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+  /* 모바일/학부모 섹션 */
+  .mobile-sec { background: var(--surface); }
+  .mobile-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .phone { width: 230px; margin: 0 auto; background: var(--navy); border-radius: 30px; padding: 11px; box-shadow: var(--shadow-lg); }
+  .phone .screen { background: #fff; border-radius: 22px; overflow: hidden; min-height: 420px; }
+  .phone .p-top { background: var(--teal); color: #fff; padding: 18px 16px; }
+  .phone .p-top b { font-size: 15px; font-weight: 700; }
+  .phone .p-top span { display: block; font-size: 12px; opacity: .9; margin-top: 3px; }
+  .phone .p-body { padding: 14px; }
+  .p-notice { background: var(--teal-tint); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .p-notice b { font-size: 12.5px; color: var(--teal-text); }
+  .p-notice p { font-size: 11.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
+  .p-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .p-card .pc-h { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+  .p-card .pc-bar { height: 7px; border-radius: 4px; background: var(--surface); overflow: hidden; }
+  .p-card .pc-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--teal-bright), var(--teal)); }
+
+  /* 최종 CTA */
+  .final-cta { background: var(--navy); color: #fff; text-align: center; padding: 92px 0; }
+  .final-cta h2 { font-size: 38px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 16px; line-height: 1.25; }
+  .final-cta p { font-size: 17px; color: #aeb8c6; max-width: 480px; margin: 0 auto 34px; }
+  .final-cta .btn-primary { background: var(--teal); }
+  .final-cta .ks { display: block; margin-top: 18px; font-size: 13px; color: #8995a5; }
+
+  footer { background: var(--navy); color: #6b7689; text-align: center; padding: 30px 0 44px; font-size: 13px; border-top: 1px solid var(--navy-light); }
+
+  @media (max-width: 760px) {
+    .hero h1 { font-size: 36px; }
+    .dash { grid-template-columns: 1fr; }
+    .dash-side { display: none; }
+    .pain-grid, .feat-grid, .ingang-inner, .mobile-inner { grid-template-columns: 1fr; }
+    .sec-head h2 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-bar">
+  <span class="dot"></span>
+  <strong>학원로그 디자인 시스템</strong> · Refined Minimal (Toss-clean) · 미리보기
+  <span style="margin-left:auto; color:var(--faint)">제품 토큰 상속 · Pretendard</span>
+</div>
+
+<!-- ============ 1. 색상 시스템 ============ -->
+<section class="doc-section">
+  <div class="wrap">
+    <span class="doc-label">COLOR</span>
+    <div class="doc-title">색상 — 제품에서 그대로 상속</div>
+    <p class="doc-desc">리드가 데모에서 본 앱과 동일한 색을 써서 신뢰의 연속성을 만든다. 보라(인강)는 인강 섹션에만 한정한다.</p>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background:#0D9E7A"></div><div class="meta"><b>Teal · 브랜드/액션</b><span>#0D9E7A</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#4fc3a1"></div><div class="meta"><b>Teal Bright</b><span>#4fc3a1</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#E1F5EE"></div><div class="meta"><b>Teal Tint</b><span>#E1F5EE</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#1a2535"></div><div class="meta"><b>Navy · 잉크/헤딩</b><span>#1a2535</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#5B4FBE"></div><div class="meta"><b>Purple · 인강 한정</b><span>#5B4FBE</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#EEEDFE"></div><div class="meta"><b>Purple Tint</b><span>#EEEDFE</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#f4f6f8; border-bottom:1px solid #e2e8f0"></div><div class="meta"><b>Surface</b><span>#f4f6f8</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#111827"></div><div class="meta"><b>Ink · 본문</b><span>#111827</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. 타이포그래피 ============ -->
+<section class="doc-section">
+  <div class="wrap">
+    <span class="doc-label">TYPOGRAPHY</span>
+    <div class="doc-title">타이포 — Pretendard 단일 패밀리</div>
+    <p class="doc-desc">숫자(인강 수익·가격)는 tabular-nums로 정렬. 헤드라인은 800, 본문은 400/500.</p>
+    <div class="type-row"><span class="tag">Hero · 800 / 52</span><span class="t-hero">잔업이 사라집니다</span></div>
+    <div class="type-row"><span class="tag">H2 · 800 / 36</span><span class="t-h2">흩어진 도구를 하나로</span></div>
+    <div class="type-row"><span class="tag">H3 · 700 / 20</span><span class="t-h3">출결·정산·공지 자동화</span></div>
+    <div class="type-row"><span class="tag">Body · 400 / 16</span><span class="t-body">엑셀과 카톡을 오가던 매일의 잔업을 학원로그 하나로 끝냅니다.</span></div>
+    <div class="type-row"><span class="tag">Number · 800 num</span><span class="t-h2 num">+1,240,000원</span></div>
+  </div>
+</section>
+
+<!-- ============ 3. 실제 랜딩 목업 ============ -->
+<div class="doc-section" style="border-bottom:none; padding-bottom:0;">
+  <div class="wrap">
+    <span class="doc-label">PAGE MOCKUP</span>
+    <div class="doc-title">랜딩 페이지 적용 모습 (더미 콘텐츠)</div>
+    <p class="doc-desc">아래는 위 시스템을 실제 /intro 페이지에 적용했을 때의 느낌입니다. 모든 데이터·이름은 더미입니다.</p>
+  </div>
+</div>
+
+<div class="mock">
+  <!-- 네비 -->
+  <div class="wrap">
+    <nav class="nav">
+      <div class="brand"><span class="logo">로</span>학원로그</div>
+      <a class="nav-cta" href="#">상담 문의</a>
+    </nav>
+  </div>
+
+  <!-- 히어로 -->
+  <div class="wrap">
+    <section class="hero">
+      <span class="eyebrow">소규모 학원을 위한 통합 운영 플랫폼</span>
+      <h1>여러 프로그램·엑셀·카톡,<br><span class="accent">학원로그 하나로</span> 끝냅니다</h1>
+      <p>출결은 종이, 정산은 엑셀, 공지는 카톡… 따로 노는 도구들 때문에 매일 새는 시간. 학원로그가 그 잔업을 없앱니다.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="#">무료로 데모 신청하기</a>
+        <a class="btn-ghost" href="#">기능 둘러보기</a>
+      </div>
+
+      <!-- 대시보드 목업 -->
+      <div class="hero-shot">
+        <div class="browser-bar"><i></i><i></i><i></i></div>
+        <div class="shot-canvas">
+          <div class="dash">
+            <aside class="dash-side">
+              <div class="s-brand">📚 학원로그</div>
+              <div class="s-item active">대시보드</div>
+              <div class="s-item">학생 관리</div>
+              <div class="s-item">출결</div>
+              <div class="s-item">성적 리포트</div>
+              <div class="s-item">학원비 청구</div>
+              <div class="s-item">인강 관리</div>
+            </aside>
+            <main class="dash-main">
+              <div class="kpis">
+                <div class="kpi"><div class="k-label">재원생</div><div class="k-val num">32</div><div class="k-delta num">+3 이번 달</div></div>
+                <div class="kpi"><div class="k-label">이번 달 수납률</div><div class="k-val num">94%</div><div class="k-delta num">+6%p</div></div>
+                <div class="kpi"><div class="k-label">오늘 출결</div><div class="k-val num">28<span style="font-size:14px;color:var(--faint)">/32</span></div><div class="k-delta">자동 집계</div></div>
+              </div>
+              <div class="panel">
+                <div class="p-title">월별 매출 추이</div>
+                <div class="bars">
+                  <div class="bar" style="--h:45%"></div>
+                  <div class="bar" style="--h:58%"></div>
+                  <div class="bar" style="--h:52%"></div>
+                  <div class="bar" style="--h:71%"></div>
+                  <div class="bar" style="--h:80%"></div>
+                  <div class="bar" style="--h:96%"></div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 공감 (현재의 고통) -->
+  <section class="sec pain">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker">지금, 이렇게 일하고 계신가요?</div>
+        <h2>도구가 흩어져 있으면<br>매일 잔업이 쌓입니다</h2>
+      </div>
+      <div class="pain-grid">
+        <div class="pain-card"><div class="emoji">📄</div><h3>출결은 종이로</h3><p>수기 출석부를 매번 옮겨 적고, 빠진 학생은 따로 카톡으로 확인합니다.</p></div>
+        <div class="pain-card"><div class="emoji">📊</div><h3>정산은 엑셀로</h3><p>수납·미납을 엑셀에 직접 정리하다 보면 숫자가 어긋나 다시 검산합니다.</p></div>
+        <div class="pain-card"><div class="emoji">💬</div><h3>공지는 카톡으로</h3><p>학부모 한 명 한 명에게 직접 메시지를 보내느라 저녁 시간이 사라집니다.</p></div>
+      </div>
+      <div class="pain-arrow">↓ 학원로그 하나로 통합하면, 이 모든 잔업이 사라집니다</div>
+    </div>
+  </section>
+
+  <!-- 인강 수익 (보라 한정) -->
+  <section class="sec ingang">
+    <div class="wrap">
+      <div class="ingang-inner">
+        <div class="ingang-copy">
+          <span class="badge-p">✦ 인강으로 만드는 추가 수익</span>
+          <h2>학생은 <em>스스로</em> 학습하고,<br>원장님은 <em>관리만</em> 하세요</h2>
+          <p>강의를 한 번 올려두면 학생이 self로 수강합니다. 원장님은 진도와 이수만 확인. 수업 시간을 늘리지 않고도 학원의 추가 수익이 됩니다.</p>
+          <div class="ingang-stats">
+            <div class="stat"><div class="s-num num">+45<span style="font-size:20px">시간</span></div><div class="s-cap">월 절감 수업 시간(예시)</div></div>
+            <div class="stat"><div class="s-num num">3<span style="font-size:20px">분</span></div><div class="s-cap">강의 등록에 걸리는 시간</div></div>
+          </div>
+        </div>
+        <div class="ingang-visual">
+          <div class="ig-row"><div class="ig-thumb">▶</div><div class="ig-meta"><b>중등 수학 · 1단원 정리</b><span>홍길동 외 18명 수강 중</span></div><span class="ig-prog num">82%</span></div>
+          <div class="ig-row"><div class="ig-thumb">▶</div><div class="ig-meta"><b>영문법 마스터 · 시제</b><span>김민준 외 12명 수강 중</span></div><span class="ig-prog num">67%</span></div>
+          <div class="ig-row"><div class="ig-thumb">▶</div><div class="ig-meta"><b>국어 비문학 독해</b><span>이서연 외 9명 수강 중</span></div><span class="ig-prog num">95%</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 기능 (고통 제거 중심) -->
+  <section class="sec features">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker">7가지 기능, 하나의 흐름</div>
+        <h2>기능을 늘린 게 아니라<br>잔업을 없앴습니다</h2>
+        <p>각 기능은 원장님이 매일 반복하던 손작업 하나씩을 대신합니다.</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat-card"><div class="feat-icon">🗂️</div><div><h3>통합 관리</h3><div class="pain-kill">— 프로그램 여러 개를 오갈 필요 없이</div><p>학생·수업·정산·공지를 한 화면에서. 더 이상 도구 사이를 오가지 않습니다.</p></div></div>
+        <div class="feat-card"><div class="feat-icon">📈</div><div><h3>성적 리포트</h3><div class="pain-kill">— 엑셀로 그래프 그리던 시간 0분</div><p>시험 점수를 입력하면 학생별 추이 리포트가 자동 생성됩니다.</p></div></div>
+        <div class="feat-card"><div class="feat-icon">🔔</div><div><h3>알림 자동화</h3><div class="pain-kill">— 한 명씩 카톡 보내던 저녁 시간 회수</div><p>출결·납부·공지를 설정한 조건에 맞춰 학부모에게 자동 발송합니다.</p></div></div>
+        <div class="feat-card"><div class="feat-icon">🌐</div><div><h3>학원별 공개페이지</h3><div class="pain-kill">— 따로 홈페이지 만들 필요 없이</div><p>학원 소개·공지·문의를 담은 공개 페이지가 자동으로 만들어집니다.</p></div></div>
+        <div class="feat-card"><div class="feat-icon">✅</div><div><h3>출결 자동화</h3><div class="pain-kill">— 종이 출석부와 작별</div><p>QR·체크인으로 출결을 집계하고 미출석은 즉시 알림으로 연결됩니다.</p></div></div>
+        <div class="feat-card"><div class="feat-icon">💳</div><div><h3>학원비 청구·결제</h3><div class="pain-kill">— 미납 확인·독촉 자동으로</div><p>청구서 발송부터 결제·수납 현황까지 한 번에. 미납은 자동 리마인드.</p></div></div>
+        <div class="feat-card" style="grid-column:1/-1"><div class="feat-icon">📅</div><div><h3>수업·보강 일정</h3><div class="pain-kill">— 보강 일정 충돌을 자동으로 잡아</div><p>정규 수업과 보강을 한 캘린더에서. 겹치는 일정은 미리 경고합니다.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 모바일/학부모 -->
+  <section class="sec mobile-sec">
+    <div class="wrap">
+      <div class="mobile-inner">
+        <div>
+          <div class="kicker" style="font-size:14px;font-weight:700;color:var(--teal);margin-bottom:12px;">학부모도 한눈에</div>
+          <h2 style="font-size:34px;font-weight:800;color:var(--navy);letter-spacing:-.02em;line-height:1.25;margin-bottom:16px;">우리 아이 학원 생활,<br>휴대폰으로 확인</h2>
+          <p style="font-size:16px;color:var(--ink-2);line-height:1.65;">출결·성적·공지를 학부모가 직접 앱에서 확인합니다. 원장님이 일일이 카톡으로 전달할 필요가 없습니다.</p>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="p-top"><b>○○학원</b><span>홍길동 학부모님 · 오늘 등원 완료</span></div>
+            <div class="p-body">
+              <div class="p-notice"><b>📢 6월 정기시험 안내</b><p>6월 셋째 주 정기시험이 진행됩니다. 범위는 공지를 확인해 주세요.</p></div>
+              <div class="p-card"><div class="pc-h"><span>이번 달 출석</span><span class="num">14/15</span></div><div class="pc-bar"><i style="width:93%"></i></div></div>
+              <div class="p-card"><div class="pc-h"><span>수학 성취도</span><span class="num">88점</span></div><div class="pc-bar"><i style="width:88%"></i></div></div>
+              <div class="p-card"><div class="pc-h"><span>인강 진도</span><span class="num">82%</span></div><div class="pc-bar"><i style="width:82%"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 최종 CTA -->
+  <section class="final-cta">
+    <div class="wrap">
+      <h2>잔업 없는 학원 운영,<br>오늘 시작하세요</h2>
+      <p>10분 데모로 학원로그가 어떻게 일을 줄여주는지 직접 보여드립니다.</p>
+      <a class="btn-primary" href="#">카카오톡으로 데모 신청하기</a>
+      <span class="ks">설치·계약 부담 없이, 먼저 보고 결정하세요</span>
+    </div>
+  </section>
+
+  <footer>© 2026 학원로그 · 소규모 학원을 위한 통합 운영 플랫폼</footer>
+</div>
+
+</body>
+</html>
