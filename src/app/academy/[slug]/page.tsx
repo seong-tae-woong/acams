@@ -14,6 +14,7 @@ import FloatingTextarea from './_components/FloatingTextarea';
 import SectionHeader from './_components/SectionHeader';
 import ClassCard from './_components/ClassCard';
 import ClassDetailModal from './_components/ClassDetailModal';
+import LegalModal, { type LegalDocType } from './_components/LegalModal';
 
 /* ─────────────────────────────────────────────────
    Main Page
@@ -34,6 +35,9 @@ export default function AcademyPublicPage() {
 
   // 수업 상세 팝업
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
+
+  // 약관/개인정보 팝업
+  const [legalDoc, setLegalDoc] = useState<LegalDocType | null>(null);
 
   // 상담 신청 폼
   const [inquiry, setInquiry] = useState({ name: '', phone: '', classId: '', message: '' });
@@ -527,8 +531,8 @@ export default function AcademyPublicPage() {
           </dl>
 
           <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-            <a href="#" style={{ fontSize: 11.5, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>이용약관</a>
-            <a href="#" style={{ fontSize: 11.5, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>개인정보 처리방침</a>
+            <button type="button" onClick={() => setLegalDoc('terms')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: FONT, fontSize: 11.5, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>이용약관</button>
+            <button type="button" onClick={() => setLegalDoc('privacy')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: FONT, fontSize: 11.5, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2 }}>개인정보 처리방침</button>
           </div>
 
           <p style={{ fontSize: 11, color: C.border }}>Powered by 학원로그</p>
@@ -579,6 +583,13 @@ export default function AcademyPublicPage() {
       ══════════════════════════════════════════ */}
       {classDetailId && (
         <ClassDetailModal slug={slug} classId={classDetailId} onClose={() => setClassDetailId(null)} />
+      )}
+
+      {/* ══════════════════════════════════════════
+          이용약관 / 개인정보 처리방침 팝업
+      ══════════════════════════════════════════ */}
+      {legalDoc && (
+        <LegalModal type={legalDoc} profile={profile} onClose={() => setLegalDoc(null)} />
       )}
 
       {/* ══════════════════════════════════════════

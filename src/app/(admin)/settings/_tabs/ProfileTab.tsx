@@ -65,7 +65,8 @@ export default function ProfileTab() {
       if (res.ok) {
         toast('공개 프로필이 저장되었습니다.', 'success');
       } else {
-        toast('저장에 실패했습니다.', 'error');
+        const err = await res.json().catch(() => ({}));
+        toast(err.error ?? '저장에 실패했습니다.', 'error');
       }
     } finally {
       setProfileSaving(false);

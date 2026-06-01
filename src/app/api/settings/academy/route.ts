@@ -103,6 +103,38 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // 결제 활성화 학원은 사업자정보·환불정책 필수 (토스 심사·전자상거래 법정 표시사항)
+    // 토스 키가 등록된 학원에서 필수 항목을 비우는 저장을 차단한다.
+    const payCheck = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: {
+        tossClientKey: true, tossSecretKeyEnc: true,
+        directorName: true, businessNumber: true, address: true, phone: true, refundPolicy: true,
+      },
+    });
+    const paymentEnabled = !!(payCheck?.tossClientKey && payCheck?.tossSecretKeyEnc);
+    if (paymentEnabled) {
+      // 전달된 값이 있으면 그 값을, 없으면 기존 저장값을 기준으로 최종 상태를 검증
+      const resolved = (incoming: unknown, current: string | null) =>
+        incoming !== undefined ? incoming : current;
+      const requiredFields: { value: unknown; label: string }[] = [
+        { value: resolved(directorName, payCheck!.directorName),     label: '대표자명' },
+        { value: resolved(businessNumber, payCheck!.businessNumber), label: '사업자등록번호' },
+        { value: resolved(address, payCheck!.address),               label: '주소' },
+        { value: resolved(phone, payCheck!.phone),                   label: '연락처' },
+        { value: resolved(refundPolicy, payCheck!.refundPolicy),     label: '환불 정책' },
+      ];
+      const missing = requiredFields
+        .filter((f) => typeof f.value !== 'string' || !f.value.trim())
+        .map((f) => f.label);
+      if (missing.length > 0) {
+        return NextResponse.json(
+          { error: `결제가 활성화된 학원은 다음 항목을 반드시 입력해야 합니다: ${missing.join(', ')}` },
+          { status: 400 },
+        );
+      }
+    }
+
     // galleryImages: 명시적으로 전달된 경우에만 업데이트 (미전달 시 기존 값 유지)
     const cleanImages = Array.isArray(galleryImages)
       ? galleryImages.filter((u: string) => u.trim()).slice(0, 6)
