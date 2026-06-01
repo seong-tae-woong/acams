@@ -289,6 +289,24 @@ export default function AcademyPublicPage() {
       ══════════════════════════════════════════ */}
       <div style={{ maxWidth: 768, margin: '0 auto', padding: '44px 20px 140px' }}>
 
+        {/* ── 학원 소개 ── */}
+        {profile.introDetail && (
+          <section style={{ marginBottom: 52 }}>
+            <SectionHeader title="학원 소개" subtitle="우리 학원을 소개합니다." />
+            <div style={{
+              background: C.card, borderRadius: 16, padding: '24px 22px',
+              boxShadow: C.shadow,
+            }}>
+              <p style={{
+                fontSize: 14.5, color: C.text, lineHeight: 1.75,
+                whiteSpace: 'pre-wrap', margin: 0, fontFamily: FONT,
+              }}>
+                {profile.introDetail}
+              </p>
+            </div>
+          </section>
+        )}
+
         {/* ── 수강 과목 ── */}
         {profile.classes.length > 0 && (
           <section style={{ marginBottom: 52 }}>

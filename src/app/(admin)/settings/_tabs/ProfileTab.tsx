@@ -11,6 +11,7 @@ export default function ProfileTab() {
   const [profileForm, setProfileForm] = useState({
     slug: '',
     intro: '',
+    introDetail: '',
     directorName: '',
     businessNumber: '',
     phone: '',
@@ -36,6 +37,7 @@ export default function ProfileTab() {
         setProfileForm({
           slug: data.slug ?? '',
           intro: data.intro ?? '',
+          introDetail: data.introDetail ?? '',
           directorName: data.directorName ?? '',
           businessNumber: data.businessNumber ?? '',
           phone: data.phone ?? '',
@@ -178,14 +180,32 @@ export default function ProfileTab() {
           <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
             <div className="text-[13px] font-semibold text-[#111827] mb-1">학원 소개</div>
             <div>
-              <label className="text-[11.5px] text-[#6b7280] block mb-1">소개글</label>
-              <textarea
-                rows={3}
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11.5px] text-[#6b7280]">한 줄 소개</label>
+                <span className={clsx('text-[10.5px]', profileForm.intro.length >= 40 ? 'text-[#ef4444]' : 'text-[#9ca3af]')}>
+                  {profileForm.intro.length}/40
+                </span>
+              </div>
+              <input
+                type="text"
+                maxLength={40}
                 value={profileForm.intro}
-                onChange={(e) => setProfileForm((f) => ({ ...f, intro: e.target.value }))}
-                placeholder="학원 소개글을 입력하세요"
+                onChange={(e) => setProfileForm((f) => ({ ...f, intro: e.target.value.slice(0, 40) }))}
+                placeholder="예) 영어 원서로 사고력을 키우는 책방형 학원"
+                className={fieldCls}
+              />
+              <div className="text-[10.5px] text-[#9ca3af] mt-1">공개페이지 상단(학원명 아래)에 표시됩니다.</div>
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">상세 소개</label>
+              <textarea
+                rows={5}
+                value={profileForm.introDetail}
+                onChange={(e) => setProfileForm((f) => ({ ...f, introDetail: e.target.value }))}
+                placeholder="학원의 교육 철학, 특징, 커리큘럼 등을 자유롭게 작성하세요. (줄바꿈 가능)"
                 className={clsx(fieldCls, 'resize-none')}
               />
+              <div className="text-[10.5px] text-[#9ca3af] mt-1">공개페이지 본문 &apos;학원 소개&apos; 영역에 표시됩니다. 비워두면 표시되지 않습니다.</div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

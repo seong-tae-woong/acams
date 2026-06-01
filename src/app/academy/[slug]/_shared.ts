@@ -49,7 +49,7 @@ export type AnnouncementItem = {
   id: string; title: string; content: string; publishedAt: string; pinned: boolean;
 };
 export type Profile = {
-  name: string; slug: string; intro: string; phone: string; address: string;
+  name: string; slug: string; intro: string; introDetail: string; phone: string; address: string;
   directorName: string; businessNumber: string; operatingHours: string;
   refundPolicy: string; showFees: boolean; kakaoMapUrl: string;
   galleryImages: string[]; classes: ClassItem[]; announcements: AnnouncementItem[];

@@ -64,6 +64,7 @@ export async function GET(
       name: academy.name,
       slug: academy.slug,
       intro: academy.intro ?? '',
+      introDetail: academy.introDetail ?? '',
       phone: academy.phone ?? '',
       address: academy.address ?? '',
       directorName: academy.directorName ?? '',

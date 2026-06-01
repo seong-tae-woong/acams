@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
         phone: true,
         address: true,
         intro: true,
+        introDetail: true,
         directorName: true,
         businessNumber: true,
         operatingHours: true,
@@ -64,7 +65,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
 
     const {
-      intro, directorName, businessNumber,
+      intro, introDetail, directorName, businessNumber,
       operatingHours, refundPolicy,
       showFees, profileEnabled,
       kakaoMapUrl, galleryImages,
@@ -80,6 +81,11 @@ export async function PATCH(req: NextRequest) {
       attendanceLateMinutes,
       attendanceAbsentMinutes,
     } = body;
+
+    // 한 줄 소개는 최대 40자 (히어로 태그라인)
+    if (intro !== undefined && typeof intro === 'string' && intro.length > 40) {
+      return NextResponse.json({ error: '한 줄 소개는 최대 40자까지 입력할 수 있습니다.' }, { status: 400 });
+    }
 
     // 임계값 검증: 정수, 1 <= late < absent <= 60
     const lateNum = typeof attendanceLateMinutes === 'number' ? Math.trunc(attendanceLateMinutes) : undefined;
@@ -146,6 +152,7 @@ export async function PATCH(req: NextRequest) {
         ...(phone        !== undefined && { phone }),
         ...(address      !== undefined && { address }),
         ...(intro        !== undefined && { intro }),
+        ...(introDetail  !== undefined && { introDetail }),
         ...(directorName !== undefined && { directorName }),
         ...(businessNumber !== undefined && { businessNumber }),
         ...(operatingHours !== undefined && { operatingHours }),

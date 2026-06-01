@@ -41,7 +41,8 @@ model Academy {
   attendanceAbsentMinutes  Int     @default(20)    // 수업 시작 후 M분 → 결석 알림 (반드시 Late < Absent)
 
   // ── 공개 소개 페이지 (/academy/[slug]) ──────────────────
-  intro          String? // 한 줄 소개
+  intro          String? // 한 줄 소개 (히어로 태그라인, 최대 40자)
+  introDetail    String? // 상세 소개 (본문 "학원 소개" 섹션, 줄바꿈 보존)
   directorName   String? // 대표자명
   businessNumber String? // 사업자등록번호
   operatingHours String? // 운영 시간 (자유 입력)
