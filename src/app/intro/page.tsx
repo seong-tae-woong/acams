@@ -4,13 +4,13 @@ import ConsultForm from './_components/ConsultForm';
 import BrandMark from '@/components/shared/BrandMark';
 
 export const metadata: Metadata = {
-  title: '학원로그 — 여러 프로그램·엑셀·카톡을 하나로',
+  title: '학원로그 — 대형학원만 쓰던 무기를, 동네학원도',
   description:
-    '출결·정산·공지·성적·인강까지, 소규모 학원의 흩어진 업무를 학원로그 하나로 통합하세요. 인강으로 학생은 스스로 학습하고 원장님은 관리만, 추가 수익까지.',
-  keywords: ['학원관리', '학원관리프로그램', '학원로그', '출결관리', '학원비결제', '인강', '학원통합관리'],
+    '데이터로 굴러가는 통합 운영, 강사 혼자 더 많은 학생을 가르치는 인강 수익까지. 대형학원만 누리던 운영 무기를 소규모 학원도 부담 없이 쓰는 통합 플랫폼, 학원로그.',
+  keywords: ['학원관리', '학원관리프로그램', '학원로그', '출결관리', '학원비결제', '인강', '학원통합관리', '소규모학원'],
   openGraph: {
-    title: '학원로그 — 흩어진 학원 업무를 하나로',
-    description: '출결·정산·공지·성적·인강까지 통합. 인강으로 추가 수익까지 만드는 소규모 학원 운영 플랫폼.',
+    title: '학원로그 — 대형학원만 쓰던 무기를, 동네학원도',
+    description: '데이터 통합 운영부터 인강 추가 수익까지. 대형학원의 운영 무기를 동네학원도 부담 없이 쓰는 플랫폼.',
     type: 'website',
     locale: 'ko_KR',
     siteName: '학원로그',
@@ -31,12 +31,12 @@ export default function IntroPage() {
         </div>
       </div>
 
-      {/* 히어로 */}
+      {/* 히어로 — 미션 선언 */}
       <div className="i-wrap">
         <section className="i-hero">
-          <span className="i-eyebrow">소규모 학원을 위한 통합 운영 플랫폼</span>
-          <h1>여러 프로그램·엑셀·카톡,<br /><span className="i-accent">학원로그 하나로</span> 끝냅니다</h1>
-          <p className="i-hero-sub">출결은 종이, 정산은 엑셀, 공지는 카톡… 따로 노는 도구들 때문에 가르칠 시간이 줄어듭니다. 학원로그가 그 시간을 선생님께 돌려드립니다.</p>
+          <span className="i-eyebrow">동네학원의 편에서</span>
+          <h1>대형학원만 쓰던 무기를,<br /><span className="i-accent">동네학원도.</span></h1>
+          <p className="i-hero-sub">데이터로 굴러가는 통합 관리, 그리고 강사 혼자 더 많은 학생을 가르치는 인강 수익까지. 수작업 없는 시스템 기반의 운영을, 작은 학원도 부담 없이 누리세요.</p>
           <div className="i-actions">
             <a className="i-btn-primary" href="#consult">무료로 데모 신청하기</a>
             <a className="i-btn-ghost" href="#features">기능 둘러보기</a>
@@ -76,50 +76,76 @@ export default function IntroPage() {
         </section>
       </div>
 
-      {/* 공감 */}
-      <section className="i-sec i-pain">
+      {/* 격차 시각화 — 대형학원 vs 동네학원 */}
+      <section className="i-sec i-gap-sec">
         <div className="i-wrap">
           <div className="i-head">
-            <div className="i-kicker">지금, 이렇게 일하고 계신가요?</div>
-            <h2>도구가 흩어져 있으면<br />매일 잔업이 쌓입니다</h2>
+            <div className="i-kicker">대형학원 vs 동네학원</div>
+            <h2>문제는 실력이 아니라,<br />무기의 격차였습니다</h2>
+            <p>대형 프랜차이즈는 데이터와 인강으로 이미 앞서 있습니다. 같은 무기를, 동네학원도 부담 없이.</p>
           </div>
-          <div className="i-pain-flow">
-            <div className="i-pain-asis">
-              <span className="i-pain-tag">지금</span>
+          <div className="i-gap">
+            <div className="i-gap-col is-small">
+              <span className="i-gap-tag tag-small">지금, 동네학원</span>
               <div className="i-pain-chips">
                 <div className="i-pain-chip"><span className="ic">📄</span><div><b>종이 출석부</b><span className="sub">옮겨 적고 또 확인</span></div></div>
                 <div className="i-pain-chip"><span className="ic">📊</span><div><b>엑셀 정산</b><span className="sub">숫자 어긋나 재검산</span></div></div>
-                <div className="i-pain-chip"><span className="ic">💬</span><div><b>카톡 공지</b><span className="sub">한 명씩 저녁 내내</span></div></div>
-                <div className="i-pain-chip"><span className="ic">🧮</span><div><b>계산기·메모</b><span className="sub">여기저기 흩어짐</span></div></div>
+                <div className="i-pain-chip"><span className="ic">💬</span><div><b>밤마다 카톡</b><span className="sub">한 명씩 저녁 내내</span></div></div>
               </div>
             </div>
-            <div className="i-pain-pivot"><span className="arrow">→</span></div>
-            <div className="i-pain-tobe-wrap">
-              <span className="i-pain-tag i-pain-tag-on">학원로그로</span>
-              <div className="i-pain-tobe">
-                <div className="i-pain-tobe-head"><BrandMark size={20} /><b>통합 대시보드</b></div>
-                <div className="i-pain-tobe-row"><span className="ck">✓</span>출결 자동 집계</div>
-                <div className="i-pain-tobe-row"><span className="ck">✓</span>수납 현황 한눈에</div>
-                <div className="i-pain-tobe-row"><span className="ck">✓</span>공지 일괄 발송</div>
+            <div className="i-gap-col is-big">
+              <span className="i-gap-tag tag-big">이미, 대형학원</span>
+              <div className="i-gap-weapons">
+                <div className="i-gap-weapon"><span className="ck">✓</span><div><b>데이터 대시보드</b><span className="sub">감이 아니라 숫자로 결정</span></div></div>
+                <div className="i-gap-weapon"><span className="ck">✓</span><div><b>인강 인프라</b><span className="sub">강사 혼자 더 많은 학생</span></div></div>
+                <div className="i-gap-weapon"><span className="ck">✓</span><div><b>자동 알림</b><span className="sub">콜센터가 대신 연락</span></div></div>
               </div>
             </div>
           </div>
-          <div className="i-pain-arrow">흩어진 도구도, 학원로그 하나로 모으면 잔업이 사라집니다</div>
+          <div className="i-gap-merge"><BrandMark size={20} /><span>학원로그로, <b>동네학원도 같은 무기를.</b></span></div>
         </div>
       </section>
 
-      {/* 기능 */}
+      {/* 핵심 무기 1 — 인강 수익 (구매 트리거) */}
+      <section className="i-sec i-ingang">
+        <div className="i-wrap">
+          <div className="i-ingang-inner">
+            <div className="i-ingang-copy">
+              <span className="i-badge-p">✦ 대형학원의 인강 무기, 우리 학원에도</span>
+              <h2>학생은 <em>스스로</em> 학습하고,<br />원장님은 <em>관리만</em> 하세요</h2>
+              <p>강의를 한 번 올려두면(등록 3분), 진도와 질문만 관리해도 더 많은 학생을 가르쳐 학원 수익이 늘어납니다.</p>
+              <div className="i-revenue-ex">
+                <div className="i-rev-calc">
+                  <span className="i-rev-part">재원생 30명 중 <b>10명</b></span>
+                  <span className="i-rev-op">×</span>
+                  <span className="i-rev-part">월 <b>5만원</b> 인강</span>
+                  <span className="i-rev-op">=</span>
+                  <span className="i-rev-result">월 <b>+50만원</b><span className="i-rev-tag">예시</span></span>
+                </div>
+                <p className="i-rev-note">* 학원·과목·수강률에 따라 다릅니다. 실제 수익을 보장하지 않습니다.</p>
+              </div>
+            </div>
+            <div className="i-ingang-visual">
+              <div className="i-ig-row"><div className="i-ig-thumb">▶</div><div><b>중등 수학 · 1단원 정리</b><span>홍길동 외 18명 수강 중</span></div><span className="i-ig-prog num">82%</span></div>
+              <div className="i-ig-row"><div className="i-ig-thumb">▶</div><div><b>영문법 마스터 · 시제</b><span>김민준 외 12명 수강 중</span></div><span className="i-ig-prog num">67%</span></div>
+              <div className="i-ig-row"><div className="i-ig-thumb">▶</div><div><b>국어 비문학 독해</b><span>이서연 외 9명 수강 중</span></div><span className="i-ig-prog num">95%</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 핵심 무기 2 — 데이터 통합 운영 + 기능(무기들) */}
       <section className="i-sec" id="features">
         <div className="i-wrap">
           <div className="i-head">
-            <div className="i-kicker">원장님 업무에 맞춘 7가지 기능</div>
-            <h2>프로그램에 맞추지 마세요<br />원장님 손작업을 대신합니다</h2>
-            <p>출결·정산·공지·성적까지, 매일 손으로 반복하던 업무를 기능 하나하나가 그대로 대신합니다.</p>
+            <div className="i-kicker">대형학원이 쓰던 무기들, 이제 우리 학원도</div>
+            <h2>흩어진 데이터를 한곳에.<br />감이 아니라 데이터로 결정합니다</h2>
+            <p>출결·정산·공지·성적·인강까지, 대형학원이 시스템으로 하던 일을 학원로그가 자동으로 대신합니다.</p>
           </div>
           <div className="i-feat-grid">
             <div className="i-feat"><div className="i-feat-icon">🗂️</div><div><h3>통합 관리</h3><div className="kill">— 프로그램 여러 개를 오갈 필요 없이</div><p>학생·수업·정산·공지를 한 화면에서. 더 이상 도구 사이를 오가지 않습니다.</p><div className="i-feat-tags"><span className="i-tag">#올인원</span><span className="i-tag">#한화면</span></div></div></div>
-            <div className="i-feat"><div className="i-feat-icon">📈</div><div><h3>성적 리포트</h3><div className="kill">— 양식 한 번 만들면, 발행은 자동으로</div><p>리포트 양식을 미리 만들어 두면, 점수 입력만으로 학생별 추이 리포트가 자동 발행됩니다.</p><div className="i-feat-tags"><span className="i-tag">#양식편집</span><span className="i-tag">#자동발행</span></div></div></div>
-            <div className="i-feat"><div className="i-feat-icon">🔔</div><div><h3>알림 자동화</h3><div className="kill">— 한 명씩 카톡 보내던 저녁 시간 회수</div><p>출결·납부·공지를 설정한 조건에 맞춰 학부모에게 자동 발송합니다.</p><div className="i-feat-tags"><span className="i-tag">#조건설정</span><span className="i-tag">#자동발송</span></div></div></div>
+            <div className="i-feat"><div className="i-feat-icon">📈</div><div><h3>성적 리포트</h3><div className="kill">— 대형학원의 학습관리를 자동으로</div><p>리포트 양식을 미리 만들어 두면, 점수 입력만으로 학생별 추이 리포트가 자동 발행됩니다.</p><div className="i-feat-tags"><span className="i-tag">#양식편집</span><span className="i-tag">#자동발행</span></div></div></div>
+            <div className="i-feat"><div className="i-feat-icon">🔔</div><div><h3>알림 자동화</h3><div className="kill">— 대형학원 콜센터를 대신</div><p>출결·납부·공지를 설정한 조건에 맞춰 학부모에게 자동 발송합니다.</p><div className="i-feat-tags"><span className="i-tag">#조건설정</span><span className="i-tag">#자동발송</span></div></div></div>
             <div className="i-feat"><div className="i-feat-icon">🌐</div><div><h3>학원별 공개페이지</h3><div className="kill">— 따로 홈페이지 만들 필요 없이</div><p>학원 소개·공지·문의를 담은 공개 페이지가 자동으로 만들어집니다.</p><div className="i-feat-tags"><span className="i-tag">#자동생성</span><span className="i-tag">#문의접수</span></div></div></div>
             <div className="i-feat"><div className="i-feat-icon">✅</div><div><h3>출결 자동화</h3><div className="kill">— 종이 출석부와 작별</div><p>QR·체크인으로 출결을 집계하고 미출석은 즉시 알림으로 연결됩니다.</p><div className="i-feat-tags"><span className="i-tag">#QR출결</span><span className="i-tag">#미출석알림</span></div></div></div>
             <div className="i-feat"><div className="i-feat-icon">💳</div><div><h3>학원비 청구·결제</h3><div className="kill">— 미납 확인·독촉 자동으로</div><p>청구서 발송부터 결제·수납 현황까지 한 번에. 미납은 자동 리마인드.</p><div className="i-feat-tags"><span className="i-tag">#자동청구</span><span className="i-tag">#간편결제</span></div></div></div>
@@ -128,7 +154,7 @@ export default function IntroPage() {
         </div>
       </section>
 
-      {/* 모바일 */}
+      {/* 모바일 — 학부모 */}
       <section className="i-sec i-mobile">
         <div className="i-wrap">
           <div className="i-mobile-inner">
@@ -152,34 +178,23 @@ export default function IntroPage() {
         </div>
       </section>
 
-      {/* 인강 수익 */}
-      <section className="i-sec i-ingang">
+      {/* 창업자 미션 노트 */}
+      <section className="i-sec i-founder">
         <div className="i-wrap">
-          <div className="i-ingang-inner">
-            <div className="i-ingang-copy">
-              <span className="i-badge-p">✦ 인강으로 만드는 추가 수익</span>
-              <h2>학생은 <em>스스로</em> 학습하고,<br />원장님은 <em>관리만</em> 하세요</h2>
-              <p>강의를 한 번 올려두면, 진도와 질문만 관리해도 더 많은 학생을 가르쳐 수익성이 극대화됩니다.</p>
-              <div className="i-stats">
-                <div><div className="n num">+45<span style={{ fontSize: 20 }}>시간</span></div><div className="c">월 절감 수업 시간(예시)</div></div>
-                <div><div className="n num">3<span style={{ fontSize: 20 }}>분</span></div><div className="c">강의 등록에 걸리는 시간</div></div>
-              </div>
-            </div>
-            <div className="i-ingang-visual">
-              <div className="i-ig-row"><div className="i-ig-thumb">▶</div><div><b>중등 수학 · 1단원 정리</b><span>홍길동 외 18명 수강 중</span></div><span className="i-ig-prog num">82%</span></div>
-              <div className="i-ig-row"><div className="i-ig-thumb">▶</div><div><b>영문법 마스터 · 시제</b><span>김민준 외 12명 수강 중</span></div><span className="i-ig-prog num">67%</span></div>
-              <div className="i-ig-row"><div className="i-ig-thumb">▶</div><div><b>국어 비문학 독해</b><span>이서연 외 9명 수강 중</span></div><span className="i-ig-prog num">95%</span></div>
-            </div>
+          <div className="i-founder-card">
+            <span className="i-founder-badge">만든 사람의 말</span>
+            <p className="i-founder-quote">“자본도 인력도 부족한 동네학원이 기술 격차로 도태되는 게 안타까웠습니다. 대형학원만 누리던 데이터 운영과 인강을, 작은 학원도 부담 없이 — 그래서 학원로그를 만들었습니다.”</p>
+            <div className="i-founder-by">학원로그 드림</div>
           </div>
         </div>
       </section>
 
-      {/* 상담 신청 */}
+      {/* 상담 신청 (최종 CTA) */}
       <section className="i-consult" id="consult">
         <div className="i-wrap">
           <div className="i-consult-inner">
             <div className="i-consult-copy">
-              <h2>선생님은 가르치는 일에<br />집중하세요</h2>
+              <h2>동네학원도 대형학원처럼,<br />데이터로 운영해보세요</h2>
               <p>행정·정산·공지는 학원로그가 대신합니다. 10분 데모로 어떻게 일을 줄여드리는지 직접 보여드립니다.</p>
               <ul>
                 <li>설치·계약 부담 없이 먼저 보고 결정</li>
@@ -192,7 +207,7 @@ export default function IntroPage() {
         </div>
       </section>
 
-      <footer className="i-footer">© 2026 학원로그 · 소규모 학원을 위한 통합 운영 플랫폼</footer>
+      <footer className="i-footer">© 2026 학원로그 · 동네학원의 편에서 만든 통합 운영 플랫폼</footer>
     </div>
   );
 }
