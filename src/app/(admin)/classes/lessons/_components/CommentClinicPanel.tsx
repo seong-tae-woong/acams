@@ -79,7 +79,9 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
       fetchMakeupComments(scope.makeupClassId).catch(() => {});
       fetchMakeupClinicResults(scope.makeupClassId).catch(() => {});
     }
-  }, [scopeKey, scope, fetchComments, fetchClinicResults, fetchMakeupComments, fetchMakeupClinicResults]);
+    // scopeKey가 scope의 모든 식별 필드를 인코딩하므로, 불안정한 scope 객체는 deps에서 제외 (재렌더 루프 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, fetchComments, fetchClinicResults, fetchMakeupComments, fetchMakeupClinicResults]);
 
   // 양식 자동 선택
   useEffect(() => {
@@ -99,10 +101,11 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
         ? getCommentFor(scope.classId, selectedStudentId, scope.sessionDate)?.comment
         : getMakeupCommentFor(scope.makeupClassId, selectedStudentId)?.comment;
     setCommentText(c ?? '');
+    // scope 객체는 매 렌더 새로 생성되므로 안정값 scopeKey만 의존 (입력값 초기화 루프 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedStudentId,
     scopeKey,
-    scope,
     comments,
     makeupComments,
     getCommentFor,
@@ -132,11 +135,12 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
       setLocalCustomItems([]);
       setLocalHiddenItemIds([]);
     }
+    // scope 객체는 매 렌더 새로 생성되므로 안정값 scopeKey만 의존 (체크 상태 초기화 루프 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedStudentId,
     selectedTemplateId,
     scopeKey,
-    scope,
     templates,
     clinicResults,
     makeupClinicResults,
