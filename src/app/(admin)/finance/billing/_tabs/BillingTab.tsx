@@ -10,7 +10,7 @@ import { BillStatus } from '@/lib/types/finance';
 import type { Bill } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck, Tag, FileText } from 'lucide-react';
+import { Send, ChevronDown, Check, Pencil, RotateCcw, Ban, CheckCheck, Tag, FileText, X } from 'lucide-react';
 import clsx from 'clsx';
 import { STATUS_STYLE, formatMonth, type BillingNotifTarget } from '../_shared';
 import MonthlyAdjustModal from '../_components/MonthlyAdjustModal';
@@ -98,7 +98,7 @@ export default function BillingTab({
 
   const monthLabel = filterMonths.length === 0 ? '전체 월'
     : filterMonths.length === 1 ? formatMonth(filterMonths[0])
-    : `${formatMonth([...filterMonths].sort().reverse()[0])} 외 ${filterMonths.length - 1}개`;
+    : `${filterMonths.length}개월`;
 
   const monthFilteredBills = filterMonths.length === 0 ? bills : bills.filter((b) => filterMonths.includes(b.month));
   const totalBilled = monthFilteredBills.reduce((s, b) => s + b.amount, 0);
@@ -210,38 +210,57 @@ export default function BillingTab({
               <span>{monthLabel}</span><ChevronDown size={12} className={clsx('text-[#6b7280] transition-transform', monthDropOpen && 'rotate-180')} />
             </button>
             {monthDropOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setFilterMonths([])}>
+              <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[180px] py-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => { setFilterMonths([]); setMonthDropOpen(false); }}>
                   <Check size={12} className={clsx(filterMonths.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                 </div>
                 <div className="border-t border-[#f1f5f9] my-1" />
                 {availableMonths.map((m) => (
-                  <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => toggleMonth(m)}>
-                    <Check size={12} className={clsx(filterMonths.includes(m) ? 'text-[#4fc3a1]' : 'invisible')} />{formatMonth(m)}
+                  <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => { setFilterMonths([m]); setMonthDropOpen(false); }}>
+                    <input
+                      type="checkbox"
+                      checked={filterMonths.includes(m)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleMonth(m)}
+                      className="w-3.5 h-3.5 cursor-pointer accent-[#4fc3a1]"
+                      title="여러 달 선택"
+                    />
+                    {formatMonth(m)}
                   </div>
                 ))}
               </div>
             )}
           </div>
+          {filterMonths.length >= 2 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {[...filterMonths].sort().reverse().map((m) => (
+                <span key={m} className="inline-flex items-center gap-1 text-[11.5px] bg-[#eef7f3] text-[#0D9E7A] border border-[#cdeee2] rounded-[20px] pl-2 pr-1 py-0.5">
+                  {formatMonth(m)}
+                  <button type="button" onClick={() => toggleMonth(m)} className="hover:bg-[#cdeee2] rounded-full p-0.5 cursor-pointer" title="제거">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <span className="text-[12px] text-[#6b7280] ml-auto">{filtered.length}건</span>
           {selectedBillIds.size > 0 && (
             <span className="text-[12px] text-[#4fc3a1] font-medium">{selectedBillIds.size}개 선택됨</span>
           )}
           {isDirector && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => {
-                if (filterMonths.length !== 1) {
-                  toast('월별 조정은 단일 월을 선택한 상태에서만 추가할 수 있습니다.', 'error');
-                  return;
-                }
-                setMonthlyAdjustOpen(true);
-              }}
-              title="이번 달 교재비·활동비 등 일회성 조정 추가"
+            <span
+              className="inline-flex"
+              title={filterMonths.length === 1 ? '이번 달 교재비·활동비 등 일회성 조정 추가' : '단일 월을 선택하면 추가할 수 있어요'}
             >
-              <Tag size={13} /> 월별 조정
-            </Button>
+              <Button
+                variant="default"
+                size="sm"
+                disabled={filterMonths.length !== 1}
+                onClick={() => setMonthlyAdjustOpen(true)}
+              >
+                <Tag size={13} /> 월별 조정
+              </Button>
+            </span>
           )}
           <Button
             variant="default"

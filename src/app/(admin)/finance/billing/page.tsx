@@ -26,7 +26,7 @@ import { Settings } from 'lucide-react';
 export default function BillingPage() {
   const {
     loading,
-    fetchBills,
+    fetchBills, fetchPaidBills,
     fetchAvailableMonths, fetchAvailablePaidMonths,
   } = useFinanceStore();
   const { fetchClasses } = useClassStore();
@@ -45,6 +45,7 @@ export default function BillingPage() {
   const [filterMonths, setFilterMonths] = useState<string[]>([currentMonth]);
   const [filterStatus, setFilterStatus] = useState<BillStatus | 'all'>('all');
   const [filterClass, setFilterClass] = useState<string>('all');
+  const [payFilterMonths, setPayFilterMonths] = useState<string[]>([currentMonth]);
 
   // ── 검색어 디바운스 (~300ms) ──────────────────────────
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -57,6 +58,11 @@ export default function BillingPage() {
   useEffect(() => {
     fetchBills(filterMonths, { q: debouncedSearch || undefined });
   }, [filterMonths, debouncedSearch, fetchBills]);
+
+  // 수납 내역 탭: 탭 활성화 또는 수납월 변경 시 서버 재조회
+  useEffect(() => {
+    if (financeTab === 'payments') fetchPaidBills(payFilterMonths);
+  }, [financeTab, payFilterMonths, fetchPaidBills]);
 
   const refetchBills = () => fetchBills(filterMonths, { q: debouncedSearch || undefined });
 
@@ -157,7 +163,7 @@ export default function BillingPage() {
         )}
 
         {/* ── 수납 내역 탭 ── */}
-        {financeTab === 'payments' && <PaymentsTab />}
+        {financeTab === 'payments' && <PaymentsTab payFilterMonths={payFilterMonths} setPayFilterMonths={setPayFilterMonths} />}
 
         {/* ── 미납 관리 탭 ── */}
         {financeTab === 'overdue' && <OverdueTab onOpenDetail={openDetail} />}

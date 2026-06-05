@@ -1,25 +1,24 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { useFinanceStore } from '@/lib/stores/financeStore';
 import { BillStatus } from '@/lib/types/finance';
 import { formatKoreanDate } from '@/lib/utils/format';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, X } from 'lucide-react';
 import clsx from 'clsx';
-import { METHOD_STYLE, formatMonth, currentMonth } from '../_shared';
+import { METHOD_STYLE, formatMonth } from '../_shared';
 
-export default function PaymentsTab() {
-  const { paidBillsView, fetchPaidBills, availablePaidMonths } = useFinanceStore();
+interface PaymentsTabProps {
+  payFilterMonths: string[];
+  setPayFilterMonths: Dispatch<SetStateAction<string[]>>;
+}
+
+export default function PaymentsTab({ payFilterMonths, setPayFilterMonths }: PaymentsTabProps) {
+  const { paidBillsView, availablePaidMonths } = useFinanceStore();
 
   // ── 수납 내역 탭 상태 ─────────────────────────────────
   const [payViewMode, setPayViewMode] = useState<'all' | 'card' | 'transfer' | 'cash'>('all');
-  const [payFilterMonths2, setPayFilterMonths2] = useState<string[]>([currentMonth]);
   const [payMonthDropOpen2, setPayMonthDropOpen2] = useState(false);
   const payMonthDropRef2 = useRef<HTMLDivElement>(null);
-
-  // 수납 내역 탭: 선택 수납월(paidDate) 변경 시 서버 재조회
-  useEffect(() => {
-    fetchPaidBills(payFilterMonths2);
-  }, [payFilterMonths2, fetchPaidBills]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -31,17 +30,17 @@ export default function PaymentsTab() {
 
   // ── 수납 내역 탭 계산 ─────────────────────────────────
   const togglePayMonth = (m: string) => {
-    setPayFilterMonths2((prev) =>
+    setPayFilterMonths((prev) =>
       prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
     );
   };
-  const payMonthLabel2 = payFilterMonths2.length === 0 ? '전체 월'
-    : payFilterMonths2.length === 1 ? formatMonth(payFilterMonths2[0])
-    : `${formatMonth([...payFilterMonths2].sort().reverse()[0])} 외 ${payFilterMonths2.length - 1}개`;
+  const payMonthLabel2 = payFilterMonths.length === 0 ? '전체 월'
+    : payFilterMonths.length === 1 ? formatMonth(payFilterMonths[0])
+    : `${payFilterMonths.length}개월`;
 
   const paidBills = paidBillsView.filter((b) => {
     if (b.status === BillStatus.UNPAID || !b.paidDate) return false;
-    if (payFilterMonths2.length > 0 && !payFilterMonths2.includes(b.paidDate.slice(0, 7))) return false;
+    if (payFilterMonths.length > 0 && !payFilterMonths.includes(b.paidDate.slice(0, 7))) return false;
     return true;
   }).sort((a, b) => (b.paidDate ?? '').localeCompare(a.paidDate ?? ''));
 
@@ -76,7 +75,7 @@ export default function PaymentsTab() {
           </div>
         ))}
       </div>
-      <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+      <div className="bg-white rounded-[10px] border border-[#e2e8f0]">
         <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center gap-2 flex-wrap">
           {(['all', 'card', 'transfer', 'cash'] as const).map((mode) => {
             const labels = { all: '전체', card: '카드', transfer: '계좌이체', cash: '현금' };
@@ -91,19 +90,39 @@ export default function PaymentsTab() {
               <span>{payMonthLabel2}</span><ChevronDown size={12} className={clsx('text-[#6b7280] transition-transform', payMonthDropOpen2 && 'rotate-180')} />
             </button>
             {payMonthDropOpen2 && (
-              <div className="absolute top-full right-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[140px] py-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => setPayFilterMonths2([])}>
-                  <Check size={12} className={clsx(payFilterMonths2.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
+              <div className="absolute top-full right-0 mt-1 bg-white border border-[#e2e8f0] rounded-[10px] shadow-lg z-10 min-w-[180px] py-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#6b7280]" onClick={() => { setPayFilterMonths([]); setPayMonthDropOpen2(false); }}>
+                  <Check size={12} className={clsx(payFilterMonths.length === 0 ? 'text-[#4fc3a1]' : 'invisible')} />전체 월
                 </div>
                 <div className="border-t border-[#f1f5f9] my-1" />
                 {availablePaidMonths.map((m) => (
-                  <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => togglePayMonth(m)}>
-                    <Check size={12} className={clsx(payFilterMonths2.includes(m) ? 'text-[#4fc3a1]' : 'invisible')} />{formatMonth(m)}
+                  <div key={m} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#f9fafb] cursor-pointer text-[12px] text-[#374151]" onClick={() => { setPayFilterMonths([m]); setPayMonthDropOpen2(false); }}>
+                    <input
+                      type="checkbox"
+                      checked={payFilterMonths.includes(m)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => togglePayMonth(m)}
+                      className="w-3.5 h-3.5 cursor-pointer accent-[#4fc3a1]"
+                      title="여러 달 선택"
+                    />
+                    {formatMonth(m)}
                   </div>
                 ))}
               </div>
             )}
           </div>
+          {payFilterMonths.length >= 2 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {[...payFilterMonths].sort().reverse().map((m) => (
+                <span key={m} className="inline-flex items-center gap-1 text-[11.5px] bg-[#eef7f3] text-[#0D9E7A] border border-[#cdeee2] rounded-[20px] pl-2 pr-1 py-0.5">
+                  {formatMonth(m)}
+                  <button type="button" onClick={() => togglePayMonth(m)} className="hover:bg-[#cdeee2] rounded-full p-0.5 cursor-pointer" title="제거">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <span className="text-[12px] text-[#6b7280]">{payFiltered.length}건</span>
         </div>
         <div className="divide-y divide-[#f1f5f9]">
