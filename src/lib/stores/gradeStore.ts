@@ -32,7 +32,7 @@ interface GradeStore {
   updateExam: (id: string, updates: Partial<Omit<Exam, 'id' | 'classId' | 'className' | 'subject'>>) => Promise<void>;
   deleteExam: (id: string) => Promise<void>;
   saveGrades: (grades: Omit<GradeRecord, 'id'>[]) => Promise<void>;
-  updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>) => Promise<void>;
+  updateGrade: (id: string, updates: Partial<Pick<GradeRecord, 'score' | 'correctCount' | 'rank' | 'memo'>>) => Promise<void>;
 
   // 카테고리
   fetchCategories: () => Promise<void>;

@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       studentId: r.studentId,
       studentName: r.student.name,
       score: r.score,
+      correctCount: r.correctCount,
       rank: r.rank,
       memo: r.memo,
     }));
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body: { examId: string; studentId: string; score: number | null; rank: number | null; memo: string }[] =
+    const body: { examId: string; studentId: string; score: number | null; correctCount?: number | null; rank: number | null; memo: string }[] =
       await req.json();
 
     if (!Array.isArray(body) || body.length === 0) {
@@ -63,11 +64,13 @@ export async function POST(req: NextRequest) {
             examId: r.examId,
             studentId: r.studentId,
             score: r.score,
+            correctCount: r.correctCount ?? null,
             rank: r.rank ?? null,
             memo: r.memo ?? '',
           },
           update: {
             score: r.score,
+            correctCount: r.correctCount ?? null,
             rank: r.rank ?? null,
             memo: r.memo ?? '',
           },

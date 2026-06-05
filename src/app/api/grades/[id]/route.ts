@@ -19,12 +19,13 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     const existing = await prisma.gradeRecord.findFirst({ where: { id, academyId } });
     if (!existing) return NextResponse.json({ error: '성적 레코드를 찾을 수 없습니다.' }, { status: 404 });
 
-    const { score, rank, memo } = await req.json();
+    const { score, correctCount, rank, memo } = await req.json();
 
     const updated = await prisma.gradeRecord.update({
       where: { id },
       data: {
         ...(score !== undefined ? { score } : {}),
+        ...(correctCount !== undefined ? { correctCount } : {}),
         ...(rank !== undefined ? { rank } : {}),
         ...(memo !== undefined ? { memo } : {}),
       },
@@ -37,6 +38,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       studentId: updated.studentId,
       studentName: updated.student.name,
       score: updated.score,
+      correctCount: updated.correctCount,
       rank: updated.rank,
       memo: updated.memo,
     });

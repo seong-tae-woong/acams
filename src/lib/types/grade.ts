@@ -2,6 +2,9 @@
 
 export type AttitudeGrade = 'Excellent' | 'Good' | 'Need Effort' | 'Bad';
 
+// 배점 방식: 'SCORE'(만점 기준 점수 입력) | 'COUNT'(맞힌 문제 수 입력 → 100점 환산)
+export type ScoringMethod = 'SCORE' | 'COUNT';
+
 export interface ExamCategory {
   id: string;
   name: string;
@@ -16,7 +19,9 @@ export interface Exam {
   classId: string;
   className: string;
   date: string; // ISO date string (YYYY-MM-DD)
-  totalScore: number; // 만점
+  totalScore: number; // 만점 (COUNT 방식이면 100)
+  scoringMethod: ScoringMethod; // 배점 방식
+  totalQuestions: number | null; // COUNT 방식일 때 총 문제 수
   description: string;
   category1Id: string | null;
   category1Name: string | null;
@@ -31,7 +36,8 @@ export interface GradeRecord {
   examId: string;
   studentId: string;
   studentName: string;
-  score: number | null; // null이면 미입력
+  score: number | null; // null이면 미입력 (COUNT 방식이면 100점 환산값)
+  correctCount: number | null; // COUNT 방식일 때 맞힌 문제 수
   rank: number | null; // null이면 미산정
   memo: string;
 }
@@ -65,7 +71,7 @@ export type ExamCreateInput = Omit<Exam, 'id'>;
 
 export type GradeCreateInput = Omit<GradeRecord, 'id'>;
 
-export type GradeUpdateInput = Partial<Pick<GradeRecord, 'score' | 'rank' | 'memo'>>;
+export type GradeUpdateInput = Partial<Pick<GradeRecord, 'score' | 'correctCount' | 'rank' | 'memo'>>;
 
 export interface ExamSummary {
   examId: string;

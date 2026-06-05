@@ -20,12 +20,31 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     if (!exam) return NextResponse.json({ error: '시험을 찾을 수 없습니다.' }, { status: 404 });
 
     const {
-      name, date, totalScore, description,
+      name, date, totalScore, totalQuestions, description,
       category1Id, category2Id, category3Id,
     } = await req.json();
 
     if (!name || !date) return NextResponse.json({ error: '시험명과 날짜는 필수입니다.' }, { status: 400 });
     if (!category1Id) return NextResponse.json({ error: '카테고리 1은 필수입니다.' }, { status: 400 });
+
+    // 배점 방식은 생성 후 변경 불가(잠금) — exam.scoringMethod를 그대로 유지
+    // COUNT 방식이면 총 문제 수를 수정할 수 있고, 바뀌면 기존 성적의 환산 점수를 재계산
+    let newTotalScore = exam.totalScore;
+    let newTotalQuestions = exam.totalQuestions;
+    let recomputeScores = false;
+    if (exam.scoringMethod === 'COUNT') {
+      const tq = Number(totalQuestions);
+      if (!Number.isInteger(tq) || tq < 1) {
+        return NextResponse.json({ error: '총 문제 수는 1 이상이어야 합니다.' }, { status: 400 });
+      }
+      newTotalScore = 100;
+      if (tq !== exam.totalQuestions) {
+        newTotalQuestions = tq;
+        recomputeScores = true;
+      }
+    } else {
+      newTotalScore = totalScore ?? exam.totalScore;
+    }
 
     // 카테고리 소유권/계층 검증 (POST와 동일)
     const ids = [category1Id, category2Id, category3Id].filter(Boolean) as string[];
@@ -57,7 +76,8 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       data: {
         name,
         date: new Date(date),
-        totalScore: totalScore ?? exam.totalScore,
+        totalScore: newTotalScore,
+        totalQuestions: newTotalQuestions,
         description: description ?? '',
         category1Id,
         category2Id: category2Id ?? null,
@@ -71,6 +91,25 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       },
     });
 
+    // 총 문제 수가 바뀐 COUNT 시험은 기존 성적의 100점 환산값을 재계산
+    // (모든 점수가 동일 비율로 스케일되므로 순위는 그대로 유지됨)
+    if (recomputeScores && newTotalQuestions) {
+      const recs = await prisma.gradeRecord.findMany({
+        where: { examId: id, correctCount: { not: null } },
+        select: { id: true, correctCount: true },
+      });
+      if (recs.length > 0) {
+        await prisma.$transaction(
+          recs.map((r) =>
+            prisma.gradeRecord.update({
+              where: { id: r.id },
+              data: { score: Math.round((r.correctCount! / newTotalQuestions) * 100) },
+            }),
+          ),
+        );
+      }
+    }
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
@@ -79,6 +118,8 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       className: updated.class.name,
       date: updated.date.toISOString().slice(0, 10),
       totalScore: updated.totalScore,
+      scoringMethod: updated.scoringMethod,
+      totalQuestions: updated.totalQuestions,
       description: updated.description,
       category1Id: updated.category1?.id ?? null,
       category1Name: updated.category1?.name ?? null,

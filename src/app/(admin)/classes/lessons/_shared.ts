@@ -1,4 +1,5 @@
 // 수업 관리 — 공용 상수·타입
+import type { ScoringMethod } from '@/lib/types/grade';
 
 export type MainTab = 'history' | 'exam' | 'assignment' | 'publish' | 'report-templates';
 
@@ -35,7 +36,9 @@ export const EMPTY_ASSIGNMENT_FORM: AssignmentForm = {
 export interface ExamForm {
   name: string;
   date: string;
+  scoringMethod: ScoringMethod;
   totalScore: string;
+  totalQuestions: string;
   description: string;
   category1Id: string;
   category2Id: string;
@@ -45,7 +48,9 @@ export interface ExamForm {
 export const EMPTY_EXAM_FORM: ExamForm = {
   name: '',
   date: new Date().toISOString().slice(0, 10),
+  scoringMethod: 'SCORE',
   totalScore: '100',
+  totalQuestions: '',
   description: '',
   category1Id: '',
   category2Id: '',

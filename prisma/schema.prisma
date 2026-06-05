@@ -546,6 +546,9 @@ model Exam {
   subject     String   @default("")
   date        DateTime
   totalScore  Int      @default(100)
+  // 배점 방식: "SCORE"(만점 기준) | "COUNT"(맞힌 문제 수 기준, score는 100점 환산값)
+  scoringMethod  String @default("SCORE")
+  totalQuestions Int?   // COUNT 방식일 때 총 문제 수
   description String   @default("")
 
   // 카테고리 (1은 필수, 2/3은 옵션) — 기존 데이터 호환을 위해 모두 nullable
@@ -597,9 +600,10 @@ model GradeRecord {
   studentId String
   student   Student @relation(fields: [studentId], references: [id])
 
-  score Float?
-  rank  Int?
-  memo  String @default("")
+  score        Float? // COUNT 방식이면 100점 환산값
+  correctCount Int?   // COUNT 방식일 때 맞힌 문제 수
+  rank         Int?
+  memo         String @default("")
 
   @@unique([examId, studentId])
   @@map("grade_records")

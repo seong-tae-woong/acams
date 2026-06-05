@@ -47,6 +47,8 @@ export async function GET(req: NextRequest) {
       className: e.class.name,
       date: e.date.toISOString().slice(0, 10),
       totalScore: e.totalScore,
+      scoringMethod: e.scoringMethod,
+      totalQuestions: e.totalQuestions,
       description: e.description,
       category1Id: e.category1?.id ?? null,
       category1Name: e.category1?.name ?? null,
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
   try {
     const {
       name, subject, classId, date, totalScore, description,
+      scoringMethod, totalQuestions,
       category1Id, category2Id, category3Id,
     } = await req.json();
 
@@ -83,6 +86,13 @@ export async function POST(req: NextRequest) {
     }
     if (!category1Id) {
       return NextResponse.json({ error: '카테고리 1은 필수입니다.' }, { status: 400 });
+    }
+
+    // 배점 방식 (COUNT면 총 문제 수 필수, 만점은 100으로 고정)
+    const method = scoringMethod === 'COUNT' ? 'COUNT' : 'SCORE';
+    const tq = Number(totalQuestions);
+    if (method === 'COUNT' && (!Number.isInteger(tq) || tq < 1)) {
+      return NextResponse.json({ error: '총 문제 수는 1 이상이어야 합니다.' }, { status: 400 });
     }
 
     // 카테고리 소유권/계층 검증
@@ -117,7 +127,9 @@ export async function POST(req: NextRequest) {
         name,
         subject: subject ?? '',
         date: new Date(date),
-        totalScore: totalScore ?? 100,
+        totalScore: method === 'COUNT' ? 100 : (totalScore ?? 100),
+        scoringMethod: method,
+        totalQuestions: method === 'COUNT' ? tq : null,
         description: description ?? '',
         category1Id,
         category2Id: category2Id ?? null,
@@ -146,6 +158,8 @@ export async function POST(req: NextRequest) {
       className: exam.class.name,
       date: exam.date.toISOString().slice(0, 10),
       totalScore: exam.totalScore,
+      scoringMethod: exam.scoringMethod,
+      totalQuestions: exam.totalQuestions,
       description: exam.description,
       category1Id: exam.category1?.id ?? null,
       category1Name: exam.category1?.name ?? null,

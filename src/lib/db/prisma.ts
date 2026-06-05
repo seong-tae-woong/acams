@@ -1,7 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@/generated/prisma/client';
 
-const SCHEMA_VERSION = 'v7-tablet-role';
+const SCHEMA_VERSION = 'v8-exam-scoring-method';
 
 function createPrismaClient() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });

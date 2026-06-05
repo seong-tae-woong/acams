@@ -8,6 +8,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { useGradeStore } from '@/lib/stores/gradeStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { StudentStatus } from '@/lib/types/student';
+import type { ScoringMethod, GradeRecord } from '@/lib/types/grade';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
 import { Plus, Trash2, FolderTree, Pencil, Send } from 'lucide-react';
@@ -164,7 +165,9 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
     setExamForm({
       name: e.name,
       date: e.date,
+      scoringMethod: e.scoringMethod,
       totalScore: String(e.totalScore),
+      totalQuestions: e.totalQuestions != null ? String(e.totalQuestions) : '',
       description: e.description ?? '',
       category1Id: e.category1Id ?? '',
       category2Id: e.category2Id ?? '',
@@ -180,14 +183,22 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
     if (!examForm.category1Id) {
       toast('카테고리 1을 선택해주세요.', 'error'); return;
     }
+    const isCount = examForm.scoringMethod === 'COUNT';
+    if (isCount) {
+      const tq = Number(examForm.totalQuestions);
+      if (!Number.isInteger(tq) || tq < 1) {
+        toast('총 문제 수를 1 이상으로 입력해주세요.', 'error'); return;
+      }
+    }
     setSubmitting(true);
     try {
       if (editingExamId) {
-        // 수정
+        // 수정 (배점 방식은 잠금 — totalScore/totalQuestions만 모드에 맞게 전송)
         await updateExam(editingExamId, {
           name: examForm.name,
           date: examForm.date,
-          totalScore: Number(examForm.totalScore) || 100,
+          totalScore: isCount ? 100 : (Number(examForm.totalScore) || 100),
+          totalQuestions: isCount ? Number(examForm.totalQuestions) : null,
           description: examForm.description,
           category1Id: examForm.category1Id || null,
           category2Id: examForm.category2Id || null,
@@ -202,7 +213,9 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
           classId: selectedClassId,
           className: selectedClass?.name ?? '',
           date: examForm.date,
-          totalScore: Number(examForm.totalScore) || 100,
+          scoringMethod: examForm.scoringMethod,
+          totalScore: isCount ? 100 : (Number(examForm.totalScore) || 100),
+          totalQuestions: isCount ? Number(examForm.totalQuestions) : null,
           description: examForm.description,
           category1Id: examForm.category1Id || null,
           category1Name: null,
@@ -223,6 +236,7 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
               studentId: s.id,
               studentName: s.name,
               score: null,
+              correctCount: null,
               rank: null,
               memo: '',
             })),
@@ -255,20 +269,39 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
     }
   };
 
-  const startEditScore = (gradeId: string, currentScore: number | null) => {
-    setEditingGradeId(gradeId);
-    setEditScore(currentScore !== null ? String(currentScore) : '');
+  const startEditScore = (grade: GradeRecord) => {
+    setEditingGradeId(grade.id);
+    // COUNT 방식이면 맞힌 문제 수를, SCORE 방식이면 점수를 편집
+    const cur = selectedExam?.scoringMethod === 'COUNT' ? grade.correctCount : grade.score;
+    setEditScore(cur != null ? String(cur) : '');
     setEditingMemoId(null);
   };
 
   const saveScore = async (gradeId: string) => {
-    const newScore = editScore.trim() === '' ? null : Number(editScore);
-    if (newScore !== null && (isNaN(newScore) || newScore < 0)) { setEditingGradeId(null); return; }
-    if (selectedExam && newScore !== null && newScore > selectedExam.totalScore) {
-      toast(`점수는 만점(${selectedExam.totalScore}점) 이하여야 합니다.`, 'error'); return;
+    const isCount = selectedExam?.scoringMethod === 'COUNT';
+    const raw = editScore.trim();
+    const parsed = raw === '' ? null : Number(raw);
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) { setEditingGradeId(null); return; }
+
+    let newScore: number | null;
+    let newCorrectCount: number | null = null;
+
+    if (isCount) {
+      const tq = selectedExam?.totalQuestions ?? 0;
+      if (parsed !== null && tq > 0 && parsed > tq) {
+        toast(`맞힌 문제 수는 총 문제 수(${tq}문제) 이하여야 합니다.`, 'error'); return;
+      }
+      newCorrectCount = parsed !== null ? Math.round(parsed) : null;
+      // 맞힌 문제 수 → 100점 환산
+      newScore = newCorrectCount !== null && tq > 0 ? Math.round((newCorrectCount / tq) * 100) : null;
+    } else {
+      if (selectedExam && parsed !== null && parsed > selectedExam.totalScore) {
+        toast(`점수는 만점(${selectedExam.totalScore}점) 이하여야 합니다.`, 'error'); return;
+      }
+      newScore = parsed;
     }
 
-    // 순위 계산
+    // 순위 계산 (환산 점수 기준 — COUNT/SCORE 동일)
     const allScores = examGrades
       .map((g) => (g.id === gradeId ? newScore : g.score))
       .filter((s): s is number => s !== null);
@@ -277,9 +310,10 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
     setEditingGradeId(null);
 
     try {
-      // 현재 학생 점수+순위 저장
+      // 현재 학생 점수(+맞힌 수)+순위 저장
       await updateGrade(gradeId, {
         score: newScore,
+        ...(isCount ? { correctCount: newCorrectCount } : {}),
         rank: newScore !== null ? sorted.indexOf(newScore) + 1 : null,
       });
       // 나머지 학생 순위 재계산
@@ -457,7 +491,7 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
                     )}
                     <div className="text-[13px] font-medium text-[#111827] truncate">{exam.name}</div>
                     <div className="text-[11.5px] text-[#6b7280] mt-0.5">
-                      {formatKoreanDate(exam.date)} · 만점 {exam.totalScore}점
+                      {formatKoreanDate(exam.date)} · {exam.scoringMethod === 'COUNT' ? `총 ${exam.totalQuestions ?? 0}문제` : `만점 ${exam.totalScore}점`}
                     </div>
                   </button>
                   <div className="flex flex-col">
@@ -532,40 +566,55 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
                     })
                     .map((g) => {
                       const pct = g.score !== null ? Math.round((g.score / selectedExam.totalScore) * 100) : null;
+                      const isCount = selectedExam.scoringMethod === 'COUNT';
                       const isEditingScore = editingGradeId === g.id;
                       const isEditingMemo = editingMemoId === g.id;
                       return (
                         <tr key={g.id} className="hover:bg-[#f4f6f8]">
                           <td className="px-4 py-2.5 text-[#111827]">{g.studentName}</td>
 
-                          {/* 점수 — 클릭하면 input */}
+                          {/* 점수 — 클릭하면 input (COUNT 방식이면 맞힌 문제 수 입력) */}
                           <td className="px-4 py-2.5 text-center">
                             {isEditingScore ? (
-                              <input
-                                type="number"
-                                value={editScore}
-                                onChange={(e) => setEditScore(e.target.value)}
-                                onBlur={() => saveScore(g.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') saveScore(g.id);
-                                  if (e.key === 'Escape') setEditingGradeId(null);
-                                }}
-                                className="w-16 text-center border border-[#4fc3a1] rounded-[6px] px-1 py-0.5 text-[12.5px] font-semibold focus:outline-none"
-                                placeholder="점수"
-                                autoFocus
-                              />
+                              <span className="inline-flex items-center justify-center gap-1">
+                                <input
+                                  type="number"
+                                  value={editScore}
+                                  onChange={(e) => setEditScore(e.target.value)}
+                                  onBlur={() => saveScore(g.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveScore(g.id);
+                                    if (e.key === 'Escape') setEditingGradeId(null);
+                                  }}
+                                  className="w-14 text-center border border-[#4fc3a1] rounded-[6px] px-1 py-0.5 text-[12.5px] font-semibold focus:outline-none"
+                                  placeholder={isCount ? '맞힌 수' : '점수'}
+                                  autoFocus
+                                />
+                                {isCount && (
+                                  <span className="text-[11px] text-[#9ca3af]">/ {selectedExam.totalQuestions}</span>
+                                )}
+                              </span>
                             ) : (
                               <button
-                                onClick={() => startEditScore(g.id, g.score)}
+                                onClick={() => startEditScore(g)}
                                 className={clsx(
                                   'font-semibold hover:text-[#4fc3a1] cursor-pointer',
                                   g.score !== null ? 'text-[#111827]' : 'text-[#9ca3af]',
                                 )}
-                                title="클릭하여 점수 입력"
+                                title={isCount ? '클릭하여 맞힌 문제 수 입력' : '클릭하여 점수 입력'}
                               >
-                                {g.score !== null
-                                  ? <>{g.score}<span className="text-[#9ca3af] font-normal">/{selectedExam.totalScore}</span></>
-                                  : '미입력'}
+                                {g.score !== null ? (
+                                  isCount ? (
+                                    <>
+                                      {g.score}<span className="text-[#9ca3af] font-normal">점</span>
+                                      {g.correctCount !== null && (
+                                        <span className="text-[#9ca3af] font-normal ml-1">({g.correctCount}/{selectedExam.totalQuestions})</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>{g.score}<span className="text-[#9ca3af] font-normal">/{selectedExam.totalScore}</span></>
+                                  )
+                                ) : '미입력'}
                               </button>
                             )}
                           </td>
@@ -665,8 +714,6 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
           {[
             { label: '시험명 *', key: 'name', type: 'text', placeholder: '5월 월례테스트' },
             { label: '날짜 *', key: 'date', type: 'date', placeholder: '' },
-            { label: '만점', key: 'totalScore', type: 'number', placeholder: '100' },
-            { label: '설명', key: 'description', type: 'text', placeholder: '시험 범위 등 메모' },
           ].map(({ label, key, type, placeholder }) => (
             <div key={key}>
               <label className="text-[11.5px] text-[#6b7280] block mb-1">{label}</label>
@@ -679,6 +726,62 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
               />
             </div>
           ))}
+
+          {/* 배점 방식 (생성 후 잠금) */}
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">배점 방식</label>
+            <select
+              value={examForm.scoringMethod}
+              onChange={(e) => setExamForm({ ...examForm, scoringMethod: e.target.value as ScoringMethod })}
+              className={clsx(fieldClass, editingExamId && 'bg-[#f4f6f8] text-[#9ca3af] cursor-not-allowed')}
+              disabled={!!editingExamId}
+            >
+              <option value="SCORE">점수 (만점 기준)</option>
+              <option value="COUNT">문제수 (맞힌 개수 기준)</option>
+            </select>
+            {editingExamId && (
+              <p className="text-[10.5px] text-[#9ca3af] mt-1">배점 방식은 시험 생성 후 변경할 수 없습니다.</p>
+            )}
+          </div>
+
+          {/* 만점 또는 총 문제 수 */}
+          {examForm.scoringMethod === 'COUNT' ? (
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">총 문제 수 *</label>
+              <input
+                type="number"
+                min={1}
+                value={examForm.totalQuestions}
+                onChange={(e) => setExamForm({ ...examForm, totalQuestions: e.target.value })}
+                placeholder="예: 20"
+                className={fieldClass}
+              />
+              <p className="text-[10.5px] text-[#9ca3af] mt-1">맞힌 문제 수를 입력하면 100점 만점으로 환산됩니다.</p>
+            </div>
+          ) : (
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">만점</label>
+              <input
+                type="number"
+                value={examForm.totalScore}
+                onChange={(e) => setExamForm({ ...examForm, totalScore: e.target.value })}
+                placeholder="100"
+                className={fieldClass}
+              />
+            </div>
+          )}
+
+          {/* 설명 */}
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">설명</label>
+            <input
+              type="text"
+              value={examForm.description}
+              onChange={(e) => setExamForm({ ...examForm, description: e.target.value })}
+              placeholder="시험 범위 등 메모"
+              className={fieldClass}
+            />
+          </div>
 
           {/* 카테고리 선택 */}
           <div className="border-t border-[#f1f5f9] pt-3 space-y-3">
