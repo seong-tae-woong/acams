@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { signToken } from '@/lib/auth/jwt';
+import { resolveTeacherPermissions } from '@/lib/auth/teacherPermissions';
 import { setAuthCookie } from '@/lib/auth/cookies';
 import { isRateLimited, getRemainingSeconds } from '@/lib/auth/rateLimit';
 import { writeAuditLog } from '@/lib/auth/auditLog';
@@ -104,6 +105,10 @@ export async function loginAction(
     const daysSinceChange = (Date.now() - user.passwordChangedAt.getTime()) / 86400000;
     const isPasswordExpired = ADMIN_ROLES.includes(user.role) && daysSinceChange > 90;
 
+    // 강사 계정은 메뉴 권한을 토큰에 임베드 — proxy(edge)가 DB 조회 없이 접근 제어
+    // (이게 빠지면 proxy가 권한 없는 토큰으로 보고 모든 메뉴를 /calendar로 차단한다)
+    const permissions = await resolveTeacherPermissions(user.id, user.role);
+
     const token = signToken({
       userId: user.id,
       role: user.role,
@@ -111,6 +116,7 @@ export async function loginAction(
       name: user.name,
       tokenVersion: user.tokenVersion,
       mustChangePassword: user.mustChangePassword || isPasswordExpired,
+      ...(permissions && { permissions }),
     });
 
     await setAuthCookie(token);

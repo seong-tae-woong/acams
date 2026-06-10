@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { signToken } from '@/lib/auth/jwt';
-import { DEFAULT_PERMISSIONS, type TeacherPermissions } from '@/lib/types/teacher';
+import { resolveTeacherPermissions } from '@/lib/auth/teacherPermissions';
 import { setAuthCookie } from '@/lib/auth/cookies';
 import { isRateLimited, getRemainingSeconds } from '@/lib/auth/rateLimit';
 import { writeAuditLog } from '@/lib/auth/auditLog';
@@ -104,14 +104,7 @@ export async function POST(req: NextRequest) {
     const isPasswordExpired = ADMIN_ROLES.includes(user.role) && daysSinceChange > 90;
 
     // 강사 계정은 메뉴 권한을 토큰에 임베드 — proxy(edge)가 DB 조회 없이 접근 제어
-    let permissions: TeacherPermissions | undefined;
-    if (user.role === 'teacher') {
-      const teacher = await prisma.teacher.findUnique({
-        where: { userId: user.id },
-        select: { permissions: true },
-      });
-      permissions = { ...DEFAULT_PERMISSIONS, ...((teacher?.permissions as Partial<TeacherPermissions>) ?? {}) };
-    }
+    const permissions = await resolveTeacherPermissions(user.id, user.role);
 
     const token = signToken({
       userId: user.id,

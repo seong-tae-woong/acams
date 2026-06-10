@@ -208,7 +208,17 @@ export async function proxy(req: NextRequest) {
   // 강사 메뉴 권한 enforce — director/super_admin은 전체 접근, teacher만 권한별 제어
   // admin 권한 강사는 전체 통과. /calendar·/ingang 등 매핑 없는 경로는 기본 허용.
   if (role === 'teacher') {
-    const perms = payload.permissions ?? {};
+    // 권한이 임베드되지 않은 토큰 = 권한 임베드 수정 이전에 발급된 옛 토큰.
+    // 그대로 두면 모든 메뉴가 차단되므로(빈 권한) 쿠키를 비우고 재로그인을 유도한다.
+    if (!payload.permissions) {
+      if (isApi) {
+        return NextResponse.json({ error: '세션 갱신이 필요합니다. 다시 로그인해주세요.' }, { status: 401 });
+      }
+      const res = NextResponse.redirect(new URL('/login', req.url));
+      res.cookies.delete('acams_token');
+      return res;
+    }
+    const perms = payload.permissions;
     if (!perms.admin) {
       const rules = isApi ? TEACHER_API_RULES : TEACHER_PAGE_RULES;
       const matched = rules.find(([prefix]) => matchPrefix(pathname, prefix));

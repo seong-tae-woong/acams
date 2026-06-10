@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db/prisma';
 import { verifyToken, signToken } from '@/lib/auth/jwt';
+import { resolveTeacherPermissions } from '@/lib/auth/teacherPermissions';
 import { setAuthCookie } from '@/lib/auth/cookies';
 import { validatePassword } from '@/lib/auth/passwordValidator';
 import { writeAuditLog } from '@/lib/auth/auditLog';
@@ -107,6 +108,9 @@ export async function POST(req: NextRequest) {
     return updatedUser;
   });
 
+  // 강사 권한을 새 토큰에도 임베드 — 누락 시 비번 변경 후 모든 메뉴가 차단된다
+  const permissions = await resolveTeacherPermissions(userId, role);
+
   // 새 JWT 발급 — DB 실제 tokenVersion 사용
   const newToken = signToken({
     userId,
@@ -115,6 +119,7 @@ export async function POST(req: NextRequest) {
     name,
     tokenVersion: updated.tokenVersion,
     mustChangePassword: false,
+    ...(permissions && { permissions }),
   });
   await setAuthCookie(newToken);
 
