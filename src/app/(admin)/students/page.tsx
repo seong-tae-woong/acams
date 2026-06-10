@@ -91,9 +91,13 @@ export default function StudentsPage() {
       }
     }
 
+    // 출석번호 = 같은 연도 접두어의 '최대 번호 + 1'. (count+1은 학생 삭제로 생긴 빈 번호와 충돌 → max 기반)
     const year = new Date().getFullYear();
-    const yearCount = students.filter((s) => s.attendanceNumber.startsWith(String(year))).length;
-    const attendanceNumber = `${year}${String(yearCount + 1).padStart(3, '0')}`;
+    const yearPrefix = String(year);
+    const maxSuffix = students
+      .filter((s) => s.attendanceNumber.startsWith(yearPrefix))
+      .reduce((max, s) => Math.max(max, parseInt(s.attendanceNumber.slice(yearPrefix.length), 10) || 0), 0);
+    const attendanceNumber = `${yearPrefix}${String(maxSuffix + 1).padStart(3, '0')}`;
 
     try {
       // siblingCandidates는 서버(POST /api/students)가 감지해서 응답에 포함 (D3)
