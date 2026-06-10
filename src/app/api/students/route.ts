@@ -147,8 +147,10 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
   const { academyId, role } = auth;
-  if (role !== 'director' && role !== 'super_admin') {
-    return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
+  // 학생 등록 권한: 원장·슈퍼어드민 + 강사(학생관리 권한). 강사의 학생관리 권한은
+  // proxy(edge)가 POST /api/students를 manageStudents 규칙으로 이미 차단하므로 여기선 역할만 확인.
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
   }
 
   try {
