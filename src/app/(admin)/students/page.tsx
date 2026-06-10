@@ -97,7 +97,7 @@ export default function StudentsPage() {
 
     try {
       // siblingCandidates는 서버(POST /api/students)가 감지해서 응답에 포함 (D3)
-      const { studentLoginId, studentTempPassword, parentTempPassword, smsEnabled: respSmsEnabled, siblingCandidates } = await addStudent({
+      const { studentLoginId, studentTempPassword, parentTempPassword, parentAccountCreated, smsEnabled: respSmsEnabled, siblingCandidates } = await addStudent({
         ...registerForm,
         school: `${registerForm.school.trim()}${registerForm.schoolLevel}`,
         grade: Number(registerForm.grade),
@@ -122,6 +122,7 @@ export default function StudentsPage() {
         parentLoginId: registerForm.parentPhone,
         studentTempPassword,
         parentTempPassword,
+        parentAccountCreated,
         smsEnabled: respSmsEnabled,
         siblingCandidates,
       });
@@ -219,7 +220,7 @@ export default function StudentsPage() {
         {/* 좌측 학생 목록 */}
         <div className="w-64 shrink-0 flex flex-col border-r border-[#e2e8f0] bg-white overflow-hidden">
           <div className="p-3 border-b border-[#e2e8f0] space-y-2">
-            <SearchInput value={search} onChange={setSearch} placeholder="이름, 학교 검색" className="w-full" />
+            <SearchInput value={search} onChange={setSearch} placeholder="이름·학교·연락처 검색" className="w-full" />
             <FilterTags options={filterOptions} value={filterStatus} onChange={(v) => setFilterStatus(v as StudentStatus | 'all')} />
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -454,7 +455,11 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
-              <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
+              {resetResult?.smsEnabled === false ? (
+                <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
+              ) : (
+                <span className="text-[#6b7280]">SMS로 발송되었습니다</span>
+              )}
             </div>
           </div>
           {resetResult?.smsEnabled === false ? (
@@ -463,7 +468,7 @@ export default function StudentsPage() {
               <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 직접 전달해주세요.</p>
             </div>
           ) : (
-            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 학생/학부모에게 전달해주세요. 등록된 연락처로 SMS도 발송됩니다.</p>
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 보안을 위해 화면에 표시하지 않으며, 등록된 연락처로 SMS 발송되었습니다.</p>
           )}
         </div>
       </Modal>
@@ -496,7 +501,11 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="font-mono font-semibold text-[#111827]">{postRegister?.studentTempPassword ?? '—'}</span>
+              {postRegister?.smsEnabled === false ? (
+                <span className="font-mono font-semibold text-[#111827]">{postRegister?.studentTempPassword ?? '—'}</span>
+              ) : (
+                <span className="text-[#6b7280]">SMS로 발송되었습니다</span>
+              )}
             </div>
           </div>
           <div className="bg-[#f4f6f8] rounded-[10px] p-4 space-y-2">
@@ -509,9 +518,13 @@ export default function StudentsPage() {
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className={postRegister?.parentTempPassword ? 'font-mono font-semibold text-[#111827]' : 'text-[#6b7280]'}>
-                {postRegister?.parentTempPassword ?? '기존 보호자 계정 — 비밀번호 유지'}
-              </span>
+              {!postRegister?.parentAccountCreated ? (
+                <span className="text-[#6b7280]">기존 보호자 계정 — 비밀번호 유지</span>
+              ) : postRegister?.smsEnabled === false ? (
+                <span className="font-mono font-semibold text-[#111827]">{postRegister?.parentTempPassword ?? '—'}</span>
+              ) : (
+                <span className="text-[#6b7280]">SMS로 발송되었습니다</span>
+              )}
             </div>
           </div>
           {postRegister?.smsEnabled === false ? (
@@ -520,7 +533,7 @@ export default function StudentsPage() {
               <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 학생/학부모에게 직접 전달해주세요. 학생 첫 로그인 시 변경이 강제되지 않습니다.</p>
             </div>
           ) : (
-            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 전달해주세요. 각 연락처로 SMS도 발송됩니다.</p>
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 보안을 위해 화면에 표시하지 않으며, 각 연락처로 SMS 발송되었습니다.</p>
           )}
           {postRegister?.siblingCandidates.length ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-4">

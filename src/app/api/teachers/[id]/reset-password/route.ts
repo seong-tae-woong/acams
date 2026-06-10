@@ -53,7 +53,9 @@ export async function POST(
       data: { passwordHash, tokenVersion: { increment: 1 }, mustChangePassword: true },
     });
 
-    if (smsEnabled && teacher.phone) {
+    // smsEnabled=true이고 연락처가 있을 때만 SMS 발송 → 이 경우에만 평문을 클라이언트로 보내지 않음(화면 미노출)
+    const smsSent = smsEnabled && !!teacher.phone;
+    if (smsSent) {
       await sendSms(teacher.phone, `[학원로그] 비밀번호 초기화\nID: ${teacher.user.loginId ?? teacher.email}\n임시PW: ${tempPassword}`);
     }
 
@@ -65,7 +67,7 @@ export async function POST(
       target: teacher.user.id,
     });
 
-    return NextResponse.json({ loginId: teacher.user.loginId, tempPassword, smsEnabled });
+    return NextResponse.json({ loginId: teacher.user.loginId, tempPassword: smsSent ? null : tempPassword, smsEnabled });
   } catch (err) {
     console.error('[POST /api/teachers/[id]/reset-password]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

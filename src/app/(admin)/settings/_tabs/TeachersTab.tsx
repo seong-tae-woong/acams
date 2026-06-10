@@ -27,7 +27,7 @@ export default function TeachersTab({
 
   // 강사 추가 모달
   const [regForm, setRegForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
-  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string; smsEnabled: boolean } | null>(null);
+  const [credentialModal, setCredentialModal] = useState<{ name: string; email: string; tempPassword: string | null; smsEnabled: boolean } | null>(null);
 
   // 강사 추가 모달이 열릴 때 입력 폼 초기화
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function TeachersTab({
   // 비밀번호 초기화
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string; smsEnabled: boolean } | null>(null);
+  const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string | null; smsEnabled: boolean } | null>(null);
 
   const selected = teachers.find((t) => t.id === selectedId);
 
@@ -337,16 +337,22 @@ export default function TeachersTab({
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-28 text-[#6b7280] shrink-0">새 임시 비밀번호</span>
-              <span className="font-mono font-semibold text-[#111827]">{resetResult?.tempPassword ?? '—'}</span>
+              {resetResult?.tempPassword ? (
+                <span className="font-mono font-semibold text-[#111827]">{resetResult.tempPassword}</span>
+              ) : (
+                <span className="text-[#6b7280]">SMS로 발송되었습니다</span>
+              )}
             </div>
           </div>
-          {resetResult?.smsEnabled === false ? (
+          {resetResult?.tempPassword ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-3">
-              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">SMS 발송이 꺼져 있습니다 (테스트 모드)</p>
+              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">
+                {resetResult?.smsEnabled === false ? 'SMS 발송이 꺼져 있습니다 (테스트 모드)' : '강사 연락처가 없어 SMS를 보내지 못했습니다'}
+              </p>
               <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 강사에게 직접 전달해주세요.</p>
             </div>
           ) : (
-            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 보안을 위해 화면에 표시하지 않으며, 강사 연락처로 SMS 발송되었습니다.</p>
           )}
         </div>
       </Modal>
@@ -441,16 +447,22 @@ export default function TeachersTab({
             </div>
             <div className="flex gap-2 text-[12.5px]">
               <span className="w-24 text-[#6b7280] shrink-0">임시 비밀번호</span>
-              <span className="font-mono font-semibold text-[#111827]">{credentialModal?.tempPassword ?? '—'}</span>
+              {credentialModal?.tempPassword ? (
+                <span className="font-mono font-semibold text-[#111827]">{credentialModal.tempPassword}</span>
+              ) : (
+                <span className="text-[#6b7280]">SMS로 발송되었습니다</span>
+              )}
             </div>
           </div>
-          {credentialModal?.smsEnabled === false ? (
+          {credentialModal?.tempPassword ? (
             <div className="border border-[#fcd34d] bg-[#fffbeb] rounded-[8px] p-3">
-              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">SMS 발송이 꺼져 있습니다 (테스트 모드)</p>
+              <p className="text-[11.5px] text-[#92400E] font-medium mb-1">
+                {credentialModal?.smsEnabled === false ? 'SMS 발송이 꺼져 있습니다 (테스트 모드)' : '강사 연락처가 없어 SMS를 보내지 못했습니다'}
+              </p>
               <p className="text-[11px] text-[#78350f]">위 임시 비밀번호를 강사에게 직접 전달해주세요.</p>
             </div>
           ) : (
-            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 이 화면에서만 확인할 수 있습니다. 반드시 강사에게 전달해주세요. 강사 연락처로 SMS도 발송됩니다.</p>
+            <p className="text-[11px] text-[#9ca3af]">임시 비밀번호는 보안을 위해 화면에 표시하지 않으며, 강사 연락처로 SMS 발송되었습니다.</p>
           )}
         </div>
       </Modal>

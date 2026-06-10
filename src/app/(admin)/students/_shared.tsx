@@ -55,6 +55,7 @@ export interface PostRegisterInfo {
   parentLoginId: string;
   studentTempPassword: string | null;
   parentTempPassword: string | null;
+  parentAccountCreated: boolean; // 신규 학부모 계정 생성 여부 (기존 보호자 재사용이면 false)
   smsEnabled: boolean; // false면 모달에서 "직접 전달" 안내 + PW 강조
   siblingCandidates: Array<{ id: string; name: string; school: string; grade: number; avatarColor: string }>;
 }

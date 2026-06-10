@@ -112,11 +112,13 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    if (smsEnabled && phone) {
+    // smsEnabled=true이고 연락처가 있을 때만 SMS 발송 → 이 경우에만 평문을 클라이언트로 보내지 않음(화면 미노출)
+    const smsSent = smsEnabled && !!phone;
+    if (smsSent) {
       await sendSms(phone, `[학원로그] 강사 계정\nID: ${email}\n임시PW: ${tempPassword}`);
     }
 
-    return NextResponse.json({ ...mapTeacher(teacher), tempPassword, smsEnabled }, { status: 201 });
+    return NextResponse.json({ ...mapTeacher(teacher), tempPassword: smsSent ? null : tempPassword, smsEnabled }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/teachers]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

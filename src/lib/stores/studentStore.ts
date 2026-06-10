@@ -40,6 +40,7 @@ interface StudentStore {
     studentLoginId: string | null;
     studentTempPassword: string | null;
     parentTempPassword: string | null;
+    parentAccountCreated: boolean;
     smsEnabled: boolean;
     siblingCandidates: SiblingCandidate[];
   }>;
@@ -66,9 +67,19 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
 
   getFilteredStudents: () => {
     const { students, filterStatus, search } = get();
+    const q = search.trim();
+    const digits = q.replace(/\D/g, ''); // 전화번호 검색용 — 하이픈/공백 제거
     return students.filter((s) => {
       const matchStatus = filterStatus === 'all' || s.status === filterStatus;
-      const matchSearch = !search || s.name.includes(search) || s.school.includes(search);
+      if (!q) return matchStatus;
+      // 전화번호는 하이픈 포함/미포함 데이터가 혼재 → 양쪽 모두 숫자만 비교
+      const phoneDigits = (s.phone ?? '').replace(/\D/g, '');
+      const parentPhoneDigits = (s.parentPhone ?? '').replace(/\D/g, '');
+      const matchSearch =
+        s.name.includes(q) ||
+        s.school.includes(q) ||
+        (digits.length > 0 &&
+          (phoneDigits.includes(digits) || parentPhoneDigits.includes(digits)));
       return matchStatus && matchSearch;
     });
   },
@@ -133,6 +144,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         studentLoginId,
         studentTempPassword,
         parentTempPassword,
+        parentAccountCreated,
         smsEnabled,
         siblingCandidates,
         ...studentFull
@@ -140,6 +152,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         studentLoginId: string | null;
         studentTempPassword: string | null;
         parentTempPassword: string | null;
+        parentAccountCreated: boolean;
         smsEnabled: boolean;
         siblingCandidates: SiblingCandidate[];
       } = await res.json();
@@ -154,6 +167,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         avatarColor: studentFull.avatarColor,
         attendanceNumber: studentFull.attendanceNumber,
         classes: studentFull.classes ?? [],
+        phone: studentFull.phone ?? '',
+        parentPhone: studentFull.parentPhone ?? '',
       };
       set((state) => ({
         students: [...state.students, newListItem],
@@ -165,6 +180,7 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         studentLoginId: studentLoginId ?? null,
         studentTempPassword: studentTempPassword ?? null,
         parentTempPassword: parentTempPassword ?? null,
+        parentAccountCreated: parentAccountCreated ?? false,
         smsEnabled: smsEnabled ?? true,
         siblingCandidates: siblingCandidates ?? [],
       };
@@ -195,6 +211,8 @@ export const useStudentStore = create<StudentStore>((set, get) => ({
         ...(updated.status !== undefined && { status: updated.status }),
         ...(updated.avatarColor !== undefined && { avatarColor: updated.avatarColor }),
         ...(updated.classes !== undefined && { classes: updated.classes }),
+        ...(updated.phone !== undefined && { phone: updated.phone }),
+        ...(updated.parentPhone !== undefined && { parentPhone: updated.parentPhone }),
       };
       set((state) => ({
         students: state.students.map((s) =>

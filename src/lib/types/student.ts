@@ -39,7 +39,7 @@ export interface StudentSummary {
   classCount: number;
 }
 
-// 목록 패널 전용 슬림 타입 (parentLinks·siblingLinks·siblingOf JOIN 없음)
+// 목록 패널 전용 슬림 타입 (siblingLinks·siblingOf JOIN 없음, parentLinks는 연락처 검색용 1 JOIN)
 export interface StudentListItem {
   id: string;
   name: string;
@@ -49,6 +49,8 @@ export interface StudentListItem {
   avatarColor: string;
   attendanceNumber: string;
   classes: string[]; // classEnrollments JOIN — 반/출결 페이지 필터에 필요
+  phone?: string;       // 학생 연락처 — 목록 검색용
+  parentPhone?: string; // 보호자 연락처 — 목록 검색용
 }
 
 export interface StudentFilter {

@@ -68,10 +68,12 @@ const STUDENT_INCLUDE = {
   siblingOf: { select: { studentAId: true } },
 } as const;
 
-// 목록 전용 슬림 매핑 (classEnrollments 1 JOIN, parentLinks·siblingLinks·siblingOf 제거)
+// 목록 전용 슬림 매핑 (classEnrollments + parentLinks(연락처 검색용) JOIN, siblingLinks·siblingOf 제거)
 function mapStudentListItem(s: {
   id: string; name: string; school: string; grade: number;
   status: PrismaStatus; avatarColor: string; attendanceNumber: string;
+  phone: string | null;
+  parentLinks: { parent: { phone: string } }[];
   classEnrollments: { classId: string }[];
 }) {
   return {
@@ -82,6 +84,8 @@ function mapStudentListItem(s: {
     status: STATUS_TO_UI[s.status],
     avatarColor: s.avatarColor,
     attendanceNumber: s.attendanceNumber,
+    phone: s.phone ?? '',
+    parentPhone: s.parentLinks[0]?.parent.phone ?? '',
     classes: s.classEnrollments.map((e) => e.classId),
   };
 }
@@ -112,7 +116,7 @@ export async function GET(req: NextRequest) {
             }
           : {}),
       },
-      // parentLinks·siblingLinks·siblingOf 3 JOIN 제거 — 목록에 불필요
+      // 목록: classEnrollments + parentLinks(연락처 검색용) JOIN. siblingLinks·siblingOf 제거
       select: {
         id: true,
         name: true,
@@ -121,6 +125,8 @@ export async function GET(req: NextRequest) {
         status: true,
         avatarColor: true,
         attendanceNumber: true,
+        phone: true,
+        parentLinks: { select: { parent: { select: { phone: true } } } },
         classEnrollments: {
           where: { isActive: true },
           select: { classId: true },
@@ -364,8 +370,11 @@ export async function POST(req: NextRequest) {
       {
         ...mapStudent(created!),
         studentLoginId: studentLoginId ?? null,
-        studentTempPassword: studentLoginId ? studentTempPassword : null,
-        parentTempPassword: isNewParent ? parentTempPassword : null,
+        // smsEnabled=true: 임시 비밀번호는 SMS로만 전달 — 평문을 클라이언트로 보내지 않음(화면 미노출)
+        // smsEnabled=false(테스트 모드): 원장이 화면에서 확인 후 직접 전달
+        studentTempPassword: !smsEnabled && studentLoginId ? studentTempPassword : null,
+        parentTempPassword: !smsEnabled && isNewParent ? parentTempPassword : null,
+        parentAccountCreated: isNewParent, // 신규 학부모 계정 생성 여부 (모달 안내 분기)
         smsEnabled, // 클라이언트에서 안내 문구 분기에 사용
         siblingCandidates,
       },

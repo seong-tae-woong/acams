@@ -68,7 +68,8 @@ export async function POST(
         academyId: academyId ?? undefined,
         target: parentUser.id,
       });
-      return NextResponse.json({ loginId: parentUser.loginId, tempPassword, smsEnabled });
+      // smsEnabled=true: 임시 비밀번호는 SMS로만 전달 — 평문을 클라이언트로 보내지 않음(화면 미노출)
+      return NextResponse.json({ loginId: parentUser.loginId, tempPassword: smsEnabled ? null : tempPassword, smsEnabled });
     } else {
       // student (default)
       if (!student.user) {
@@ -104,7 +105,8 @@ export async function POST(
         academyId: academyId ?? undefined,
         target: student.user.id,
       });
-      return NextResponse.json({ loginId: student.user.loginId, tempPassword, smsEnabled });
+      // smsEnabled=true: 임시 비밀번호는 SMS로만 전달 — 평문을 클라이언트로 보내지 않음(화면 미노출)
+      return NextResponse.json({ loginId: student.user.loginId, tempPassword: smsEnabled ? null : tempPassword, smsEnabled });
     }
   } catch (err) {
     console.error('[POST /api/students/[id]/reset-password]', err instanceof Error ? err.message : String(err));

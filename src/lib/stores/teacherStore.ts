@@ -7,9 +7,9 @@ interface TeacherStore {
   teachers: Teacher[];
   loading: boolean;
   fetchTeachers: () => Promise<void>;
-  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<{ tempPassword: string; smsEnabled: boolean }>;
+  addTeacher: (teacher: Omit<Teacher, 'id'>) => Promise<{ tempPassword: string | null; smsEnabled: boolean }>;
   updateTeacher: (id: string, updates: Partial<Omit<Teacher, 'id'>>) => Promise<void>;
-  resetPassword: (id: string) => Promise<{ loginId: string; tempPassword: string; smsEnabled: boolean }>;
+  resetPassword: (id: string) => Promise<{ loginId: string; tempPassword: string | null; smsEnabled: boolean }>;
 }
 
 export const useTeacherStore = create<TeacherStore>((set, get) => ({
@@ -42,7 +42,7 @@ export const useTeacherStore = create<TeacherStore>((set, get) => ({
         const err = await res.json();
         throw new Error(err.error ?? '강사 등록 실패');
       }
-      const { tempPassword, smsEnabled, ...teacher }: Teacher & { tempPassword: string; smsEnabled: boolean } = await res.json();
+      const { tempPassword, smsEnabled, ...teacher }: Teacher & { tempPassword: string | null; smsEnabled: boolean } = await res.json();
       set((state) => ({ teachers: [...state.teachers, teacher] }));
       toast('강사가 등록되었습니다.', 'success');
       return { tempPassword, smsEnabled: smsEnabled ?? true };
