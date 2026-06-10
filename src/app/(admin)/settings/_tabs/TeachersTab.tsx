@@ -5,6 +5,7 @@ import Avatar from '@/components/shared/Avatar';
 import Modal from '@/components/shared/Modal';
 import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { useClassStore } from '@/lib/stores/classStore';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { DEFAULT_PERMISSIONS } from '@/lib/types/teacher';
 import { formatPhone } from '@/lib/utils/format';
 import { Shield, KeyRound, X, RefreshCw } from 'lucide-react';
@@ -23,7 +24,11 @@ export default function TeachersTab({
 }) {
   const { teachers, updateTeacher, addTeacher, resetPassword } = useTeacherStore();
   const { classes } = useClassStore();
+  const { currentUser } = useAuthStore();
   const [savingPerm, setSavingPerm] = useState(false);
+
+  // 강사 본인은 자기 계정만 조회(다른 강사 선택 불가) — 권한 섹션·관리 버튼은 원장 전용
+  const isTeacher = currentUser?.role === 'teacher';
 
   // 강사 추가 모달
   const [regForm, setRegForm] = useState({ name: '', subject: '', phone: '', email: '', classes: [] as string[] });
@@ -44,7 +49,9 @@ export default function TeachersTab({
   const [resetting, setResetting] = useState(false);
   const [resetResult, setResetResult] = useState<{ loginId: string; tempPassword: string | null; smsEnabled: boolean } | null>(null);
 
-  const selected = teachers.find((t) => t.id === selectedId);
+  const selected = isTeacher
+    ? teachers.find((t) => t.userId === currentUser?.id)
+    : teachers.find((t) => t.id === selectedId);
 
   const togglePerm = (key: keyof typeof DEFAULT_PERMISSIONS) => {
     if (!selected) return;
@@ -163,19 +170,22 @@ export default function TeachersTab({
                   <div className="text-[12px] text-[#6b7280]">{selected.subject} · {formatPhone(selected.phone)}</div>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setResetConfirmOpen(true)}>
-                  <RefreshCw size={13} /> 비밀번호 초기화
-                </Button>
-                <Button variant="default" size="sm" onClick={openEdit}>수정</Button>
-                <Button
-                  variant={selected.isActive ? 'danger' : 'primary'}
-                  size="sm"
-                  onClick={toggleActive}
-                >
-                  {selected.isActive ? '비활성화' : '활성화'}
-                </Button>
-              </div>
+              {/* 계정 관리 버튼 — 원장/슈퍼어드민 전용 (강사 본인은 조회만) */}
+              {!isTeacher && (
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setResetConfirmOpen(true)}>
+                    <RefreshCw size={13} /> 비밀번호 초기화
+                  </Button>
+                  <Button variant="default" size="sm" onClick={openEdit}>수정</Button>
+                  <Button
+                    variant={selected.isActive ? 'danger' : 'primary'}
+                    size="sm"
+                    onClick={toggleActive}
+                  >
+                    {selected.isActive ? '비활성화' : '활성화'}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 text-[12px]">
               <div>
@@ -189,35 +199,37 @@ export default function TeachersTab({
             </div>
           </div>
 
-          {/* 권한 설정 */}
-          <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Shield size={14} className="text-[#4fc3a1]" />
-              <span className="text-[12.5px] font-semibold text-[#111827]">메뉴 접근 권한</span>
+          {/* 권한 설정 — 원장/슈퍼어드민 전용 (강사 본인에게는 미노출) */}
+          {!isTeacher && (
+            <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield size={14} className="text-[#4fc3a1]" />
+                <span className="text-[12.5px] font-semibold text-[#111827]">메뉴 접근 권한</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(DEFAULT_PERMISSIONS) as (keyof typeof DEFAULT_PERMISSIONS)[]).map((key) => {
+                  const enabled = selected.permissions[key];
+                  return (
+                    <label
+                      key={key}
+                      className="flex items-center justify-between p-2.5 bg-[#f4f6f8] rounded-[8px] cursor-pointer"
+                      onClick={() => togglePerm(key)}
+                    >
+                      <span className="text-[12px] text-[#374151]">{PERM_LABELS[key]}</span>
+                      <div className={clsx('w-9 h-5 rounded-full transition-colors relative', enabled ? 'bg-[#4fc3a1]' : 'bg-[#e2e8f0]')}>
+                        <div className={clsx('absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] transition-all', enabled ? 'left-[19px]' : 'left-[3px]')} />
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Button variant="primary" size="sm" onClick={savePerm} disabled={savingPerm}>
+                  {savingPerm ? '저장 중...' : '권한 저장'}
+                </Button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(DEFAULT_PERMISSIONS) as (keyof typeof DEFAULT_PERMISSIONS)[]).map((key) => {
-                const enabled = selected.permissions[key];
-                return (
-                  <label
-                    key={key}
-                    className="flex items-center justify-between p-2.5 bg-[#f4f6f8] rounded-[8px] cursor-pointer"
-                    onClick={() => togglePerm(key)}
-                  >
-                    <span className="text-[12px] text-[#374151]">{PERM_LABELS[key]}</span>
-                    <div className={clsx('w-9 h-5 rounded-full transition-colors relative', enabled ? 'bg-[#4fc3a1]' : 'bg-[#e2e8f0]')}>
-                      <div className={clsx('absolute w-3.5 h-3.5 bg-white rounded-full top-[3px] transition-all', enabled ? 'left-[19px]' : 'left-[3px]')} />
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Button variant="primary" size="sm" onClick={savePerm} disabled={savingPerm}>
-                {savingPerm ? '저장 중...' : '권한 저장'}
-              </Button>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

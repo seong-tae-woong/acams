@@ -21,6 +21,7 @@ export interface Teacher {
   permissions: TeacherPermissions;
   isActive: boolean;
   avatarColor: string; // hex color (e.g. '#4A90D9')
+  userId?: string | null; // 연결된 User 계정 ID — 본인 레코드 식별용(설정>강사계정)
 }
 
 export type TeacherCreateInput = Omit<Teacher, 'id'>;

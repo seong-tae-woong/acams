@@ -58,6 +58,7 @@ export async function PATCH(
       isActive: updated.isActive,
       permissions: updated.permissions,
       classes: updated.classes.map((c) => c.classId),
+      userId: updated.userId,
     });
   } catch (err) {
     console.error('[PATCH /api/teachers/[id]]', err);

@@ -1,6 +1,7 @@
 'use client';
 import Avatar from '@/components/shared/Avatar';
 import { useTeacherStore } from '@/lib/stores/teacherStore';
+import { useAuthStore } from '@/lib/stores/authStore';
 import { Plus } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -14,21 +15,30 @@ export default function TeachersList({
   openRegister: () => void;
 }) {
   const { teachers } = useTeacherStore();
+  const { currentUser } = useAuthStore();
+
+  // 강사 본인은 자기 계정만 조회·관리 — 다른 강사 목록과 '강사 추가'(원장 전용) 숨김
+  const isTeacher = currentUser?.role === 'teacher';
+  const visibleTeachers = isTeacher
+    ? teachers.filter((t) => t.userId === currentUser?.id)
+    : teachers;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      {/* 강사 추가 버튼 */}
-      <div className="p-3 border-b border-[#e2e8f0] shrink-0">
-        <button
-          onClick={openRegister}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-[8px] text-[12px] font-medium bg-[#1a2535] text-white hover:bg-[#263347] transition-colors cursor-pointer"
-        >
-          <Plus size={13} /> 강사 추가
-        </button>
-      </div>
+      {/* 강사 추가 버튼 — 원장/슈퍼어드민 전용 */}
+      {!isTeacher && (
+        <div className="p-3 border-b border-[#e2e8f0] shrink-0">
+          <button
+            onClick={openRegister}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-[8px] text-[12px] font-medium bg-[#1a2535] text-white hover:bg-[#263347] transition-colors cursor-pointer"
+          >
+            <Plus size={13} /> 강사 추가
+          </button>
+        </div>
+      )}
       {/* 강사 목록 */}
       <div className="flex-1 overflow-y-auto">
-        {teachers.map((t) => (
+        {visibleTeachers.map((t) => (
           <button
             key={t.id}
             onClick={() => setSelectedId(t.id)}
@@ -49,7 +59,7 @@ export default function TeachersList({
             )}
           </button>
         ))}
-        {teachers.length === 0 && (
+        {visibleTeachers.length === 0 && (
           <div className="p-4 text-center text-[12px] text-[#9ca3af]">등록된 강사가 없습니다.</div>
         )}
       </div>

@@ -19,7 +19,7 @@ const TEACHER_INCLUDE = {
 function mapTeacher(t: {
   id: string; name: string; subject: string; phone: string;
   email: string; avatarColor: string; isActive: boolean;
-  permissions: unknown;
+  permissions: unknown; userId: string | null;
   classes: { classId: string }[];
 }) {
   return {
@@ -32,6 +32,7 @@ function mapTeacher(t: {
     isActive: t.isActive,
     permissions: (t.permissions as TeacherPermissions) ?? DEFAULT_PERMISSIONS,
     classes: t.classes.map((c) => c.classId),
+    userId: t.userId, // 본인 레코드 식별용(설정>강사계정)
   };
 }
 
