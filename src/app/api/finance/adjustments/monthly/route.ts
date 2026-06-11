@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { academyId, role } = auth;
 
-  if (role !== 'director' && role !== 'super_admin') {
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
     return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
   }
 
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { academyId, role } = auth;
 
-  if (role !== 'director' && role !== 'super_admin') {
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
     return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
   }
 

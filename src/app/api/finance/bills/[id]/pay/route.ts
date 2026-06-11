@@ -31,7 +31,7 @@ export async function POST(
   if (auth instanceof NextResponse) return auth;
   const { academyId, userId, role } = auth;
 
-  if (role !== 'director' && role !== 'super_admin') {
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
     return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
   }
 
