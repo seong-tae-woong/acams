@@ -7,6 +7,8 @@ import clsx from 'clsx';
 import { X } from 'lucide-react';
 import TokenPanel, { insertTokenAtCursor } from '@/components/reports/TokenPanel';
 import { ChartPresetRenderer, CHART_PRESETS, type ChartPresetKey } from '@/components/reports/charts';
+import CategoryScopeTree, { type CategoryScope, EMPTY_SCOPE, scopeCount } from '@/components/reports/CategoryScopeTree';
+import { useGradeStore } from '@/lib/stores/gradeStore';
 
 interface LayoutBlock { type: 'chart'; preset: ChartPresetKey; title?: string }
 interface PeriodicPreview {
@@ -40,7 +42,11 @@ interface Template {
   kind: 'PER_EXAM' | 'PERIODIC';
   periodMonths: number | null;
   layout?: unknown;
+  scopeFilter?: { category1Ids?: string[]; category2Ids?: string[]; category3Ids?: string[] };
 }
+
+// 양식 없이 발행 화면에서 직접 작성하는 모드 (templateId 자리에 넣는 sentinel)
+const DIRECT = '__direct__';
 
 interface Props {
   open: boolean;
@@ -107,6 +113,23 @@ export default function PublishReportModal({
   const [submitting, setSubmitting] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
+  // 직접 작성(양식 없음) 모드 — 집계 기간·임계값·대상 카테고리를 직접 지정
+  const [directPeriodMonths, setDirectPeriodMonths] = useState(3);
+  const [directPassThreshold, setDirectPassThreshold] = useState(70);
+  const [directScope, setDirectScope] = useState<CategoryScope>(EMPTY_SCOPE);
+  const { categories, fetchCategories } = useGradeStore();
+  useEffect(() => { fetchCategories(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isDirect = templateId === DIRECT;
+  const hasTemplate = !!templateId && !isDirect;
+  // 양식을 가져온 경우 카테고리는 양식 값 — 발행 화면에서 읽기전용
+  const selectedTemplate = templates.find((t) => t.id === templateId);
+  const templateScope: CategoryScope = {
+    category1Ids: selectedTemplate?.scopeFilter?.category1Ids ?? [],
+    category2Ids: selectedTemplate?.scopeFilter?.category2Ids ?? [],
+    category3Ids: selectedTemplate?.scopeFilter?.category3Ids ?? [],
+  };
+
   const insertToken = (token: string) => insertTokenAtCursor(bodyRef, editedBody, (v) => { setEditedBody(v); setBodyDirty(true); }, token);
 
   // kind에 맞는 템플릿 목록
@@ -128,7 +151,8 @@ export default function PublishReportModal({
             setLayoutDirty(false);
             setEditedLayout(Array.isArray(data[0].layout) ? (data[0].layout as LayoutBlock[]) : []);
           } else {
-            setTemplateId('');
+            // 양식이 하나도 없을 때: 주기별은 '직접 작성'으로, 시험별은 빈 값으로
+            setTemplateId(kind === 'PERIODIC' ? DIRECT : '');
             setEditedBody('');
             setEditedTitle('');
             setEditedLayout([]);
@@ -169,6 +193,17 @@ export default function PublishReportModal({
       if (!layoutDirty) setEditedLayout(Array.isArray(t.layout) ? (t.layout as LayoutBlock[]) : []);
     }
   }, [templateId, templates]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 직접 작성 모드 진입 시 입력값 초기화 (본문/제목/차트/집계설정 비우기)
+  useEffect(() => {
+    if (templateId !== DIRECT) return;
+    setEditedBody(''); setBodyDirty(false);
+    setEditedTitle(''); setTitleDirty(false);
+    setEditedLayout([]); setLayoutDirty(false);
+    setDirectPeriodMonths(3);
+    setDirectPassThreshold(70);
+    setDirectScope(EMPTY_SCOPE);
+  }, [templateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 양식 원래 본문 복원
   const resetBody = () => {
@@ -223,10 +258,16 @@ export default function PublishReportModal({
     }
     setPeriodicPreviewLoading(true);
     const handle = setTimeout(() => {
+      const previewBody = isDirect
+        ? {
+            studentId: periodicFirstTargetId, bodyMarkdown: editedBody,
+            periodMonths: directPeriodMonths, passThreshold: directPassThreshold, scopeFilter: directScope,
+          }
+        : { templateId, studentId: periodicFirstTargetId, bodyMarkdown: editedBody };
       fetch('/api/reports/preview-periodic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, studentId: periodicFirstTargetId, bodyMarkdown: editedBody }),
+        body: JSON.stringify(previewBody),
       })
         .then((r) => r.json())
         .then((data) => {
@@ -236,7 +277,7 @@ export default function PublishReportModal({
         .finally(() => setPeriodicPreviewLoading(false));
     }, 300);
     return () => clearTimeout(handle);
-  }, [open, kind, templateId, periodicFirstTargetId, editedBody]);
+  }, [open, kind, templateId, periodicFirstTargetId, editedBody, isDirect, directPeriodMonths, directPassThreshold, directScope]);
 
   useEffect(() => {
     if (!open || !firstTargetId || !editedBody || !activeExam) {
@@ -294,26 +335,44 @@ export default function PublishReportModal({
         return;
       }
       const url = kind === 'PER_EXAM' ? '/api/reports/publish' : '/api/reports/publish-periodic';
-      const payload = kind === 'PER_EXAM'
-        ? {
-            templateId,
-            examId: activeExam!.id,
-            classIds: mode === 'class' ? selectedClassIds : undefined,
-            studentIds: mode === 'student' ? selectedStudentIds : undefined,
-            passThreshold,
-            summary,
-            overrideBody: bodyDirty ? editedBody : undefined,
-            overrideTitle: titleDirty ? editedTitle : undefined,
-          }
-        : {
-            templateId,
-            classIds: mode === 'class' ? selectedClassIds : undefined,
-            studentIds: mode === 'student' ? selectedStudentIds : undefined,
-            summary,
-            overrideBody: bodyDirty ? editedBody : undefined,
-            overrideTitle: titleDirty ? editedTitle : undefined,
-            overrideLayout: layoutDirty ? editedLayout : undefined,
-          };
+      const targetIds = {
+        classIds: mode === 'class' ? selectedClassIds : undefined,
+        studentIds: mode === 'student' ? selectedStudentIds : undefined,
+      };
+      let payload: Record<string, unknown>;
+      if (kind === 'PER_EXAM') {
+        payload = {
+          templateId,
+          examId: activeExam!.id,
+          ...targetIds,
+          passThreshold,
+          summary,
+          overrideBody: bodyDirty ? editedBody : undefined,
+          overrideTitle: titleDirty ? editedTitle : undefined,
+        };
+      } else if (isDirect) {
+        // 양식 없이 직접 작성 — 카테고리·집계기간·임계값·본문·제목·차트를 직접 전송 (templateId 없음)
+        payload = {
+          ...targetIds,
+          summary,
+          periodMonths: directPeriodMonths,
+          passThreshold: directPassThreshold,
+          scopeFilter: directScope,
+          bodyMarkdown: editedBody,
+          title: editedTitle,
+          layout: editedLayout,
+        };
+      } else {
+        // 양식 모드 — 카테고리는 양식 값 고정(전송 안 함), 본문/제목/차트만 이번 발행 한정 override
+        payload = {
+          templateId,
+          ...targetIds,
+          summary,
+          overrideBody: bodyDirty ? editedBody : undefined,
+          overrideTitle: titleDirty ? editedTitle : undefined,
+          overrideLayout: layoutDirty ? editedLayout : undefined,
+        };
+      }
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -415,9 +474,9 @@ export default function PublishReportModal({
         {/* 양식 선택 */}
         <div>
           <label className="text-[11.5px] font-medium text-[#374151] block mb-1">양식</label>
-          {templates.length === 0 ? (
+          {templates.length === 0 && kind === 'PER_EXAM' ? (
             <div className="text-[12px] text-[#ef4444]">
-              발행 가능한 {kind === 'PER_EXAM' ? '시험별' : '주기별'} 양식이 없습니다.
+              발행 가능한 시험별 양식이 없습니다.
               {' '}<a href="/classes/lessons" className="underline">양식 관리에서 만들기</a>
             </div>
           ) : (
@@ -426,6 +485,7 @@ export default function PublishReportModal({
               onChange={(e) => setTemplateId(e.target.value)}
               className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
             >
+              {kind === 'PERIODIC' && <option value={DIRECT}>양식 없이 직접 작성</option>}
               {templates.map((t) => {
                 const aliasPart = t.alias ? ` — ${t.alias}` : '';
                 const periodPart = kind === 'PERIODIC' && t.periodMonths ? ` (최근 ${t.periodMonths}개월)` : '';
@@ -436,6 +496,11 @@ export default function PublishReportModal({
                 );
               })}
             </select>
+          )}
+          {isDirect && (
+            <div className="text-[10.5px] text-[#9ca3af] mt-1">
+              양식 없이 이번 발행만 직접 작성합니다. 아래에서 집계 기간·대상 카테고리·본문을 지정하세요.
+            </div>
           )}
         </div>
 
@@ -546,6 +611,63 @@ export default function PublishReportModal({
           )}
         </div>
 
+        {/* PERIODIC: 집계 설정(직접 작성 시 입력) + 대상 시험 카테고리 */}
+        {kind === 'PERIODIC' && templateId && (
+          <div className="space-y-3">
+            {isDirect && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11.5px] font-medium text-[#374151] block mb-1">집계 기간 (개월)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" min={1} max={60}
+                      value={directPeriodMonths}
+                      onChange={(e) => setDirectPeriodMonths(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-20 px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
+                    />
+                    <span className="text-[11.5px] text-[#6b7280]">개월 이전부터 오늘까지</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11.5px] font-medium text-[#374151] block mb-1">합격 임계값 (%)</label>
+                  <input
+                    type="number" min={0} max={100}
+                    value={directPassThreshold}
+                    onChange={(e) => setDirectPassThreshold(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
+                  />
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="text-[11.5px] font-medium text-[#374151] block mb-1">
+                대상 시험 카테고리{' '}
+                <span className="text-[#9ca3af] font-normal">
+                  ({scopeCount(isDirect ? directScope : templateScope) === 0
+                    ? '전체 시험'
+                    : `${scopeCount(isDirect ? directScope : templateScope)}개 선택됨`})
+                </span>
+                {!isDirect && (
+                  <span className="ml-1 text-[10.5px] text-[#6b7280] bg-[#f1f5f9] rounded px-1.5 py-0.5">양식 고정</span>
+                )}
+              </label>
+              <CategoryScopeTree
+                key={templateId}
+                categories={categories}
+                value={isDirect ? directScope : templateScope}
+                onChange={setDirectScope}
+                readOnly={!isDirect}
+                maxHeightClass="max-h-44"
+              />
+              <div className="text-[10.5px] text-[#9ca3af] mt-1">
+                {isDirect
+                  ? 'Level 1·2·3 어느 레벨이든 선택 가능. 선택한 카테고리에 속한 시험만 집계 — 비워두면 전체 대상.'
+                  : '양식에서 지정한 카테고리입니다. 발행 화면에서는 수정할 수 없습니다.'}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 합격 임계값 (PER_EXAM만) + 요약 */}
         <div className="grid grid-cols-2 gap-3">
           {kind === 'PER_EXAM' && (
@@ -577,9 +699,9 @@ export default function PublishReportModal({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11.5px] font-medium text-[#374151]">
-                제목 {titleDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
+                제목 {hasTemplate && titleDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
               </label>
-              {titleDirty && (
+              {hasTemplate && titleDirty && (
                 <button
                   type="button"
                   onClick={resetTitle}
@@ -592,7 +714,7 @@ export default function PublishReportModal({
             <input
               value={editedTitle}
               onChange={(e) => { setEditedTitle(e.target.value); setTitleDirty(true); }}
-              placeholder="양식 이름이 기본값"
+              placeholder={isDirect ? '리포트 제목을 입력하세요' : '양식 이름이 기본값'}
               className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
             />
             <div className="text-[10.5px] text-[#9ca3af] mt-1">
@@ -606,9 +728,9 @@ export default function PublishReportModal({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11.5px] font-medium text-[#374151]">
-                본문 {bodyDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
+                본문 {hasTemplate && bodyDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
               </label>
-              {bodyDirty && (
+              {hasTemplate && bodyDirty && (
                 <button
                   type="button"
                   onClick={resetBody}
@@ -624,7 +746,7 @@ export default function PublishReportModal({
                 value={editedBody}
                 onChange={(e) => { setEditedBody(e.target.value); setBodyDirty(true); }}
                 rows={6}
-                placeholder="양식을 선택하면 본문이 자동으로 채워집니다. 이번 발행만 한정으로 수정할 수 있습니다."
+                placeholder={isDirect ? '직접 작성할 본문을 입력하세요. 우측 토큰을 클릭해 삽입할 수 있습니다.' : '양식을 선택하면 본문이 자동으로 채워집니다. 이번 발행만 한정으로 수정할 수 있습니다.'}
                 className="w-full px-3 py-2 border border-[#e2e8f0] rounded-[8px] text-[12.5px] font-mono leading-relaxed"
               />
               <TokenPanel onInsert={insertToken} variant="inline" kind={kind} />
@@ -641,9 +763,9 @@ export default function PublishReportModal({
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-[11.5px] font-medium text-[#374151]">
                 차트 블록 ({editedLayout.length}개)
-                {layoutDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
+                {hasTemplate && layoutDirty && <span className="text-[#0D9E7A] font-semibold ml-1">· 수정됨</span>}
               </label>
-              {layoutDirty && (
+              {hasTemplate && layoutDirty && (
                 <button
                   type="button"
                   onClick={resetLayout}
@@ -728,8 +850,9 @@ export default function PublishReportModal({
         {kind === 'PERIODIC' && (
           <>
             <div className="text-[11.5px] text-[#9ca3af]">
-              발행 시점 기준으로 양식의 집계 개월 수에 맞춰 자동 산정됩니다.
-              본문·임계값 등은 양식에서 미리 설정된 값을 그대로 사용합니다.
+              {hasTemplate
+                ? '발행 시점 기준으로 양식의 집계 개월 수에 맞춰 자동 산정됩니다. 임계값·집계 기간은 양식 설정값을 사용합니다.'
+                : '발행 시점 기준으로 위에서 지정한 집계 기간에 맞춰 자동 산정됩니다.'}
             </div>
 
             <div>

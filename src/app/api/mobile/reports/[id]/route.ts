@@ -36,7 +36,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     // 발행 시 확정된 layout 스냅샷 우선, 없으면(구 데이터) 양식 layout으로 폴백
     const layout = Array.isArray(report.layout) && report.layout.length > 0
       ? report.layout
-      : report.template.layout;
+      : (report.template?.layout ?? []);
 
     return NextResponse.json({
       id: report.id,

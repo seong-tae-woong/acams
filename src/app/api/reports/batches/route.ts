@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     });
 
     // 양식·시험 메타데이터 일괄 조회
-    const templateIds = Array.from(new Set(reports.map((r) => r.templateId)));
+    const templateIds = Array.from(new Set(reports.map((r) => r.templateId).filter((v): v is string => !!v)));
     const examIds = Array.from(new Set(reports.map((r) => r.examId).filter((v): v is string => !!v)));
     const userIds = Array.from(new Set(reports.map((r) => r.publishedBy).filter((v): v is string => !!v)));
 
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
         groups.set(r.batchId, {
           batchId: r.batchId,
           kind: r.kind,
-          templateName: tplMap.get(r.templateId) ?? '(삭제된 양식)',
+          templateName: r.templateId ? (tplMap.get(r.templateId) ?? '(삭제된 양식)') : '직접 작성',
           examName: r.examId ? examMap.get(r.examId) ?? null : null,
           periodLabel: r.periodLabel,
           publishedAt: r.publishedAt.toISOString(),

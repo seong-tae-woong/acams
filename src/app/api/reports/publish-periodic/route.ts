@@ -18,21 +18,70 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { templateId, classIds, studentIds, summary, overrideBody, overrideTitle, overrideLayout } = body as {
-      templateId: string;
+    const {
+      templateId, classIds, studentIds, summary,
+      overrideBody, overrideTitle, overrideLayout,
+      // 직접 작성(양식 없음) 모드 — templateId 없을 때만 사용
+      periodMonths: directPeriodMonths,
+      passThreshold: directPassThreshold,
+      scopeFilter: directScopeFilter,
+      bodyMarkdown: directBody,
+      title: directTitle,
+      layout: directLayout,
+    } = body as {
+      templateId?: string | null;
       classIds?: string[];
       studentIds?: string[];
       summary?: string;
       overrideBody?: string;
       overrideTitle?: string;
       overrideLayout?: unknown;
+      periodMonths?: number;
+      passThreshold?: number;
+      scopeFilter?: { category1Ids?: string[]; category2Ids?: string[]; category3Ids?: string[] };
+      bodyMarkdown?: string;
+      title?: string;
+      layout?: unknown;
     };
-    if (!templateId) return NextResponse.json({ error: 'templateId 필수' }, { status: 400 });
 
-    const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, academyId } });
-    if (!template) return NextResponse.json({ error: '양식 없음' }, { status: 404 });
-    if (template.kind !== ReportTemplateKind.PERIODIC || !template.periodMonths) {
-      return NextResponse.json({ error: '주기별 양식 + 집계 개월 수 설정 필요' }, { status: 400 });
+    // 발행 설정 — 양식 모드는 양식에서, 직접 모드는 요청 본문에서 결정
+    let resolvedTemplateId: string | null = null;
+    let periodMonths: number;
+    let scope: Record<string, string[]>;
+    let passThreshold: number;
+    let baseBody: string;
+    let baseTitle: string;
+    let baseLayout: unknown;
+
+    if (templateId) {
+      const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, academyId } });
+      if (!template) return NextResponse.json({ error: '양식 없음' }, { status: 404 });
+      if (template.kind !== ReportTemplateKind.PERIODIC || !template.periodMonths) {
+        return NextResponse.json({ error: '주기별 양식 + 집계 개월 수 설정 필요' }, { status: 400 });
+      }
+      resolvedTemplateId = template.id;
+      periodMonths = template.periodMonths;
+      // 양식을 가져온 경우 카테고리는 양식 값으로 고정 — 요청 본문의 카테고리는 무시(수정 불가)
+      scope = (template.scopeFilter as Record<string, string[]>) ?? {};
+      passThreshold = template.passThreshold;
+      baseBody = template.bodyMarkdown;
+      baseTitle = template.name;
+      baseLayout = template.layout ?? [];
+    } else {
+      // 직접 작성 — 양식 없이 발행 화면에서 입력한 값 사용 (카테고리 자유 선택)
+      periodMonths = Math.floor(Number(directPeriodMonths));
+      if (!periodMonths || periodMonths < 1) {
+        return NextResponse.json({ error: '집계 기간(개월)을 입력하세요.' }, { status: 400 });
+      }
+      scope = {
+        category1Ids: Array.isArray(directScopeFilter?.category1Ids) ? directScopeFilter.category1Ids : [],
+        category2Ids: Array.isArray(directScopeFilter?.category2Ids) ? directScopeFilter.category2Ids : [],
+        category3Ids: Array.isArray(directScopeFilter?.category3Ids) ? directScopeFilter.category3Ids : [],
+      };
+      passThreshold = typeof directPassThreshold === 'number' ? directPassThreshold : 70;
+      baseBody = typeof directBody === 'string' ? directBody : '';
+      baseTitle = (typeof directTitle === 'string' && directTitle.trim()) ? directTitle.trim() : '정기 리포트';
+      baseLayout = Array.isArray(directLayout) ? directLayout : [];
     }
 
     // 대상 학생 수집
@@ -49,15 +98,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '대상 학생 없음' }, { status: 400 });
     }
 
-    const scope = (template.scopeFilter as Record<string, string[]>) ?? {};
-
     const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    // 양식 모드에서 본문/제목/차트를 이번 발행만 수정(override)한 경우 반영. 직접 모드는 base 값이 곧 최종값.
     const sourceBody = typeof overrideBody === 'string' && overrideBody.trim().length > 0
       ? overrideBody
-      : template.bodyMarkdown;
-    const finalTitle = overrideTitle?.trim() || template.name;
-    // 발행 시 차트 블록을 수정했으면 그 layout을, 아니면 양식 layout을 스냅샷으로 저장
-    const finalLayout = Array.isArray(overrideLayout) ? overrideLayout : (template.layout ?? []);
+      : baseBody;
+    const finalTitle = overrideTitle?.trim() || baseTitle;
+    const finalLayout = Array.isArray(overrideLayout) ? overrideLayout : baseLayout;
     const created: { studentId: string; reportId: string }[] = [];
     let periodLabel = '';
 
@@ -68,7 +115,7 @@ export async function POST(req: NextRequest) {
       });
       if (!student) continue;
 
-      const data = await buildPeriodicData(academyId, sid, template.periodMonths, scope);
+      const data = await buildPeriodicData(academyId, sid, periodMonths, scope);
       periodLabel = data.period.label;
 
       const renderedBody = renderBody(sourceBody, {
@@ -81,13 +128,13 @@ export async function POST(req: NextRequest) {
         기간최고: data.highestScore,
         기간최저: data.lowestScore,
         기간시험수: data.examCount,
-        passThreshold: template.passThreshold,
+        passThreshold,
       });
 
       const r = await prisma.report.create({
         data: {
           academyId,
-          templateId,
+          templateId: resolvedTemplateId,
           batchId,
           kind: ReportTemplateKind.PERIODIC,
           periodLabel: data.period.label,

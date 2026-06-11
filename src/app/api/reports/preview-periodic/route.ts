@@ -15,15 +15,46 @@ export async function POST(req: NextRequest) {
   const { academyId } = auth;
 
   try {
-    const { templateId, studentId, bodyMarkdown } = await req.json();
-    if (!templateId || !studentId) {
-      return NextResponse.json({ error: 'templateId, studentId 필수' }, { status: 400 });
+    const {
+      templateId, studentId, bodyMarkdown,
+      periodMonths: directPeriodMonths,
+      passThreshold: directPassThreshold,
+      scopeFilter: directScopeFilter,
+    } = await req.json();
+    if (!studentId) {
+      return NextResponse.json({ error: 'studentId 필수' }, { status: 400 });
     }
 
-    const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, academyId } });
-    if (!template) return NextResponse.json({ error: '양식 없음' }, { status: 404 });
-    if (template.kind !== ReportTemplateKind.PERIODIC || !template.periodMonths) {
-      return NextResponse.json({ error: '주기별 양식 + 집계 개월 수 필요' }, { status: 400 });
+    // 양식 모드는 양식에서, 직접 모드는 요청 본문에서 집계 설정 결정
+    let periodMonths: number;
+    let scope: Record<string, string[]>;
+    let passThreshold: number;
+    let baseBody: string;
+    let templateLayout: unknown = [];
+
+    if (templateId) {
+      const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, academyId } });
+      if (!template) return NextResponse.json({ error: '양식 없음' }, { status: 404 });
+      if (template.kind !== ReportTemplateKind.PERIODIC || !template.periodMonths) {
+        return NextResponse.json({ error: '주기별 양식 + 집계 개월 수 필요' }, { status: 400 });
+      }
+      periodMonths = template.periodMonths;
+      scope = (template.scopeFilter as Record<string, string[]>) ?? {};
+      passThreshold = template.passThreshold;
+      baseBody = template.bodyMarkdown;
+      templateLayout = template.layout;
+    } else {
+      periodMonths = Math.floor(Number(directPeriodMonths));
+      if (!periodMonths || periodMonths < 1) {
+        return NextResponse.json({ error: '집계 기간(개월)을 입력하세요.' }, { status: 400 });
+      }
+      scope = {
+        category1Ids: Array.isArray(directScopeFilter?.category1Ids) ? directScopeFilter.category1Ids : [],
+        category2Ids: Array.isArray(directScopeFilter?.category2Ids) ? directScopeFilter.category2Ids : [],
+        category3Ids: Array.isArray(directScopeFilter?.category3Ids) ? directScopeFilter.category3Ids : [],
+      };
+      passThreshold = typeof directPassThreshold === 'number' ? directPassThreshold : 70;
+      baseBody = '';
     }
 
     const student = await prisma.student.findFirst({
@@ -38,10 +69,9 @@ export async function POST(req: NextRequest) {
     });
     if (!student) return NextResponse.json({ error: '학생 정보 없음' }, { status: 404 });
 
-    const scope = (template.scopeFilter as Record<string, string[]>) ?? {};
-    const data = await buildPeriodicData(academyId, studentId, template.periodMonths, scope);
+    const data = await buildPeriodicData(academyId, studentId, periodMonths, scope);
 
-    const sourceBody = typeof bodyMarkdown === 'string' ? bodyMarkdown : template.bodyMarkdown;
+    const sourceBody = typeof bodyMarkdown === 'string' ? bodyMarkdown : baseBody;
     const renderedBody = renderBody(sourceBody, {
       학생: student.name,
       학년: student.grade,
@@ -52,12 +82,12 @@ export async function POST(req: NextRequest) {
       기간최고: data.highestScore,
       기간최저: data.lowestScore,
       기간시험수: data.examCount,
-      passThreshold: template.passThreshold,
+      passThreshold,
     });
 
     return NextResponse.json({
       renderedBody,
-      layout: template.layout,
+      layout: templateLayout,
       data,
       studentName: student.name,
     });

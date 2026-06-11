@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import Button from '@/components/shared/Button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Trash2, Save, X, Info, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Save, X, Info } from 'lucide-react';
 import clsx from 'clsx';
 import { CHART_PRESETS, type ChartPresetKey } from '@/components/reports/charts';
 import TokenPanel, { insertTokenAtCursor } from '@/components/reports/TokenPanel';
+import CategoryScopeTree from '@/components/reports/CategoryScopeTree';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useGradeStore } from '@/lib/stores/gradeStore';
@@ -66,18 +67,12 @@ export default function ReportTemplatesEditor() {
   const [scopeCategory1Ids, setScopeCategory1Ids] = useState<string[]>([]);
   const [scopeCategory2Ids, setScopeCategory2Ids] = useState<string[]>([]);
   const [scopeCategory3Ids, setScopeCategory3Ids] = useState<string[]>([]);
-  const [expandedCat1, setExpandedCat1] = useState<Set<string>>(new Set());
-  const [expandedCat2, setExpandedCat2] = useState<Set<string>>(new Set());
 
   // 데이터
   const { classes, fetchClasses } = useClassStore();
   const { students, fetchStudents } = useStudentStore();
   const { exams, categories, fetchExams, fetchCategories } = useGradeStore();
   useEffect(() => { fetchClasses(); fetchStudents(); fetchExams(); fetchCategories(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const cat1List = categories.filter((c) => c.level === 1);
-  const cat2ByParent = (parentId: string) => categories.filter((c) => c.level === 2 && c.parentId === parentId);
-  const cat3ByParent = (parentId: string) => categories.filter((c) => c.level === 3 && c.parentId === parentId);
 
   const studentsByClass: Record<string, { id: string; name: string }[]> = {};
   for (const c of classes) {
@@ -183,8 +178,6 @@ export default function ReportTemplatesEditor() {
       setScopeCategory1Ids(c1);
       setScopeCategory2Ids(c2);
       setScopeCategory3Ids(c3);
-      setExpandedCat1(new Set(c1));
-      setExpandedCat2(new Set(c2));
     } else {
       setName('');
       setAlias('');
@@ -195,8 +188,6 @@ export default function ReportTemplatesEditor() {
       setScopeCategory1Ids([]);
       setScopeCategory2Ids([]);
       setScopeCategory3Ids([]);
-      setExpandedCat1(new Set());
-      setExpandedCat2(new Set());
     }
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -280,47 +271,6 @@ export default function ReportTemplatesEditor() {
     setTemplates((prev) => prev.filter((t) => t.id !== selected.id));
     setSelectedId(null);
     toast('삭제됨', 'success');
-  };
-
-  const toggleCategory1 = (id: string) => {
-    setScopeCategory1Ids((prev) => {
-      if (prev.includes(id)) {
-        // 해제 시 자식들도 해제
-        const children2 = cat2ByParent(id).map((c) => c.id);
-        const children3 = children2.flatMap((c2id) => cat3ByParent(c2id).map((c) => c.id));
-        setScopeCategory2Ids((p2) => p2.filter((x) => !children2.includes(x)));
-        setScopeCategory3Ids((p3) => p3.filter((x) => !children3.includes(x)));
-        return prev.filter((x) => x !== id);
-      }
-      return [...prev, id];
-    });
-  };
-  const toggleCategory2 = (id: string) => {
-    setScopeCategory2Ids((prev) => {
-      if (prev.includes(id)) {
-        const children3 = cat3ByParent(id).map((c) => c.id);
-        setScopeCategory3Ids((p3) => p3.filter((x) => !children3.includes(x)));
-        return prev.filter((x) => x !== id);
-      }
-      return [...prev, id];
-    });
-  };
-  const toggleCategory3 = (id: string) => {
-    setScopeCategory3Ids((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  };
-  const toggleExpand1 = (id: string) => {
-    setExpandedCat1((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-  const toggleExpand2 = (id: string) => {
-    setExpandedCat2((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
   };
 
   const totalSelected = scopeCategory1Ids.length + scopeCategory2Ids.length + scopeCategory3Ids.length;
@@ -474,96 +424,15 @@ export default function ReportTemplatesEditor() {
                 <label className="text-[11.5px] font-medium text-[#374151] block mb-1">
                   대상 시험 카테고리 <span className="text-[#9ca3af] font-normal">({scopeLabel})</span>
                 </label>
-                <div className="border border-[#e2e8f0] rounded-[8px] p-2 bg-white max-h-60 overflow-y-auto">
-                  {cat1List.length === 0 ? (
-                    <div className="text-[11.5px] text-[#9ca3af] p-1">등록된 카테고리 없음</div>
-                  ) : (
-                    <div className="space-y-0.5">
-                      {cat1List.map((c1) => {
-                        const cat2s = cat2ByParent(c1.id);
-                        const c1Expanded = expandedCat1.has(c1.id);
-                        const c1Checked = scopeCategory1Ids.includes(c1.id);
-                        return (
-                          <div key={c1.id}>
-                            <div className="flex items-center gap-1 hover:bg-[#f9fafb] rounded px-1 py-0.5">
-                              {cat2s.length > 0 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpand1(c1.id)}
-                                  className="text-[#9ca3af] hover:text-[#374151] cursor-pointer"
-                                >
-                                  {c1Expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                </button>
-                              ) : (
-                                <span className="w-3" />
-                              )}
-                              <label className="flex items-center gap-1.5 cursor-pointer flex-1 text-[12px]">
-                                <input
-                                  type="checkbox"
-                                  checked={c1Checked}
-                                  onChange={() => toggleCategory1(c1.id)}
-                                  className="w-3 h-3"
-                                />
-                                <span className="font-medium text-[#111827]">{c1.name}</span>
-                                <span className="text-[10px] text-[#9ca3af]">L1</span>
-                              </label>
-                            </div>
-                            {c1Expanded && cat2s.map((c2) => {
-                              const cat3s = cat3ByParent(c2.id);
-                              const c2Expanded = expandedCat2.has(c2.id);
-                              const c2Checked = scopeCategory2Ids.includes(c2.id);
-                              return (
-                                <div key={c2.id} className="pl-5">
-                                  <div className="flex items-center gap-1 hover:bg-[#f9fafb] rounded px-1 py-0.5">
-                                    {cat3s.length > 0 ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleExpand2(c2.id)}
-                                        className="text-[#9ca3af] hover:text-[#374151] cursor-pointer"
-                                      >
-                                        {c2Expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                      </button>
-                                    ) : (
-                                      <span className="w-3" />
-                                    )}
-                                    <label className="flex items-center gap-1.5 cursor-pointer flex-1 text-[12px]">
-                                      <input
-                                        type="checkbox"
-                                        checked={c2Checked}
-                                        onChange={() => toggleCategory2(c2.id)}
-                                        className="w-3 h-3"
-                                      />
-                                      <span className="text-[#374151]">{c2.name}</span>
-                                      <span className="text-[10px] text-[#9ca3af]">L2</span>
-                                    </label>
-                                  </div>
-                                  {c2Expanded && cat3s.map((c3) => {
-                                    const c3Checked = scopeCategory3Ids.includes(c3.id);
-                                    return (
-                                      <div key={c3.id} className="pl-5">
-                                        <label className="flex items-center gap-1.5 cursor-pointer hover:bg-[#f9fafb] rounded px-1 py-0.5 text-[12px]">
-                                          <span className="w-3" />
-                                          <input
-                                            type="checkbox"
-                                            checked={c3Checked}
-                                            onChange={() => toggleCategory3(c3.id)}
-                                            className="w-3 h-3"
-                                          />
-                                          <span className="text-[#374151]">{c3.name}</span>
-                                          <span className="text-[10px] text-[#9ca3af]">L3</span>
-                                        </label>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <CategoryScopeTree
+                  categories={categories}
+                  value={{ category1Ids: scopeCategory1Ids, category2Ids: scopeCategory2Ids, category3Ids: scopeCategory3Ids }}
+                  onChange={(next) => {
+                    setScopeCategory1Ids(next.category1Ids);
+                    setScopeCategory2Ids(next.category2Ids);
+                    setScopeCategory3Ids(next.category3Ids);
+                  }}
+                />
                 <div className="text-[10.5px] text-[#9ca3af] mt-1">
                   Level 1·2·3 어느 레벨이든 선택 가능 (옵션). 선택한 카테고리에 속한 시험만 집계 — 비워두면 전체 대상.
                 </div>

@@ -1392,8 +1392,8 @@ model Report {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  templateId String
-  template   ReportTemplate @relation(fields: [templateId], references: [id])
+  templateId String? // null = 양식 없이 발행 화면에서 직접 작성한 리포트
+  template   ReportTemplate? @relation(fields: [templateId], references: [id])
 
   batchId String? // 같은 발행 액션으로 생성된 Report들을 묶는 식별자
 
