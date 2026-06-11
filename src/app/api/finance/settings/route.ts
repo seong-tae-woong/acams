@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { syncSiblingDiscountsForStudent } from '@/lib/utils/billing';
-import { StudentStatus } from '@/generated/prisma/client';
+import { resyncAllSiblingDiscounts } from '@/lib/utils/billing';
 
 // 청구 관련 학원 설정 (형제 할인 자동 적용).
 // /api/finance/* 는 proxy에서 manageFinance(재무 관리) 권한으로 게이트됨 —
@@ -59,14 +58,8 @@ export async function PATCH(req: NextRequest) {
 
     await prisma.academy.update({ where: { id: academyId }, data });
 
-    // 형제 할인 설정이 바뀌었으니 현재 재원생 전체 재동기화 (순차 호출 — 트랜잭션 폭주 방지)
-    const students = await prisma.student.findMany({
-      where: { academyId, status: StudentStatus.ACTIVE },
-      select: { id: true },
-    });
-    for (const s of students) {
-      await syncSiblingDiscountsForStudent(s.id);
-    }
+    // 형제 할인 설정 변경 → 영향 받는 재원생만 추려 제한 동시성으로 재동기화
+    await resyncAllSiblingDiscounts(academyId);
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -1,8 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { syncSiblingDiscountsForStudent } from '@/lib/utils/billing';
-import { StudentStatus } from '@/generated/prisma/client';
+import { resyncAllSiblingDiscounts } from '@/lib/utils/billing';
 
 function toProxyUrl(blobUrl: string): string {
   if (!blobUrl || !blobUrl.includes('blob.vercel-storage.com')) return blobUrl;
@@ -177,14 +176,7 @@ export async function PATCH(req: NextRequest) {
     const siblingChanged = (siblingDiscountDefault !== undefined && typeof siblingDiscountDefault === 'number')
       || (siblingDiscountType === 'fixed' || siblingDiscountType === 'percent');
     if (siblingChanged) {
-      const students = await prisma.student.findMany({
-        where: { academyId, status: StudentStatus.ACTIVE },
-        select: { id: true },
-      });
-      // 순차 호출 — DB 동시 트랜잭션 폭주 방지
-      for (const s of students) {
-        await syncSiblingDiscountsForStudent(s.id);
-      }
+      await resyncAllSiblingDiscounts(academyId);
     }
 
     return NextResponse.json({ success: true, slug: updated.slug, profileEnabled: updated.profileEnabled });

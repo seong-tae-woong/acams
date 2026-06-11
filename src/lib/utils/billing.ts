@@ -439,3 +439,45 @@ export async function calcPerLessonAmount(
     makeupCount,
   };
 }
+
+// 학원 전체 형제 할인 재동기화 — '형제 할인 저장 및 전체 적용'에서 사용.
+// 전체 활성 학생을 순차로 도는 대신, ① 실제로 영향 받을 수 있는 학생(형제 링크 보유
+// 또는 기존 'sibling' 자동 규칙 보유)만 추리고 — 나머지는 no-op이라 건너뜀 —
+// ② 제한된 동시성으로 처리해 원격 DB 왕복 횟수와 대기 시간을 크게 줄인다.
+export async function resyncAllSiblingDiscounts(academyId: string): Promise<void> {
+  const activeStudents = await prisma.student.findMany({
+    where: { academyId, status: StudentStatus.ACTIVE },
+    select: { id: true },
+  });
+  if (activeStudents.length === 0) return;
+  const activeIds = activeStudents.map((s) => s.id);
+  const activeSet = new Set(activeIds);
+
+  // 영향 받을 수 있는 학생만 추출 (형제 링크 OR 기존 형제 자동 규칙)
+  const [links, rules] = await Promise.all([
+    prisma.studentSibling.findMany({
+      where: { OR: [{ studentAId: { in: activeIds } }, { studentBId: { in: activeIds } }] },
+      select: { studentAId: true, studentBId: true },
+    }),
+    prisma.enrollmentRule.findMany({
+      where: { academyId, autoTag: 'sibling' },
+      select: { enrollment: { select: { studentId: true } } },
+    }),
+  ]);
+
+  const affected = new Set<string>();
+  for (const l of links) {
+    if (activeSet.has(l.studentAId)) affected.add(l.studentAId);
+    if (activeSet.has(l.studentBId)) affected.add(l.studentBId);
+  }
+  for (const r of rules) {
+    if (activeSet.has(r.enrollment.studentId)) affected.add(r.enrollment.studentId);
+  }
+
+  // 제한된 동시성으로 처리 (DB 커넥션 풀 보호)
+  const ids = [...affected];
+  const CONCURRENCY = 5;
+  for (let i = 0; i < ids.length; i += CONCURRENCY) {
+    await Promise.all(ids.slice(i, i + CONCURRENCY).map((id) => syncSiblingDiscountsForStudent(id)));
+  }
+}
