@@ -2,14 +2,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Home, CalendarCheck, BookOpen, Bell, User } from 'lucide-react';
+import { Home, Bell, User } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
 
 const TABS = [
   { href: '/mobile', label: '홈', icon: Home },
-  { href: '/mobile/attendance', label: '출결', icon: CalendarCheck },
-  { href: '/mobile/grades', label: '리포트', icon: BookOpen },
   { href: '/mobile/notifications', label: '알림', icon: Bell },
   { href: '/mobile/profile', label: '내 정보', icon: User },
 ];
