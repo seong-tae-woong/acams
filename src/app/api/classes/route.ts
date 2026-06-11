@@ -71,8 +71,9 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
   const { academyId, role } = auth;
-  if (role !== 'director' && role !== 'super_admin') {
-    return NextResponse.json({ error: '원장 권한이 필요합니다.' }, { status: 403 });
+  // teacher는 '반 관리'(manageClasses) 권한 보유 시에만 이 핸들러에 도달(proxy에서 enforce)
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '접근 권한이 없습니다.' }, { status: 403 });
   }
 
   try {
