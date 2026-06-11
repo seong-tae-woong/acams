@@ -29,7 +29,7 @@ export default function BillingSettingsModal({ open, onClose }: BillingSettingsM
 
   useEffect(() => {
     if (!open) return;
-    fetch('/api/settings/academy')
+    fetch('/api/finance/settings')
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!data) return;
@@ -57,7 +57,7 @@ export default function BillingSettingsModal({ open, onClose }: BillingSettingsM
     }
     setSavingSibling(true);
     try {
-      const res = await fetch('/api/settings/academy', {
+      const res = await fetch('/api/finance/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
