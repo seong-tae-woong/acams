@@ -83,12 +83,32 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey, fetchComments, fetchClinicResults, fetchMakeupComments, fetchMakeupClinicResults]);
 
-  // 양식 자동 선택
+  // 양식 선택: 학생에게 이미 저장된 클리닉이 있으면 그 양식을 자동 선택, 없으면 빈 상태로 시작
   useEffect(() => {
-    if (!selectedTemplateId && templates.length > 0) {
-      setSelectedTemplateId(templates[0].id);
+    if (!selectedStudentId) {
+      setSelectedTemplateId('');
+      return;
     }
-  }, [selectedTemplateId, templates]);
+    const rows =
+      scope.kind === 'lesson'
+        ? clinicResults.filter(
+            (r) =>
+              r.classId === scope.classId &&
+              r.studentId === selectedStudentId &&
+              r.sessionDate === scope.sessionDate,
+          )
+        : makeupClinicResults.filter(
+            (r) => r.makeupClassId === scope.makeupClassId && r.studentId === selectedStudentId,
+          );
+    // 저장된 양식 중 가장 최근 것 (현재 templates에 존재하는 것만)
+    const existingTemplateId = [...rows]
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+      .map((r) => r.templateId)
+      .find((id) => templates.some((t) => t.id === id));
+    setSelectedTemplateId(existingTemplateId ?? '');
+    // scope 객체는 매 렌더 새로 생성되므로 안정값 scopeKey만 의존 (선택 초기화 루프 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentId, scopeKey, clinicResults, makeupClinicResults, templates]);
 
   // 학생/scope 변경 시 코멘트 복원
   useEffect(() => {
@@ -190,6 +210,12 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
   };
 
   const currentTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const savedResult =
+    selectedStudentId && selectedTemplateId
+      ? scope.kind === 'lesson'
+        ? getClinicResultFor(scope.classId, selectedStudentId, scope.sessionDate, selectedTemplateId)
+        : getMakeupClinicResultFor(scope.makeupClassId, selectedStudentId, selectedTemplateId)
+      : undefined;
 
   const handleSave = async () => {
     if (!selectedStudentId) {
@@ -271,6 +297,7 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
               onChange={(e) => setSelectedTemplateId(e.target.value)}
               className="text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
             >
+              <option value="">양식 선택</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -399,6 +426,17 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
                 양식에 항목이 없습니다. 위 입력란으로 이 수업에만 쓸 항목을 추가하세요.
               </div>
             )}
+          </div>
+        )}
+
+        {savedResult && (
+          <div className="mt-1.5 text-[11px] text-[#9ca3af] flex flex-wrap gap-x-3 gap-y-0.5">
+            <span>작성 {savedResult.authorName ?? '미상'}</span>
+            <span>
+              {savedResult.checkedById
+                ? `체크 ${savedResult.checkedByName ?? '미상'}${savedResult.checkedAt ? ` · ${new Date(savedResult.checkedAt).toLocaleDateString('ko-KR')}` : ''}`
+                : '체크 전'}
+            </span>
           </div>
         )}
       </div>

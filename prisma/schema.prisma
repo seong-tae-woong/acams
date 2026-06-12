@@ -530,7 +530,9 @@ model MakeupClinicResult {
   customItems   Json @default("[]")
   hiddenItemIds Json @default("[]")
 
-  authorId String
+  authorId    String    // 리스트 최초 작성자 (User.id)
+  checkedById String?   // 완료 체크를 마지막으로 변경한 사람 (User.id, 작성자와 다를 수 있음)
+  checkedAt   DateTime? // 완료 체크 변경 시각
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1550,7 +1552,9 @@ model ClinicResult {
   customItems   Json     @default("[]")
   hiddenItemIds Json     @default("[]")
 
-  authorId String
+  authorId    String    // 리스트 최초 작성자 (User.id)
+  checkedById String?   // 완료 체크를 마지막으로 변경한 사람 (User.id, 작성자와 다를 수 있음)
+  checkedAt   DateTime? // 완료 체크 변경 시각
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

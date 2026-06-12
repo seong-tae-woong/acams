@@ -78,6 +78,10 @@ export interface ClinicResult {
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];
   authorId: string;
+  authorName: string | null;
+  checkedById: string | null;
+  checkedByName: string | null;
+  checkedAt: string | null; // ISO, 미체크면 null
   createdAt: string;
   updatedAt: string;
 }
@@ -121,6 +125,10 @@ export interface MakeupClinicResult {
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];
   authorId: string;
+  authorName: string | null;
+  checkedById: string | null;
+  checkedByName: string | null;
+  checkedAt: string | null; // ISO, 미체크면 null
   createdAt: string;
   updatedAt: string;
 }
