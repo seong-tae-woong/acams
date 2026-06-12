@@ -4,16 +4,41 @@ import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
+import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { StudentStatus } from '@/lib/types/student';
 import type { DayOfWeek, ClassInfo } from '@/lib/types/class';
+import { DAY_NAMES } from '@/lib/types/class';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, X, Pencil, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { DAY_LABELS, toDateStr } from '../_shared';
 
+// 우측 패널의 일정 항목 (반복 슬롯 + 일회성 이벤트 통합)
+type ScheduleItem = {
+  key: string;
+  cls: ClassInfo;
+  startTime: string;
+  endTime: string;
+  recurring: boolean;
+  teacherId: string | null;
+  dayOfWeek: DayOfWeek;
+  eventId?: string; // 일회성(ClassEvent)만
+};
+
 export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
-  const { classes, updateClass, classEvents, addClassEvent } = useClassStore();
+  const { classes, updateClass, classEvents, addClassEvent, updateClassEvent, deleteClassEvent } = useClassStore();
   const { students, addStudentToClass, removeStudentFromClass } = useStudentStore();
+  const { teachers } = useTeacherStore();
+  const activeTeachers = useMemo(() => teachers.filter((t) => t.isActive), [teachers]);
+
+  // 일정 항목의 표시용 강사명 — 지정 강사 없으면 반 대표 강사
+  const teacherNameFor = (item: { teacherId: string | null; cls: ClassInfo }): string => {
+    if (item.teacherId) {
+      const t = teachers.find((x) => x.id === item.teacherId);
+      if (t) return t.name;
+    }
+    return item.cls.teacherName;
+  };
 
   const classStudents = students.filter((s) => s.classes.includes(selected.id));
   const activeStudents = classStudents.filter((s) => s.status === StudentStatus.ACTIVE);
@@ -62,18 +87,18 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
     return [...merged.values()];
   };
 
-  const getScheduleItemsForDate = (dateStr: string) => {
+  const getScheduleItemsForDate = (dateStr: string): ScheduleItem[] => {
     const jsDay = new Date(dateStr + 'T00:00:00').getDay();
     const dow: DayOfWeek = jsDay === 0 ? 7 : (jsDay as DayOfWeek);
-    const items: { key: string; cls: ClassInfo; startTime: string; endTime: string; recurring: boolean }[] = [];
+    const items: ScheduleItem[] = [];
     classes.forEach((c) => {
       c.schedule.filter((s) => s.dayOfWeek === dow).forEach((s, i) => {
-        items.push({ key: `r-${c.id}-${i}`, cls: c, startTime: s.startTime, endTime: s.endTime, recurring: true });
+        items.push({ key: `r-${c.id}-${i}`, cls: c, startTime: s.startTime, endTime: s.endTime, recurring: true, teacherId: s.teacherId ?? null, dayOfWeek: dow });
       });
     });
     classEvents.filter((e) => e.date === dateStr).forEach((e) => {
       const cls = classes.find((c) => c.id === e.classId);
-      if (cls) items.push({ key: `e-${e.id}`, cls, startTime: e.startTime, endTime: e.endTime, recurring: false });
+      if (cls) items.push({ key: `e-${e.id}`, cls, startTime: e.startTime, endTime: e.endTime, recurring: false, teacherId: e.teacherId ?? null, dayOfWeek: dow, eventId: e.id });
     });
     return items.sort((a, b) => a.startTime.localeCompare(b.startTime));
   };
@@ -89,15 +114,22 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
 
   // ── 일정 추가 모달 ────────────────────────────────────
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({ date: '', classId: '', startTime: '16:00', endTime: '17:00', mode: 'once' as 'once' | 'weekly' });
+  const [scheduleForm, setScheduleForm] = useState({ date: '', classId: '', startTime: '16:00', endTime: '17:00', mode: 'once' as 'once' | 'weekly', teacherId: '' });
 
   const openScheduleModal = (dateStr?: string) => {
-    setScheduleForm({ date: dateStr ?? todayStr, classId: selected?.id ?? (classes[0]?.id ?? ''), startTime: '16:00', endTime: '17:00', mode: 'once' });
+    const target = selected ?? classes[0];
+    setScheduleForm({ date: dateStr ?? todayStr, classId: target?.id ?? '', startTime: '16:00', endTime: '17:00', mode: 'once', teacherId: target?.teacherId ?? '' });
     setScheduleOpen(true);
   };
 
+  // 반 변경 시 담당 강사 기본값을 새 반의 대표 강사로 갱신
+  const handleScheduleClassChange = (classId: string) => {
+    const c = classes.find((x) => x.id === classId);
+    setScheduleForm((f) => ({ ...f, classId, teacherId: c?.teacherId ?? '' }));
+  };
+
   const handleAddSchedule = async () => {
-    const { date, classId, startTime, endTime, mode } = scheduleForm;
+    const { date, classId, startTime, endTime, mode, teacherId } = scheduleForm;
     if (!date) { toast('날짜를 선택해주세요.', 'error'); return; }
     if (!classId) { toast('반을 선택해주세요.', 'error'); return; }
     if (!startTime || !endTime) { toast('시간을 입력해주세요.', 'error'); return; }
@@ -106,7 +138,7 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
     if (!targetClass) return;
     if (mode === 'once') {
       try {
-        await addClassEvent({ classId, date, startTime, endTime });
+        await addClassEvent({ classId, date, startTime, endTime, teacherId: teacherId || null });
       } catch {
         return;
       }
@@ -115,15 +147,86 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
       const d = new Date(date + 'T00:00:00');
       const jsDay = d.getDay();
       const dow: DayOfWeek = jsDay === 0 ? 7 : (jsDay as DayOfWeek);
-      const newSchedule = { dayOfWeek: dow, startTime, endTime };
+      const newSchedule = { dayOfWeek: dow, startTime, endTime, teacherId: teacherId || null };
       if (targetClass.schedule.some((s) => s.dayOfWeek === dow && s.startTime === startTime && s.endTime === endTime)) {
         toast('동일한 반복 일정이 이미 있습니다.', 'error'); return;
       }
-      updateClass(classId, { schedule: [...targetClass.schedule, newSchedule] });
+      try {
+        await updateClass(classId, { schedule: [...targetClass.schedule, newSchedule] });
+      } catch {
+        return;
+      }
       const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
       toast(`매주 ${DAY_KO[jsDay]}요일 ${startTime}~${endTime} 일정이 추가되었습니다.`, 'success');
     }
     setScheduleOpen(false);
+  };
+
+  // ── 일정 수정/삭제 ────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ScheduleItem | null>(null);
+  const [editForm, setEditForm] = useState({ date: '', startTime: '', endTime: '', teacherId: '' });
+
+  const openEditSchedule = (item: ScheduleItem) => {
+    setEditTarget(item);
+    setEditForm({ date: selectedDate ?? todayStr, startTime: item.startTime, endTime: item.endTime, teacherId: item.teacherId ?? '' });
+    setEditOpen(true);
+  };
+
+  const handleEditSchedule = async () => {
+    if (!editTarget) return;
+    const { date, startTime, endTime, teacherId } = editForm;
+    if (!startTime || !endTime) { toast('시간을 입력해주세요.', 'error'); return; }
+    if (startTime >= endTime) { toast('종료 시간이 시작 시간보다 늦어야 합니다.', 'error'); return; }
+
+    if (!editTarget.recurring && editTarget.eventId) {
+      if (!date) { toast('날짜를 선택해주세요.', 'error'); return; }
+      try {
+        await updateClassEvent(editTarget.eventId, { date, startTime, endTime, teacherId: teacherId || null });
+      } catch { return; }
+      toast('일정이 수정되었습니다.', 'success');
+    } else {
+      const cls = classes.find((c) => c.id === editTarget.cls.id);
+      if (!cls) return;
+      // 같은 요일에 동일 시간 슬롯이 이미 있으면(자기 자신 제외) 차단
+      const collides = cls.schedule.some((s) =>
+        s.dayOfWeek === editTarget.dayOfWeek && s.startTime === startTime && s.endTime === endTime &&
+        !(s.startTime === editTarget.startTime && s.endTime === editTarget.endTime),
+      );
+      if (collides) { toast('같은 요일에 동일한 시간 일정이 이미 있습니다.', 'error'); return; }
+      const nextSchedule = cls.schedule.map((s) =>
+        s.dayOfWeek === editTarget.dayOfWeek && s.startTime === editTarget.startTime && s.endTime === editTarget.endTime
+          ? { dayOfWeek: editTarget.dayOfWeek, startTime, endTime, teacherId: teacherId || null }
+          : s,
+      );
+      try {
+        await updateClass(cls.id, { schedule: nextSchedule });
+      } catch { return; }
+    }
+    setEditOpen(false);
+    setEditTarget(null);
+  };
+
+  const handleDeleteSchedule = async (item: ScheduleItem) => {
+    const msg = item.recurring
+      ? `매주 ${DAY_NAMES[item.dayOfWeek]}요일 ${item.startTime}~${item.endTime} 반복 일정을 삭제하시겠습니까?`
+      : `${item.cls.name} ${item.startTime}~${item.endTime} 일정을 삭제하시겠습니까?`;
+    if (!confirm(msg)) return;
+    if (!item.recurring && item.eventId) {
+      try {
+        await deleteClassEvent(item.eventId);
+      } catch { return; }
+      toast('일정이 삭제되었습니다.', 'info');
+    } else {
+      const cls = classes.find((c) => c.id === item.cls.id);
+      if (!cls) return;
+      const nextSchedule = cls.schedule.filter((s) =>
+        !(s.dayOfWeek === item.dayOfWeek && s.startTime === item.startTime && s.endTime === item.endTime),
+      );
+      try {
+        await updateClass(cls.id, { schedule: nextSchedule });
+      } catch { return; }
+    }
   };
 
   const fieldCls = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
@@ -200,13 +303,25 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
               return (
                 <div className="space-y-2">
                   {items.map((item) => (
-                    <div key={item.key} className="p-2.5 rounded-[8px] border border-[#e2e8f0]" style={{ borderLeftColor: item.cls.color, borderLeftWidth: 3 }}>
-                      <div className="flex items-center gap-1.5 mb-0.5">
+                    <div key={item.key} className="group relative p-2.5 rounded-[8px] border border-[#e2e8f0]" style={{ borderLeftColor: item.cls.color, borderLeftWidth: 3 }}>
+                      <div className="flex items-center gap-1.5 mb-0.5 pr-14">
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.cls.color }} />
                         <span className="text-[12px] font-medium text-[#111827] truncate">{item.cls.name}</span>
                         {!item.recurring && <span className="text-[9px] px-1 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] shrink-0">이 날만</span>}
                       </div>
                       <div className="text-[11px] text-[#6b7280]">{item.startTime} ~ {item.endTime}</div>
+                      <div className="text-[10.5px] text-[#9ca3af] mt-0.5">{teacherNameFor(item)} 강사</div>
+                      {/* hover 시 수정/삭제 */}
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button type="button" onClick={() => openEditSchedule(item)} title="일정 수정"
+                          className="p-1 rounded bg-white border border-[#e2e8f0] text-[#6b7280] hover:text-[#1a2535] hover:border-[#1a2535] transition-colors cursor-pointer">
+                          <Pencil size={12} />
+                        </button>
+                        <button type="button" onClick={() => handleDeleteSchedule(item)} title="일정 삭제"
+                          className="p-1 rounded bg-white border border-[#e2e8f0] text-[#6b7280] hover:text-[#ef4444] hover:border-[#ef4444] transition-colors cursor-pointer">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -290,13 +405,22 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
           <div><label className="text-[11.5px] text-[#6b7280] block mb-1">날짜 *</label><input type="date" className={fieldCls} value={scheduleForm.date} onChange={(e) => setScheduleForm((f) => ({ ...f, date: e.target.value }))} /></div>
           <div>
             <label className="text-[11.5px] text-[#6b7280] block mb-1">반 *</label>
-            <select className={fieldCls} value={scheduleForm.classId} onChange={(e) => setScheduleForm((f) => ({ ...f, classId: e.target.value }))}>
+            <select className={fieldCls} value={scheduleForm.classId} onChange={(e) => handleScheduleClassChange(e.target.value)}>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">시작 시간 *</label><input type="time" className={fieldCls} value={scheduleForm.startTime} onChange={(e) => setScheduleForm((f) => ({ ...f, startTime: e.target.value }))} /></div>
             <div><label className="text-[11.5px] text-[#6b7280] block mb-1">종료 시간 *</label><input type="time" className={fieldCls} value={scheduleForm.endTime} onChange={(e) => setScheduleForm((f) => ({ ...f, endTime: e.target.value }))} /></div>
+          </div>
+          <div>
+            <label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label>
+            <select className={fieldCls} value={scheduleForm.teacherId} onChange={(e) => setScheduleForm((f) => ({ ...f, teacherId: e.target.value }))}>
+              <option value="">미지정 (반 대표 강사)</option>
+              {activeTeachers.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}{t.subject ? ` (${t.subject})` : ''}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="text-[11.5px] text-[#6b7280] block mb-1.5">반복</label>
@@ -311,6 +435,44 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
             )}
           </div>
         </div>
+      </Modal>
+
+      {/* ── 일정 수정 모달 ───────────────────────────────── */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="일정 수정" size="sm"
+        footer={<><Button variant="default" size="md" onClick={() => setEditOpen(false)}>취소</Button><Button variant="dark" size="md" onClick={handleEditSchedule}>저장</Button></>}
+      >
+        {editTarget && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 text-[12.5px]">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: editTarget.cls.color }} />
+              <span className="font-medium text-[#111827] truncate">{editTarget.cls.name}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f1f5f9] text-[#6b7280] shrink-0">
+                {editTarget.recurring ? `매주 ${DAY_NAMES[editTarget.dayOfWeek]}요일` : '이 날만'}
+              </span>
+            </div>
+            {!editTarget.recurring && (
+              <div><label className="text-[11.5px] text-[#6b7280] block mb-1">날짜 *</label><input type="date" className={fieldCls} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} /></div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-[11.5px] text-[#6b7280] block mb-1">시작 시간 *</label><input type="time" className={fieldCls} value={editForm.startTime} onChange={(e) => setEditForm((f) => ({ ...f, startTime: e.target.value }))} /></div>
+              <div><label className="text-[11.5px] text-[#6b7280] block mb-1">종료 시간 *</label><input type="time" className={fieldCls} value={editForm.endTime} onChange={(e) => setEditForm((f) => ({ ...f, endTime: e.target.value }))} /></div>
+            </div>
+            <div>
+              <label className="text-[11.5px] text-[#6b7280] block mb-1">담당 강사</label>
+              <select className={fieldCls} value={editForm.teacherId} onChange={(e) => setEditForm((f) => ({ ...f, teacherId: e.target.value }))}>
+                <option value="">미지정 (반 대표 강사)</option>
+                {activeTeachers.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}{t.subject ? ` (${t.subject})` : ''}</option>
+                ))}
+              </select>
+            </div>
+            {editTarget.recurring && (
+              <div className="text-[11px] text-[#92400E] bg-[#FEF3C7] px-3 py-2 rounded-[8px]">
+                매주 반복되는 일정입니다. 변경 사항이 모든 주에 적용됩니다.
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   );

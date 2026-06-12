@@ -7,13 +7,14 @@ function toDateStr(d: Date): string {
   return new Intl.DateTimeFormat('sv', { timeZone: 'Asia/Seoul' }).format(d);
 }
 
-function mapEvent(e: { id: string; classId: string; date: Date; startTime: string; endTime: string }) {
+function mapEvent(e: { id: string; classId: string; date: Date; startTime: string; endTime: string; teacherId: string | null }) {
   return {
     id: e.id,
     classId: e.classId,
     date: toDateStr(e.date),
     startTime: e.startTime,
     endTime: e.endTime,
+    teacherId: e.teacherId,
   };
 }
 
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { classId, date, startTime, endTime } = await req.json();
+    const { classId, date, startTime, endTime, teacherId } = await req.json();
     if (!classId || !date || !startTime || !endTime) {
       return NextResponse.json({ error: 'classId, date, startTime, endTime는 필수입니다.' }, { status: 400 });
     }
@@ -56,8 +57,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '반을 찾을 수 없습니다.' }, { status: 404 });
     }
 
+    // 강사 지정 시 같은 학원 소속인지 검증 (null = 반 대표 강사 사용)
+    if (teacherId) {
+      const t = await prisma.teacher.findUnique({ where: { id: teacherId }, select: { academyId: true } });
+      if (!t || t.academyId !== academyId) {
+        return NextResponse.json({ error: '강사를 찾을 수 없습니다.' }, { status: 404 });
+      }
+    }
+
     const event = await prisma.classEvent.create({
-      data: { academyId, classId, date: new Date(date), startTime, endTime },
+      data: { academyId, classId, date: new Date(date), startTime, endTime, teacherId: teacherId ?? null },
     });
     return NextResponse.json(mapEvent(event), { status: 201 });
   } catch (err) {

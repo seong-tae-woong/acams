@@ -18,6 +18,8 @@ interface ClassStore {
   // ClassEvent — 일회성 수업 일정 (DB 연동)
   fetchClassEvents: () => Promise<void>;
   addClassEvent: (event: Omit<ClassEvent, 'id'>) => Promise<void>;
+  updateClassEvent: (id: string, updates: Partial<Omit<ClassEvent, 'id' | 'classId'>>) => Promise<void>;
+  deleteClassEvent: (id: string) => Promise<void>;
 }
 
 export const useClassStore = create<ClassStore>((set, get) => ({
@@ -130,6 +132,41 @@ export const useClassStore = create<ClassStore>((set, get) => ({
       set((state) => ({ classEvents: [...state.classEvents, created] }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : '일정 추가에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  updateClassEvent: async (id, updates) => {
+    try {
+      const res = await fetch(`/api/class-events/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '일정 수정 실패');
+      }
+      const updated: ClassEvent = await res.json();
+      set((state) => ({ classEvents: state.classEvents.map((e) => (e.id === id ? updated : e)) }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '일정 수정에 실패했습니다.';
+      toast(msg, 'error');
+      throw err;
+    }
+  },
+
+  deleteClassEvent: async (id) => {
+    try {
+      const res = await fetch(`/api/class-events/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? '일정 삭제 실패');
+      }
+      set((state) => ({ classEvents: state.classEvents.filter((e) => e.id !== id) }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '일정 삭제에 실패했습니다.';
       toast(msg, 'error');
       throw err;
     }

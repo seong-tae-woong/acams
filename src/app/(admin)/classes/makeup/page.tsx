@@ -9,7 +9,7 @@ import { useClassStore } from '@/lib/stores/classStore';
 import { useStudentStore } from '@/lib/stores/studentStore';
 import { useTeacherStore } from '@/lib/stores/teacherStore';
 import { formatKoreanDate } from '@/lib/utils/format';
-import { Plus, CheckCheck, UserPlus, X as XIcon, Settings2, Filter } from 'lucide-react';
+import { Plus, CheckCheck, UserPlus, X as XIcon, Settings2, Filter, Trash2 } from 'lucide-react';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
@@ -49,6 +49,7 @@ export default function MakeupPage() {
     saveAttendance,
     fetchMakeupClasses,
     fetchMore,
+    removeMakeupClass,
   } = useMakeupStore();
   const makeupClasses = personal.items;
   const loading = personal.loading;
@@ -236,6 +237,16 @@ export default function MakeupPage() {
       reason: selected.reason,
     });
     setRegisterOpen(true);
+  }
+
+  /* ── 보강 삭제 ── */
+  async function handleDeleteMakeup() {
+    if (!selected) return;
+    if (!confirm(`${selected.originalClassName} 보강 수업을 삭제하시겠습니까?`)) return;
+    try {
+      await removeMakeupClass(selected.id);
+      setSelectedId(null);
+    } catch { /* store handles error toast */ }
   }
 
   /* ── 보강 저장 (등록 or 수정) ── */
@@ -484,9 +495,14 @@ export default function MakeupPage() {
                 <span className="text-[14px] font-bold text-[#111827]">
                   {selected.originalClassName} 보강
                 </span>
-                <Button variant="default" size="sm" onClick={openEdit}>
-                  수정
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="default" size="sm" onClick={openEdit}>
+                    수정
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={handleDeleteMakeup}>
+                    <Trash2 size={13} /> 삭제
+                  </Button>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-4 text-[12px]">
                 <div>

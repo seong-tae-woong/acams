@@ -7,6 +7,7 @@ export interface ClassSchedule {
   dayOfWeek: DayOfWeek;
   startTime: string; // "HH:MM"
   endTime: string;   // "HH:MM"
+  teacherId?: string | null; // null/미지정 = 반 대표 강사 사용
 }
 
 export type FeeType = 'monthly' | 'per-lesson';
@@ -72,4 +73,5 @@ export interface ClassEvent {
   date: string;       // 'YYYY-MM-DD'
   startTime: string;  // 'HH:MM'
   endTime: string;    // 'HH:MM'
+  teacherId?: string | null; // null/미지정 = 반 대표 강사 사용
 }

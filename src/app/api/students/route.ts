@@ -12,6 +12,11 @@ function generateTempPassword(): string {
   return Array.from({ length: 8 }, () => chars[randomInt(chars.length)]).join('');
 }
 
+// Prisma unique constraint(P2002) 판별 — 형제 동시 등록 시 학부모 User 충돌 감지용
+function isUniqueConstraintError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 'P2002';
+}
+
 // UI 문자열 ↔ Prisma enum 변환
 const STATUS_TO_PRISMA: Record<string, PrismaStatus> = {
   '재원': PrismaStatus.ACTIVE,
@@ -224,7 +229,10 @@ export async function POST(req: NextRequest) {
     const studentPasswordHash = studentLoginId ? await bcrypt.hash(studentTempPassword, 12) : null;
     const parentPasswordHash = parentPhone ? await bcrypt.hash(parentTempPassword, 12) : null;
 
-    const { studentId, isNewParent } = await prisma.$transaction(async (tx) => {
+    // 형제/자매 동시 등록 경합 대비(중복 학부모/계정 방지): 같은 전화번호 학부모 User를 다른
+    // 트랜잭션이 먼저 생성하면 User(@@unique[academyId, loginId=phone]) 충돌(P2002)이 난다.
+    // 이때 한 번 재시도하면 existingParent 조회가 방금 커밋된 학부모를 찾아 그 학부모에 연결한다.
+    const runRegistration = () => prisma.$transaction(async (tx) => {
       // 학생 User 생성 — loginId = loginKey + attendanceNumber (loginKey 없으면 attendanceNumber만)
       let studentUserId: string | undefined;
       if (studentLoginId && studentPasswordHash) {
@@ -318,6 +326,16 @@ export async function POST(req: NextRequest) {
 
       return { studentId: s.id, isNewParent: newParentCreated };
     });
+
+    // 최초 시도 → 학부모 User 경합(P2002)이면 1회 재시도(재시도 시 기존 학부모에 연결됨)
+    let result: Awaited<ReturnType<typeof runRegistration>>;
+    try {
+      result = await runRegistration();
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
+      result = await runRegistration();
+    }
+    const { studentId, isNewParent } = result;
 
     const created = await prisma.student.findUnique({
       where: { id: studentId },

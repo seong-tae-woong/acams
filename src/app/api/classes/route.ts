@@ -9,7 +9,7 @@ const CLASS_INCLUDE = {
     take: 1,
   },
   enrollments: { where: { isActive: true }, select: { studentId: true } },
-  schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } },
+  schedules: { select: { dayOfWeek: true, startTime: true, endTime: true, teacherId: true } },
 } as const;
 
 function mapClass(c: {
@@ -19,7 +19,7 @@ function mapClass(c: {
   curriculumPalette: string;
   teachers: { teacherId: string; teacher: { id: string; name: string } }[];
   enrollments: { studentId: string }[];
-  schedules: { dayOfWeek: number; startTime: string; endTime: string }[];
+  schedules: { dayOfWeek: number; startTime: string; endTime: string; teacherId: string | null }[];
 }) {
   const primaryTeacher = c.teachers[0];
   return {
@@ -36,6 +36,7 @@ function mapClass(c: {
       dayOfWeek: s.dayOfWeek,
       startTime: s.startTime,
       endTime: s.endTime,
+      teacherId: s.teacherId,
     })),
     color: c.color,
     room: c.room,
@@ -106,11 +107,12 @@ export async function POST(req: NextRequest) {
 
       if (Array.isArray(schedule)) {
         await tx.classSchedule.createMany({
-          data: schedule.map((s: { dayOfWeek: number; startTime: string; endTime: string }) => ({
+          data: schedule.map((s: { dayOfWeek: number; startTime: string; endTime: string; teacherId?: string | null }) => ({
             classId: created.id,
             dayOfWeek: s.dayOfWeek,
             startTime: s.startTime,
             endTime: s.endTime,
+            teacherId: s.teacherId ?? null,
           })),
         });
       }
