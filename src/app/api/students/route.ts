@@ -12,9 +12,24 @@ function generateTempPassword(): string {
   return Array.from({ length: 8 }, () => chars[randomInt(chars.length)]).join('');
 }
 
-// Prisma unique constraint(P2002) 판별 — 형제 동시 등록 시 학부모 User 충돌 감지용
+// Prisma unique constraint(P2002) 판별 — 동시 등록 시 출석번호·학부모 User 충돌 감지용
 function isUniqueConstraintError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 'P2002';
+}
+
+// 서버 권위 출석번호 배정: 올해(YYYY) 접두 출석번호 중 가장 큰 suffix + 1 (YYYY + 3자리)
+// 동시 등록 충돌 시 호출자가 재계산하여 다음 빈 번호로 재시도한다.
+async function nextAttendanceNumber(academyId: string): Promise<string> {
+  const prefix = String(new Date().getFullYear());
+  const rows = await prisma.student.findMany({
+    where: { academyId, attendanceNumber: { startsWith: prefix } },
+    select: { attendanceNumber: true },
+  });
+  const maxSuffix = rows.reduce((mx, r) => {
+    const n = parseInt(r.attendanceNumber.slice(prefix.length), 10);
+    return Number.isFinite(n) ? Math.max(mx, n) : mx;
+  }, 0);
+  return `${prefix}${String(maxSuffix + 1).padStart(3, '0')}`;
 }
 
 // UI 문자열 ↔ Prisma enum 변환
@@ -162,95 +177,71 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       name, school, grade, phone, parentName, parentPhone,
-      status, enrollDate, memo, avatarColor, attendanceNumber, birthDate,
+      status, enrollDate, memo, avatarColor, birthDate,
       customStudentPassword, customParentPassword,
     } = body;
 
     if (!name) return NextResponse.json({ error: '이름은 필수입니다.' }, { status: 400 });
 
-    // 출석번호 중복 체크
-    if (attendanceNumber) {
-      const existing = await prisma.student.findUnique({
-        where: { academyId_attendanceNumber: { academyId, attendanceNumber } },
-      });
-      if (existing) {
-        return NextResponse.json({ error: `출석번호 ${attendanceNumber}은(는) 이미 사용 중입니다.` }, { status: 409 });
-      }
-    }
-
-    // 학원 loginKey + smsEnabled 조회 — 학생 loginId = loginKey + attendanceNumber
+    // 학원 loginKey + smsEnabled 조회 — 학생 loginId = loginKey + 출석번호
     const academy = await prisma.academy.findUnique({
       where: { id: academyId },
       select: { loginKey: true, smsEnabled: true },
     });
     const smsEnabled = academy?.smsEnabled ?? true; // null/undefined 대비 안전 fallback (default true)
-    const studentLoginId = academy?.loginKey && attendanceNumber
-      ? `${academy.loginKey}${attendanceNumber}`
-      : attendanceNumber ?? null;
 
-    // 학생 loginId 중복 확인
-    if (studentLoginId) {
-      const existingStudentUser = await prisma.user.findUnique({
-        where: { academyId_loginId: { academyId, loginId: studentLoginId } },
-      });
-      if (existingStudentUser) {
-        return NextResponse.json({ error: `출석번호 ${attendanceNumber}은(는) 이미 계정이 있습니다.` }, { status: 409 });
-      }
-    }
+    // 출석번호는 서버가 권위 있게 배정한다(클라이언트 staleness·동시 등록 충돌 방지).
+    // 충돌(P2002) 시 아래 등록 루프에서 다음 빈 번호로 재계산·재시도한다.
+    const loginIdFor = (num: string) => (academy?.loginKey ? `${academy.loginKey}${num}` : num);
+    let candidate = await nextAttendanceNumber(academyId);
+    const initialLoginId = loginIdFor(candidate);
 
     // 비밀번호 결정:
     // - smsEnabled=true: 8자 자동생성 (현재 동작)
     // - smsEnabled=false: 원장이 직접 지정한 customStudentPassword/customParentPassword 사용, 약식 검증
+    //   (검증은 초기 loginId 기준 1회 — 재시도로 출석번호가 바뀌어도 비번 강도는 동일)
     let studentTempPassword: string;
     let parentTempPassword: string;
     if (smsEnabled) {
       studentTempPassword = generateTempPassword();
       parentTempPassword = generateTempPassword();
     } else {
-      // 학생 계정이 생성되는 경우에만 학생 비번 검증 (studentLoginId 있을 때)
-      if (studentLoginId) {
-        const v = validateTempPassword(customStudentPassword ?? '', studentLoginId, name);
-        if (!v.valid) return NextResponse.json({ error: `학생 임시 비밀번호: ${v.error}` }, { status: 400 });
-        studentTempPassword = customStudentPassword;
-      } else {
-        studentTempPassword = '';
-      }
+      const v = validateTempPassword(customStudentPassword ?? '', initialLoginId, name);
+      if (!v.valid) return NextResponse.json({ error: `학생 임시 비밀번호: ${v.error}` }, { status: 400 });
+      studentTempPassword = customStudentPassword;
       // 학부모 계정이 새로 생성되는 경우에만 학부모 비번 검증 (parentPhone 있을 때)
       if (parentPhone) {
-        const v = validateTempPassword(customParentPassword ?? '', parentPhone, parentName ?? '');
-        if (!v.valid) return NextResponse.json({ error: `학부모 임시 비밀번호: ${v.error}` }, { status: 400 });
+        const v2 = validateTempPassword(customParentPassword ?? '', parentPhone, parentName ?? '');
+        if (!v2.valid) return NextResponse.json({ error: `학부모 임시 비밀번호: ${v2.error}` }, { status: 400 });
         parentTempPassword = customParentPassword;
       } else {
         parentTempPassword = '';
       }
     }
 
-    // bcrypt.hash은 트랜잭션 밖에서 미리 처리
-    const studentPasswordHash = studentLoginId ? await bcrypt.hash(studentTempPassword, 12) : null;
+    // bcrypt.hash은 트랜잭션 밖에서 미리 처리 (해시는 평문 기준 → 출석번호 변경과 무관)
+    const studentPasswordHash = await bcrypt.hash(studentTempPassword, 12);
     const parentPasswordHash = parentPhone ? await bcrypt.hash(parentTempPassword, 12) : null;
 
     // 형제/자매 동시 등록 경합 대비(중복 학부모/계정 방지): 같은 전화번호 학부모 User를 다른
     // 트랜잭션이 먼저 생성하면 User(@@unique[academyId, loginId=phone]) 충돌(P2002)이 난다.
     // 이때 한 번 재시도하면 existingParent 조회가 방금 커밋된 학부모를 찾아 그 학부모에 연결한다.
-    const runRegistration = () => prisma.$transaction(async (tx) => {
-      // 학생 User 생성 — loginId = loginKey + attendanceNumber (loginKey 없으면 attendanceNumber만)
-      let studentUserId: string | undefined;
-      if (studentLoginId && studentPasswordHash) {
-        const studentUser = await tx.user.create({
-          data: {
-            email: `noemail.${academyId}.${studentLoginId}@acams.internal`,
-            loginId: studentLoginId,
-            passwordHash: studentPasswordHash,
-            name,
-            role: 'student',
-            academyId,
-            // smsEnabled=true(자동생성/SMS 발송): 첫 로그인 시 변경 강제
-            // smsEnabled=false(테스트 모드/원장 지정): 같은 비번 재사용을 위해 강제 안 함
-            mustChangePassword: smsEnabled,
-          },
-        });
-        studentUserId = studentUser.id;
-      }
+    const runRegistration = (attNum: string, loginId: string) => prisma.$transaction(async (tx) => {
+      // 학생 User 생성 — loginId = loginKey + 출석번호 (출석번호는 항상 서버가 배정)
+      const studentUser = await tx.user.create({
+        data: {
+          email: `noemail.${academyId}.${loginId}@acams.internal`,
+          loginId,
+          passwordHash: studentPasswordHash,
+          name,
+          role: 'student',
+          academyId,
+          // smsEnabled=true(자동생성/SMS 발송): 첫 로그인 시 변경 강제
+          // smsEnabled=false(테스트 모드/원장 지정): 같은 비번 재사용을 위해 강제 안 함
+          mustChangePassword: smsEnabled,
+        },
+      });
+      const studentUserId = studentUser.id;
 
       const s = await tx.student.create({
         data: {
@@ -263,9 +254,9 @@ export async function POST(req: NextRequest) {
           enrollDate: enrollDate ? new Date(enrollDate) : new Date(),
           memo: memo ?? '',
           avatarColor: avatarColor ?? '#4A90D9',
-          attendanceNumber: attendanceNumber ?? '',
+          attendanceNumber: attNum,
           birthDate: birthDate ? new Date(birthDate) : null,
-          ...(studentUserId ? { userId: studentUserId } : {}),
+          userId: studentUserId,
         },
       });
 
@@ -327,13 +318,24 @@ export async function POST(req: NextRequest) {
       return { studentId: s.id, isNewParent: newParentCreated };
     });
 
-    // 최초 시도 → 학부모 User 경합(P2002)이면 1회 재시도(재시도 시 기존 학부모에 연결됨)
-    let result: Awaited<ReturnType<typeof runRegistration>>;
-    try {
-      result = await runRegistration();
-    } catch (err) {
-      if (!isUniqueConstraintError(err)) throw err;
-      result = await runRegistration();
+    // 동시 등록 경합(P2002) 대응 — 최대 6회 재시도:
+    // - 출석번호/학생 loginId 충돌 → 다음 빈 번호로 재계산 후 재시도
+    // - 학부모 User(전화번호) 충돌 → 재시도 시 existingParent가 방금 커밋된 학부모를 찾아 연결
+    let result: Awaited<ReturnType<typeof runRegistration>> | undefined;
+    let finalLoginId = initialLoginId;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const loginId = loginIdFor(candidate);
+      try {
+        result = await runRegistration(candidate, loginId);
+        finalLoginId = loginId;
+        break;
+      } catch (err) {
+        if (!isUniqueConstraintError(err)) throw err;
+        candidate = await nextAttendanceNumber(academyId); // 다음 빈 출석번호로 재시도
+      }
+    }
+    if (!result) {
+      return NextResponse.json({ error: '출석번호 배정이 반복 충돌했습니다. 잠시 후 다시 시도해주세요.' }, { status: 409 });
     }
     const { studentId, isNewParent } = result;
 
@@ -348,14 +350,14 @@ export async function POST(req: NextRequest) {
     // - 학부모 계정: 신규 가입한 경우에만 학부모에게 발송
     if (smsEnabled) {
       const smsPromises: Promise<void>[] = [];
-      if (studentLoginId) {
-        const studentMsg = `[학원로그] 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`;
+      if (finalLoginId) {
+        const studentMsg = `[학원로그] 학생 계정\nID: ${finalLoginId}\n임시PW: ${studentTempPassword}`;
         if (phone) {
           smsPromises.push(sendSms(phone, studentMsg));
         }
         if (parentPhone) {
           smsPromises.push(
-            sendSms(parentPhone, `[학원로그] 자녀(${name}) 학생 계정\nID: ${studentLoginId}\n임시PW: ${studentTempPassword}`),
+            sendSms(parentPhone, `[학원로그] 자녀(${name}) 학생 계정\nID: ${finalLoginId}\n임시PW: ${studentTempPassword}`),
           );
         }
       }
@@ -389,10 +391,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ...mapStudent(created!),
-        studentLoginId: studentLoginId ?? null,
+        studentLoginId: finalLoginId,
         // smsEnabled=true: 임시 비밀번호는 SMS로만 전달 — 평문을 클라이언트로 보내지 않음(화면 미노출)
         // smsEnabled=false(테스트 모드): 원장이 화면에서 확인 후 직접 전달
-        studentTempPassword: !smsEnabled && studentLoginId ? studentTempPassword : null,
+        studentTempPassword: !smsEnabled && finalLoginId ? studentTempPassword : null,
         parentTempPassword: !smsEnabled && isNewParent ? parentTempPassword : null,
         parentAccountCreated: isNewParent, // 신규 학부모 계정 생성 여부 (모달 안내 분기)
         smsEnabled, // 클라이언트에서 안내 문구 분기에 사용

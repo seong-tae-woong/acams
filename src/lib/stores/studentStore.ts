@@ -33,7 +33,8 @@ interface StudentStore {
   // Async API actions
   fetchStudents: () => Promise<void>;
   fetchStudentDetail: (id: string, signal?: AbortSignal) => Promise<void>;
-  addStudent: (student: Omit<Student, 'id' | 'qrCode'> & {
+  // attendanceNumber는 서버가 권위 있게 배정하므로 클라이언트는 전달하지 않는다.
+  addStudent: (student: Omit<Student, 'id' | 'qrCode' | 'attendanceNumber'> & {
     customStudentPassword?: string;
     customParentPassword?: string;
   }) => Promise<{
