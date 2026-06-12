@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Home, Bell, User } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
+import { useMobileNotificationStore } from '@/lib/stores/mobileNotificationStore';
 
 const TABS = [
   { href: '/mobile', label: '홈', icon: Home },
@@ -16,26 +17,16 @@ const NOTIFICATIONS_HREF = '/mobile/notifications';
 
 export default function BottomTabBar() {
   const pathname = usePathname();
-  const { role, selectedChildId } = useMobileChild();
-  const [unread, setUnread] = useState(0);
+  const { role } = useMobileChild();
+  const unread = useMobileNotificationStore((s) => s.unread);
+  const fetchUnread = useMobileNotificationStore((s) => s.fetchUnread);
 
+  // 라우트 이동·마운트마다 실제 미읽음 수 재조회 (홈으로 돌아오면 정확히 반영).
+  // 알림 페이지에서 알림을 읽으면 그 페이지가 스토어를 직접 갱신하므로 배지는 즉시 줄어든다.
   useEffect(() => {
-    if (!role) { setUnread(0); return; }
-    // 알림 탭 진입 시 즉시 0 표시 (서버는 첫 페이지 GET 시 선택 자녀의 미읽음을 일괄 read 처리;
-    // 다른 자녀 미읽음이 남아 있으면 탭을 떠난 뒤 재fetch에서 다시 노출됨)
-    if (pathname === NOTIFICATIONS_HREF) {
-      setUnread(0);
-      return;
-    }
-    // 학부모: 자녀 전체 합산 (studentId 미지정), 학생: 본인
-    const url = role === 'parent'
-      ? '/api/mobile/notifications/unread-count'
-      : `/api/mobile/notifications/unread-count${selectedChildId ? `?studentId=${selectedChildId}` : ''}`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((data) => setUnread(typeof data.count === 'number' ? data.count : 0))
-      .catch(() => setUnread(0));
-  }, [pathname, role, selectedChildId]);
+    if (!role) return;
+    fetchUnread();
+  }, [pathname, role, fetchUnread]);
 
   return (
     <nav
