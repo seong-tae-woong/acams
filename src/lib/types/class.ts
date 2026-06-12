@@ -8,6 +8,7 @@ export interface ClassSchedule {
   startTime: string; // "HH:MM"
   endTime: string;   // "HH:MM"
   teacherId?: string | null; // null/미지정 = 반 대표 강사 사용
+  skipDates?: string[]; // 반복 예외 날짜('YYYY-MM-DD') — 이 날짜만 삭제/수정 시 제외
 }
 
 export type FeeType = 'monthly' | 'per-lesson';

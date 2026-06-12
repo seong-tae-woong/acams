@@ -22,7 +22,7 @@ export interface ClassScheduleInput {
   id: string;
   name: string;
   color: string;
-  schedules: { id: string; dayOfWeek: number; startTime: string; endTime: string }[];
+  schedules: { id: string; dayOfWeek: number; startTime: string; endTime: string; skipDates?: string[] }[];
 }
 
 // 보강 → 가상 캘린더 이벤트
@@ -60,6 +60,7 @@ export function buildClassScheduleEvents(
     for (const cls of classes) {
       for (const sch of cls.schedules) {
         if (toJsDay(sch.dayOfWeek) !== jsDow) continue;
+        if (sch.skipDates?.includes(dateStr)) continue; // 이 날짜만 삭제/수정된 회차는 제외
         events.push({
           id: `class:${sch.id}:${dateStr}`,
           title: cls.name,

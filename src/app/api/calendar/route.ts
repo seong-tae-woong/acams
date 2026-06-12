@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
           id: true,
           name: true,
           color: true,
-          schedules: { select: { id: true, dayOfWeek: true, startTime: true, endTime: true } },
+          schedules: { select: { id: true, dayOfWeek: true, startTime: true, endTime: true, skipDates: true } },
         },
       }),
     ]);

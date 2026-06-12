@@ -385,6 +385,10 @@ model ClassSchedule {
   teacherId String?
   teacher   Teacher? @relation(fields: [teacherId], references: [id])
 
+  // 반복 일정의 예외 날짜('YYYY-MM-DD'). "이 날짜만 삭제/수정" 시 해당 날짜를 추가해
+  // 캘린더 투영에서 이 회차를 건너뛴다. (수정의 경우 별도 일회성 ClassEvent로 대체)
+  skipDates String[] @default([])
+
   @@map("class_schedules")
 }
 

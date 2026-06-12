@@ -13,7 +13,7 @@ interface ClassStore {
   // Async API actions
   fetchClasses: () => Promise<void>;
   addClass: (cls: Omit<ClassInfo, 'id' | 'currentStudents'>) => Promise<void>;
-  updateClass: (id: string, updates: Partial<ClassInfo>) => Promise<void>;
+  updateClass: (id: string, updates: Partial<ClassInfo>, opts?: { silent?: boolean }) => Promise<void>;
   deleteClass: (id: string) => Promise<void>;
   // ClassEvent — 일회성 수업 일정 (DB 연동)
   fetchClassEvents: () => Promise<void>;
@@ -67,7 +67,7 @@ export const useClassStore = create<ClassStore>((set, get) => ({
     }
   },
 
-  updateClass: async (id, updates) => {
+  updateClass: async (id, updates, opts) => {
     try {
       const res = await fetch(`/api/classes/${id}`, {
         method: 'PATCH',
@@ -82,7 +82,8 @@ export const useClassStore = create<ClassStore>((set, get) => ({
       set((state) => ({
         classes: state.classes.map((c) => (c.id === id ? updated : c)),
       }));
-      toast('반 정보가 수정되었습니다.', 'success');
+      // 시간표 일정 변경 등은 자체 메시지를 띄우므로 generic 토스트 생략(silent)
+      if (!opts?.silent) toast('반 정보가 수정되었습니다.', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '반 수정에 실패했습니다.';
       toast(msg, 'error');

@@ -80,7 +80,7 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
     const d = new Date(dateStr + 'T00:00:00');
     const jsDay = d.getDay();
     const dow: DayOfWeek = jsDay === 0 ? 7 : (jsDay as DayOfWeek);
-    const recurring = classes.filter((c) => c.schedule.some((s) => s.dayOfWeek === dow));
+    const recurring = classes.filter((c) => c.schedule.some((s) => s.dayOfWeek === dow && !(s.skipDates ?? []).includes(dateStr)));
     const oneTime = classEvents.filter((e) => e.date === dateStr).map((e) => classes.find((c) => c.id === e.classId)).filter((c): c is NonNullable<typeof c> => Boolean(c));
     const merged = new Map<string, (typeof classes)[0]>();
     [...recurring, ...oneTime].forEach((c) => merged.set(c.id, c));
@@ -92,7 +92,7 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
     const dow: DayOfWeek = jsDay === 0 ? 7 : (jsDay as DayOfWeek);
     const items: ScheduleItem[] = [];
     classes.forEach((c) => {
-      c.schedule.filter((s) => s.dayOfWeek === dow).forEach((s, i) => {
+      c.schedule.filter((s) => s.dayOfWeek === dow && !(s.skipDates ?? []).includes(dateStr)).forEach((s, i) => {
         items.push({ key: `r-${c.id}-${i}`, cls: c, startTime: s.startTime, endTime: s.endTime, recurring: true, teacherId: s.teacherId ?? null, dayOfWeek: dow });
       });
     });
@@ -152,7 +152,7 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
         toast('동일한 반복 일정이 이미 있습니다.', 'error'); return;
       }
       try {
-        await updateClass(classId, { schedule: [...targetClass.schedule, newSchedule] });
+        await updateClass(classId, { schedule: [...targetClass.schedule, newSchedule] }, { silent: true });
       } catch {
         return;
       }
@@ -166,10 +166,12 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ScheduleItem | null>(null);
   const [editForm, setEditForm] = useState({ date: '', startTime: '', endTime: '', teacherId: '' });
+  const [editScope, setEditScope] = useState<'all' | 'single'>('all'); // 반복 일정 수정 범위
 
   const openEditSchedule = (item: ScheduleItem) => {
     setEditTarget(item);
     setEditForm({ date: selectedDate ?? todayStr, startTime: item.startTime, endTime: item.endTime, teacherId: item.teacherId ?? '' });
+    setEditScope('all');
     setEditOpen(true);
   };
 
@@ -179,16 +181,36 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
     if (!startTime || !endTime) { toast('시간을 입력해주세요.', 'error'); return; }
     if (startTime >= endTime) { toast('종료 시간이 시작 시간보다 늦어야 합니다.', 'error'); return; }
 
+    // 1) 일회성 일정 수정
     if (!editTarget.recurring && editTarget.eventId) {
       if (!date) { toast('날짜를 선택해주세요.', 'error'); return; }
       try {
         await updateClassEvent(editTarget.eventId, { date, startTime, endTime, teacherId: teacherId || null });
       } catch { return; }
       toast('일정이 수정되었습니다.', 'success');
+      setEditOpen(false); setEditTarget(null);
+      return;
+    }
+
+    // 2) 반복 일정 수정 — 범위에 따라
+    const cls = classes.find((c) => c.id === editTarget.cls.id);
+    if (!cls) return;
+
+    if (editScope === 'single') {
+      // 이 날짜만: 해당 회차를 반복에서 제외(skipDates) + 일회성 일정으로 대체
+      const skipDate = selectedDate ?? todayStr;
+      const nextSchedule = cls.schedule.map((s) =>
+        s.dayOfWeek === editTarget.dayOfWeek && s.startTime === editTarget.startTime && s.endTime === editTarget.endTime
+          ? { ...s, skipDates: [...new Set([...(s.skipDates ?? []), skipDate])] }
+          : s,
+      );
+      try {
+        await addClassEvent({ classId: cls.id, date: skipDate, startTime, endTime, teacherId: teacherId || null });
+        await updateClass(cls.id, { schedule: nextSchedule }, { silent: true });
+      } catch { return; }
+      toast('이 날짜 일정만 수정되었습니다.', 'success');
     } else {
-      const cls = classes.find((c) => c.id === editTarget.cls.id);
-      if (!cls) return;
-      // 같은 요일에 동일 시간 슬롯이 이미 있으면(자기 자신 제외) 차단
+      // 반복 전체: 슬롯 자체(시간·강사) 변경. skipDates는 유지
       const collides = cls.schedule.some((s) =>
         s.dayOfWeek === editTarget.dayOfWeek && s.startTime === startTime && s.endTime === endTime &&
         !(s.startTime === editTarget.startTime && s.endTime === editTarget.endTime),
@@ -196,37 +218,62 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
       if (collides) { toast('같은 요일에 동일한 시간 일정이 이미 있습니다.', 'error'); return; }
       const nextSchedule = cls.schedule.map((s) =>
         s.dayOfWeek === editTarget.dayOfWeek && s.startTime === editTarget.startTime && s.endTime === editTarget.endTime
-          ? { dayOfWeek: editTarget.dayOfWeek, startTime, endTime, teacherId: teacherId || null }
+          ? { ...s, startTime, endTime, teacherId: teacherId || null }
           : s,
       );
       try {
-        await updateClass(cls.id, { schedule: nextSchedule });
+        await updateClass(cls.id, { schedule: nextSchedule }, { silent: true });
       } catch { return; }
+      toast('반복 일정 전체가 수정되었습니다.', 'success');
     }
     setEditOpen(false);
     setEditTarget(null);
   };
 
+  // 삭제 — 일회성은 즉시 확인, 반복은 범위 선택 모달
+  const [deleteScopeTarget, setDeleteScopeTarget] = useState<ScheduleItem | null>(null);
+
   const handleDeleteSchedule = async (item: ScheduleItem) => {
-    const msg = item.recurring
-      ? `매주 ${DAY_NAMES[item.dayOfWeek]}요일 ${item.startTime}~${item.endTime} 반복 일정을 삭제하시겠습니까?`
-      : `${item.cls.name} ${item.startTime}~${item.endTime} 일정을 삭제하시겠습니까?`;
-    if (!confirm(msg)) return;
-    if (!item.recurring && item.eventId) {
+    if (!item.recurring) {
+      if (!confirm(`${item.cls.name} ${item.startTime}~${item.endTime} 일정을 삭제하시겠습니까?`)) return;
+      if (!item.eventId) return;
       try {
         await deleteClassEvent(item.eventId);
       } catch { return; }
       toast('일정이 삭제되었습니다.', 'info');
+      return;
+    }
+    setDeleteScopeTarget(item); // 반복: 범위 선택 모달 오픈
+  };
+
+  const doDeleteRecurring = async (scope: 'single' | 'all') => {
+    const item = deleteScopeTarget;
+    if (!item) return;
+    const cls = classes.find((c) => c.id === item.cls.id);
+    if (!cls) { setDeleteScopeTarget(null); return; }
+    if (scope === 'single') {
+      // 이 날짜만: 해당 회차를 반복에서 제외(skipDates)
+      const skipDate = selectedDate ?? todayStr;
+      const nextSchedule = cls.schedule.map((s) =>
+        s.dayOfWeek === item.dayOfWeek && s.startTime === item.startTime && s.endTime === item.endTime
+          ? { ...s, skipDates: [...new Set([...(s.skipDates ?? []), skipDate])] }
+          : s,
+      );
+      try {
+        await updateClass(cls.id, { schedule: nextSchedule }, { silent: true });
+      } catch { setDeleteScopeTarget(null); return; }
+      toast('이 날짜 일정만 삭제되었습니다.', 'info');
     } else {
-      const cls = classes.find((c) => c.id === item.cls.id);
-      if (!cls) return;
+      // 반복 전체: 슬롯 제거
       const nextSchedule = cls.schedule.filter((s) =>
         !(s.dayOfWeek === item.dayOfWeek && s.startTime === item.startTime && s.endTime === item.endTime),
       );
       try {
-        await updateClass(cls.id, { schedule: nextSchedule });
-      } catch { return; }
+        await updateClass(cls.id, { schedule: nextSchedule }, { silent: true });
+      } catch { setDeleteScopeTarget(null); return; }
+      toast('반복 일정 전체가 삭제되었습니다.', 'info');
     }
+    setDeleteScopeTarget(null);
   };
 
   const fieldCls = 'w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1]';
@@ -450,6 +497,21 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
                 {editTarget.recurring ? `매주 ${DAY_NAMES[editTarget.dayOfWeek]}요일` : '이 날만'}
               </span>
             </div>
+            {editTarget.recurring && (
+              <div>
+                <label className="text-[11.5px] text-[#6b7280] block mb-1.5">수정 범위</label>
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[12.5px]">
+                    <input type="radio" name="editScope" checked={editScope === 'all'} onChange={() => setEditScope('all')} className="accent-[#4fc3a1]" />
+                    반복 전체 <span className="text-[#9ca3af]">(매주 {DAY_NAMES[editTarget.dayOfWeek]}요일)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[12.5px]">
+                    <input type="radio" name="editScope" checked={editScope === 'single'} onChange={() => setEditScope('single')} className="accent-[#4fc3a1]" />
+                    이 날짜만 <span className="text-[#9ca3af]">{selectedDate ? `(${Number(selectedDate.slice(5, 7))}월 ${Number(selectedDate.slice(8))}일)` : ''}</span>
+                  </label>
+                </div>
+              </div>
+            )}
             {!editTarget.recurring && (
               <div><label className="text-[11.5px] text-[#6b7280] block mb-1">날짜 *</label><input type="date" className={fieldCls} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} /></div>
             )}
@@ -467,10 +529,36 @@ export default function ScheduleTab({ selected }: { selected: ClassInfo }) {
               </select>
             </div>
             {editTarget.recurring && (
-              <div className="text-[11px] text-[#92400E] bg-[#FEF3C7] px-3 py-2 rounded-[8px]">
-                매주 반복되는 일정입니다. 변경 사항이 모든 주에 적용됩니다.
+              <div className="text-[11px] text-[#6b7280] bg-[#f8fafc] px-3 py-2 rounded-[8px]">
+                {editScope === 'all'
+                  ? '매주 반복되는 모든 회차에 변경 사항이 적용됩니다.'
+                  : `${selectedDate ? `${Number(selectedDate.slice(5, 7))}월 ${Number(selectedDate.slice(8))}일` : '이 날짜'} 회차만 변경되고, 나머지 반복은 그대로 유지됩니다.`}
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── 반복 일정 삭제 범위 선택 모달 ───────────────────── */}
+      <Modal open={!!deleteScopeTarget} onClose={() => setDeleteScopeTarget(null)} title="반복 일정 삭제" size="sm"
+        footer={<Button variant="default" size="md" onClick={() => setDeleteScopeTarget(null)}>취소</Button>}
+      >
+        {deleteScopeTarget && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 text-[12.5px]">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: deleteScopeTarget.cls.color }} />
+              <span className="font-medium text-[#111827] truncate">{deleteScopeTarget.cls.name}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f1f5f9] text-[#6b7280] shrink-0">매주 {DAY_NAMES[deleteScopeTarget.dayOfWeek]}요일 {deleteScopeTarget.startTime}~{deleteScopeTarget.endTime}</span>
+            </div>
+            <p className="text-[12px] text-[#6b7280]">반복되는 일정입니다. 어느 범위로 삭제할까요?</p>
+            <div className="flex flex-col gap-2">
+              <Button variant="default" size="md" onClick={() => doDeleteRecurring('single')}>
+                {selectedDate ? `${Number(selectedDate.slice(5, 7))}월 ${Number(selectedDate.slice(8))}일` : '이 날짜'} 일정만 삭제
+              </Button>
+              <Button variant="danger" size="md" onClick={() => doDeleteRecurring('all')}>
+                <Trash2 size={13} /> 반복 전체 삭제
+              </Button>
+            </div>
           </div>
         )}
       </Modal>
