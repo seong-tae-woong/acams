@@ -146,7 +146,7 @@ export default function MobileMakeupPage() {
               </span>
             )}
             {!applied && full && (
-              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[#FEE2E2] text-[#991B1B]">정원 마감</span>
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[#f1f5f9] text-[#475569]">정원 마감</span>
             )}
           </div>
           <div className="space-y-1 text-[12px] text-[#374151]">

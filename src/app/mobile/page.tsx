@@ -4,7 +4,7 @@ import Link from 'next/link';
 import BottomTabBar from '@/components/mobile/BottomTabBar';
 import MobileContentLoader from '@/components/mobile/MobileContentLoader';
 import PushPermissionBanner from '@/components/mobile/PushPermissionBanner';
-import { ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode, CalendarPlus } from 'lucide-react';
+import { ChevronRight, Calendar, BookOpen, CreditCard, ChevronLeft, ChevronDown, X, QrCode, CalendarPlus, Clock, Pin } from 'lucide-react';
 import clsx from 'clsx';
 import { useMobileChild } from '@/contexts/MobileChildContext';
 
@@ -107,7 +107,7 @@ export default function MobileHomePage() {
               )}
             >
               <span className="text-[20px] font-bold text-white">
-                안녕하세요, {greeting} 👋
+                안녕하세요, {greeting}
               </span>
               {hasMultipleChildren && (
                 <ChevronDown size={18} className="text-white/70 mt-1" />
@@ -151,7 +151,7 @@ export default function MobileHomePage() {
         {/* 핀 공지 */}
         {pinned && (
           <div className="bg-[#E1F5EE] border border-[#4fc3a1]/30 rounded-[12px] p-3.5">
-            <div className="text-[11px] text-[#0D9E7A] font-semibold mb-1">📌 공지사항</div>
+            <div className="flex items-center gap-1 text-[11px] text-[#0D9E7A] font-semibold mb-1"><Pin size={11} /> 공지사항</div>
             <div className="text-[12.5px] font-medium text-[#111827]">{pinned.title}</div>
           </div>
         )}
@@ -262,7 +262,7 @@ export default function MobileHomePage() {
                                 </span>
                               )}
                               {ev.className && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#DBEAFE] text-[#1d4ed8]">
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#f1f5f9] text-[#475569]">
                                   {ev.className}
                                 </span>
                               )}
@@ -314,33 +314,30 @@ export default function MobileHomePage() {
         </Link>
 
         {/* 바로가기 메뉴 */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-[12px] border border-[#e2e8f0] overflow-hidden">
           {[
-            { href: '/mobile/attendance', label: '출결 확인', sub: '이번 달 출석현황', icon: Calendar, color: '#4fc3a1' },
+            { href: '/mobile/attendance', label: '출결 확인', sub: '이번 달 출석현황', icon: Calendar, accent: '' },
             {
               href: '/mobile/grades', label: '리포트',
-              sub: reportUnread > 0 ? `미열람 ${reportUnread}건` : '발행된 리포트 보기',
-              icon: BookOpen, color: reportUnread > 0 ? '#4fc3a1' : '#6366f1',
+              sub: reportUnread > 0 ? `미열람 ${reportUnread}건` : '발행된 리포트',
+              icon: BookOpen, accent: reportUnread > 0 ? '#0D9E7A' : '',
             },
             {
               href: '/mobile/payments', label: '수납 내역',
               sub: unpaid.length > 0 ? `미납 ${unpaid.length}건` : '전액 납부',
-              icon: CreditCard, color: unpaid.length > 0 ? '#991B1B' : '#0D9E7A',
+              icon: CreditCard, accent: unpaid.length > 0 ? '#991B1B' : '',
             },
-            { href: '/mobile/schedule', label: '시간표', sub: `수강 ${classes.length}개 반`, icon: Calendar, color: '#f59e0b' },
-          ].map(({ href, label, sub, icon: Icon, color }) => (
+            { href: '/mobile/schedule', label: '시간표', sub: `수강 ${classes.length}개 반`, icon: Clock, accent: '' },
+          ].map(({ href, label, sub, icon: Icon, accent }, i, arr) => (
             <Link
               key={href}
               href={href}
-              className="bg-white rounded-[12px] border border-[#e2e8f0] p-4 flex flex-col gap-2 active:bg-[#f4f6f8]"
+              className={`flex items-center gap-3 px-4 py-3.5 active:bg-[#f4f6f8] ${i < arr.length - 1 ? 'border-b border-[#f1f5f9]' : ''}`}
             >
-              <div className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ backgroundColor: `${color}20` }}>
-                <Icon size={18} style={{ color }} />
-              </div>
-              <div>
-                <div className="text-[13px] font-semibold text-[#111827]">{label}</div>
-                <div className="text-[11.5px]" style={{ color }}>{sub}</div>
-              </div>
+              <Icon size={18} className="text-[#6b7280] shrink-0" />
+              <span className="flex-1 text-[13px] font-medium text-[#111827]">{label}</span>
+              <span className="text-[12px]" style={{ color: accent || '#9ca3af' }}>{sub}</span>
+              <ChevronRight size={16} className="text-[#cbd5e1] shrink-0" />
             </Link>
           ))}
         </div>

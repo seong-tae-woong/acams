@@ -23,12 +23,13 @@ type NotificationItem = {
   billIds: string[];
 };
 
+// 알림 유형은 분류일 뿐 상태가 아니므로 전부 뉴트럴 칩 (색은 미읽음 점·수납 버튼 등 진짜 신호에만)
 const TYPE_STYLE: Record<NotificationType, { bg: string; text: string }> = {
-  '공지':    { bg: '#E1F5EE', text: '#0D9E7A' },
-  '출결알림': { bg: '#DBEAFE', text: '#1d4ed8' },
-  '수납알림': { bg: '#FEF3C7', text: '#92400E' },
-  '상담알림': { bg: '#EDE9FE', text: '#5B4FBE' },
-  '일반':    { bg: '#f1f5f9', text: '#374151' },
+  '공지':    { bg: '#f1f5f9', text: '#475569' },
+  '출결알림': { bg: '#f1f5f9', text: '#475569' },
+  '수납알림': { bg: '#f1f5f9', text: '#475569' },
+  '상담알림': { bg: '#f1f5f9', text: '#475569' },
+  '일반':    { bg: '#f1f5f9', text: '#475569' },
 };
 
 function formatTime(iso: string) {

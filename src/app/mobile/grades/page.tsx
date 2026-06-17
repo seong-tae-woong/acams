@@ -156,7 +156,7 @@ export default function MobileGradesPage() {
         {upcomingAssignments.length > 0 && (
           <div className="bg-white rounded-[12px] border border-[#e2e8f0]">
             <div className="px-4 py-3 border-b border-[#f1f5f9] flex items-center gap-1.5">
-              <FileText size={14} className="text-[#5B4FBE]" />
+              <FileText size={14} className="text-[#4fc3a1]" />
               <span className="text-[13px] font-semibold text-[#111827]">과제</span>
               <span className="text-[11px] text-[#9ca3af]">{upcomingAssignments.length}건</span>
             </div>
@@ -165,7 +165,7 @@ export default function MobileGradesPage() {
                 <div key={a.id} className="px-4 py-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[12px] font-semibold text-[#111827]">{a.className}</span>
-                    <span className="text-[11px] text-[#5B4FBE] font-medium">~{a.dueDate} 까지</span>
+                    <span className="text-[11px] text-[#4fc3a1] font-medium">~{a.dueDate} 까지</span>
                   </div>
                   {a.memo && (
                     <div className="text-[12px] text-[#374151] whitespace-pre-wrap leading-relaxed">{a.memo}</div>

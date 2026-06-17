@@ -61,7 +61,7 @@ export default function MobileAnnouncementsPage() {
                 </span>
               )}
               {selected.className && (
-                <span className="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[#DBEAFE] text-[#1d4ed8]">
+                <span className="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-[#f1f5f9] text-[#475569]">
                   {selected.className}
                 </span>
               )}
@@ -114,7 +114,7 @@ export default function MobileAnnouncementsPage() {
                     <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                       {a.pinned && <Pin size={11} className="text-[#4fc3a1] shrink-0" />}
                       {a.className && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#DBEAFE] text-[#1d4ed8] shrink-0">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#f1f5f9] text-[#475569] shrink-0">
                           {a.className}
                         </span>
                       )}
