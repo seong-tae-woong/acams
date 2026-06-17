@@ -301,7 +301,7 @@ export default function MobileHomePage() {
         {/* 보강 신청 (학부모·학생 공통) */}
         <Link
           href="/mobile/makeup"
-          className="bg-gradient-to-r from-[#5B4FBE] to-[#a78bfa] rounded-[12px] p-4 flex items-center gap-3 active:opacity-80"
+          className="bg-[#0D9E7A] rounded-[12px] p-4 flex items-center gap-3 active:opacity-80"
         >
           <div className="w-9 h-9 rounded-[10px] bg-white/20 flex items-center justify-center shrink-0">
             <CalendarPlus size={20} className="text-white" />
