@@ -316,25 +316,30 @@ export default function MobileHomePage() {
         {/* 바로가기 메뉴 */}
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] overflow-hidden">
           {[
-            { href: '/mobile/attendance', label: '출결 확인', sub: '이번 달 출석현황', icon: Calendar, accent: '' },
+            { href: '/mobile/attendance', label: '출결 확인', sub: '이번 달 출석현황', icon: Calendar, accent: '', alert: false },
             {
               href: '/mobile/grades', label: '리포트',
               sub: reportUnread > 0 ? `미열람 ${reportUnread}건` : '발행된 리포트',
-              icon: BookOpen, accent: reportUnread > 0 ? '#0D9E7A' : '',
+              icon: BookOpen, accent: reportUnread > 0 ? '#0D9E7A' : '', alert: reportUnread > 0,
             },
             {
               href: '/mobile/payments', label: '수납 내역',
               sub: unpaid.length > 0 ? `미납 ${unpaid.length}건` : '전액 납부',
-              icon: CreditCard, accent: unpaid.length > 0 ? '#991B1B' : '',
+              icon: CreditCard, accent: unpaid.length > 0 ? '#991B1B' : '', alert: unpaid.length > 0,
             },
-            { href: '/mobile/schedule', label: '시간표', sub: `수강 ${classes.length}개 반`, icon: Clock, accent: '' },
-          ].map(({ href, label, sub, icon: Icon, accent }, i, arr) => (
+            { href: '/mobile/schedule', label: '시간표', sub: `수강 ${classes.length}개 반`, icon: Clock, accent: '', alert: false },
+          ].map(({ href, label, sub, icon: Icon, accent, alert }, i, arr) => (
             <Link
               key={href}
               href={href}
               className={`flex items-center gap-3 px-4 py-3.5 active:bg-[#f4f6f8] ${i < arr.length - 1 ? 'border-b border-[#f1f5f9]' : ''}`}
             >
-              <Icon size={18} className="text-[#6b7280] shrink-0" />
+              <span className="relative shrink-0">
+                <Icon size={18} className="text-[#6b7280]" />
+                {alert && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#ef4444] ring-2 ring-white" />
+                )}
+              </span>
               <span className="flex-1 text-[13px] font-medium text-[#111827]">{label}</span>
               <span className="text-[12px]" style={{ color: accent || '#9ca3af' }}>{sub}</span>
               <ChevronRight size={16} className="text-[#cbd5e1] shrink-0" />
