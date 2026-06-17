@@ -56,11 +56,14 @@ export default function OverdueTab({ onOpenDetail }: { onOpenDetail: (studentId:
       });
 
       let successCount = 0;
+      let failCount = 0;
       for (const { studentId, studentName } of studentMap.values()) {
         const studentBills = getBillsByStudent(studentId).filter((b) => b.status !== BillStatus.PAID);
         if (studentBills.length === 0) continue;
         try {
-          await fetch('/api/communication/notifications', {
+          // fetch는 HTTP 4xx/5xx에 reject하지 않으므로 res.ok를 직접 검사해야
+          // 서버가 거절한 발송이 '성공'으로 집계되지 않는다.
+          const res = await fetch('/api/communication/notifications', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -71,10 +74,17 @@ export default function OverdueTab({ onOpenDetail }: { onOpenDetail: (studentId:
               billIds: studentBills.map((b) => b.id),
             }),
           });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           successCount++;
-        } catch { /* 개별 실패 무시 */ }
+        } catch { failCount++; }
       }
-      toast(`미납 알림 ${successCount}명 발송 완료`, 'success');
+      if (failCount === 0) {
+        toast(`미납 알림 ${successCount}명 발송 완료`, 'success');
+      } else if (successCount === 0) {
+        toast(`미납 알림 발송 실패 (${failCount}명)`, 'error');
+      } else {
+        toast(`미납 알림 ${successCount}명 발송 · ${failCount}명 실패`, 'error');
+      }
     } catch {
       toast('알림 발송 중 오류가 발생했습니다.', 'error');
     } finally {
