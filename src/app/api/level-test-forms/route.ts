@@ -8,7 +8,10 @@ import type { LevelTestType, QuestionMapEntry } from '@/lib/levelTest/types';
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const gradeParam = searchParams.get('grade');

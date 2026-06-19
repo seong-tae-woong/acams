@@ -46,6 +46,7 @@ const TEACHER_PAGE_RULES: Array<[string, PermKey]> = [
   ['/students/attendance', 'manageAttendance'],
   ['/students/grades', 'manageGrades'],
   ['/students', 'manageStudents'],
+  ['/level-tests', 'manageGrades'],
   ['/classes/attendance', 'manageAttendance'],
   ['/classes/lessons', 'manageGrades'],
   ['/classes/makeup', 'manageClasses'],
@@ -58,6 +59,8 @@ const TEACHER_PAGE_RULES: Array<[string, PermKey]> = [
 
 const TEACHER_API_RULES: Array<[string, PermKey]> = [
   ['/api/students', 'manageStudents'],
+  ['/api/level-test-forms', 'manageGrades'],
+  ['/api/level-tests', 'manageGrades'],
   ['/api/attendance', 'manageAttendance'],
   ['/api/exam-categories', 'manageGrades'],
   ['/api/exams', 'manageGrades'],
@@ -189,6 +192,7 @@ export async function proxy(req: NextRequest) {
 
   const isAdminPage =
     pathname.startsWith('/students') ||
+    pathname.startsWith('/level-tests') ||
     pathname.startsWith('/classes') ||
     pathname.startsWith('/finance') ||
     pathname.startsWith('/calendar') ||

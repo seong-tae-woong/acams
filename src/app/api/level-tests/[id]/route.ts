@@ -26,7 +26,10 @@ async function loadLevelExam(id: string, academyId: string) {
 export async function GET(req: NextRequest, ctx: Ctx) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId } = auth;
+  const { academyId, role } = auth;
+  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
+    return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
+  }
   const { id } = await ctx.params;
 
   try {
