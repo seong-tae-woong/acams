@@ -28,7 +28,7 @@ type UpcomingAssignment = {
 
 type ReportListItem = {
   id: string;
-  kind: 'PER_EXAM' | 'PERIODIC';
+  kind: 'PER_EXAM' | 'PERIODIC' | 'LEVEL_TEST';
   title: string;
   summary: string;
   periodLabel: string;
@@ -206,7 +206,7 @@ export default function MobileGradesPage() {
                     <div className="text-[11.5px] text-[#6b7280] mt-0.5 truncate">{r.summary}</div>
                   )}
                   <div className="text-[10.5px] text-[#9ca3af] mt-1">
-                    {formatPublishedAt(r.publishedAt)} · {r.kind === 'PER_EXAM' ? '시험별' : '주기별'}
+                    {formatPublishedAt(r.publishedAt)} · {r.kind === 'PER_EXAM' ? '시험별' : r.kind === 'LEVEL_TEST' ? '레벨 테스트' : '주기별'}
                   </div>
                 </div>
                 <ChevronRight size={16} className="text-[#9ca3af] shrink-0" />
