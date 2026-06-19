@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     });
 
     const gradeRecords = await prisma.gradeRecord.findMany({
-      where: { academyId, studentId },
+      where: { academyId, studentId, exam: { levelTestFormId: null } }, // 레벨 테스트 제외 (Finding 3 / T4)
       include: {
         exam: {
           include: {
@@ -50,8 +50,8 @@ export async function GET(req: NextRequest) {
         subject: g.exam.subject,
         date: g.exam.date.toISOString().slice(0, 10),
         totalScore: g.exam.totalScore,
-        className: g.exam.class.name,
-        classSubject: g.exam.class.subject,
+        className: g.exam.class?.name ?? '',
+        classSubject: g.exam.class?.subject ?? '',
       },
     }));
 
@@ -82,8 +82,8 @@ export async function GET(req: NextRequest) {
         date: e.date.toISOString().slice(0, 10),
         totalScore: e.totalScore,
         description: e.description,
-        className: e.class.name,
-        classSubject: e.class.subject,
+        className: e.class?.name ?? '',
+        classSubject: e.class?.subject ?? '',
       })),
       upcomingAssignments: upcomingAssignments.map((a) => ({
         id: a.id,

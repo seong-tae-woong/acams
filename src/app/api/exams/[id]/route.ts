@@ -115,7 +115,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       name: updated.name,
       subject: updated.subject,
       classId: updated.classId,
-      className: updated.class.name,
+      className: updated.class?.name ?? '',
       date: updated.date.toISOString().slice(0, 10),
       totalScore: updated.totalScore,
       scoringMethod: updated.scoringMethod,

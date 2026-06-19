@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import clsx from 'clsx';
 import {
   Users, BookOpen, Wallet, BarChart2,
-  Settings, UserCheck, Calendar, Bell, TrendingUp, ClipboardList, CalendarPlus, History,
+  Settings, UserCheck, Calendar, Bell, TrendingUp, ClipboardList, CalendarPlus, History, ClipboardCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/authStore';
 
@@ -30,6 +30,7 @@ const NAV: NavSection[] = [
     label: '학생 관리',
     items: [
       { href: '/students', label: '학생 등록/정보 관리', icon: Users, perm: 'manageStudents' },
+      { href: '/level-tests', label: '레벨 테스트', icon: ClipboardCheck, perm: 'manageGrades' },
       { href: '/students/lessons', label: '수업 이력', icon: History, perm: 'manageGrades' },
     ],
   },

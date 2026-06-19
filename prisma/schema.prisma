@@ -95,6 +95,7 @@ model Academy {
   enrollmentRules          EnrollmentRule[]
   monthlyAdjustments       MonthlyAdjustment[]
   adjustmentLabels         AdjustmentLabel[]
+  levelTestForms           LevelTestForm[]
 
   @@map("academies")
 }
@@ -551,8 +552,9 @@ model Exam {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
-  classId String
-  class   Class  @relation(fields: [classId], references: [id])
+  // 레벨 테스트는 반 배정 전 실시 → classId=null 허용
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id])
 
   name        String
   subject     String   @default("")
@@ -570,6 +572,13 @@ model Exam {
   category2   ExamCategory? @relation("ExamCategory2", fields: [category2Id], references: [id])
   category3Id String?
   category3   ExamCategory? @relation("ExamCategory3", fields: [category3Id], references: [id])
+
+  // ── 레벨 테스트 (반 미배정: classId=null, levelTestFormId 있음) ──
+  levelTestFormId String?
+  levelTestForm   LevelTestForm? @relation(fields: [levelTestFormId], references: [id])
+  // 실시 시점 스냅샷 (양식 수정이 과거 시험·리포트에 영향 없도록)
+  types           Json? // [{ key, name, benchmark }]
+  questionMap     Json? // [{ n, typeKey }]
 
   gradeRecords GradeRecord[]
   reports      Report[]
@@ -617,8 +626,42 @@ model GradeRecord {
   rank         Int?
   memo         String @default("")
 
+  // ── 레벨 테스트 채점 (per-question) ──────────────────────────
+  wrongNumbers  Int[] @default([]) // 틀린 문항 번호 (소스 오브 트루스)
+  sectionScores Json? // wrongNumbers+exam.questionMap에서 도출한 유형별 점수 캐시
+
   @@unique([examId, studentId])
   @@map("grade_records")
+}
+
+// ─────────────────────────────────────────────
+// LEVEL TEST (신규생 레벨 테스트 — 학년별 양식)
+// ─────────────────────────────────────────────
+
+// 학년별 재사용 양식("붕어빵 틀"). 실시 = 이 양식으로 Exam(classId=null) 생성.
+// types:       [{ key, name, benchmark }] — 유형 정의 + 영역별 기준점수(평균 초기값)
+// questionMap: [{ n, typeKey }]           — 문항번호↔유형 매핑(1..N 전수 1회 커버)
+model LevelTestForm {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  grade       Int
+  subject     String  @default("")
+  title       String
+  pdfUrl      String? // 업로드 시험지 PDF (Vercel Blob)
+  types       Json    @default("[]")
+  questionMap Json    @default("[]")
+  showAverage Boolean @default(true) // 리포트 평균 비교 표시 토글
+  isActive    Boolean @default(true)
+
+  exams Exam[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([academyId, grade])
+  @@map("level_test_forms")
 }
 
 // ─────────────────────────────────────────────
@@ -1377,6 +1420,7 @@ model Certificate {
 enum ReportTemplateKind {
   PER_EXAM
   PERIODIC
+  LEVEL_TEST
 }
 
 model ReportTemplate {

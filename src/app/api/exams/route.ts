@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     const exams = await prisma.exam.findMany({
       where: {
         academyId,
+        levelTestFormId: null, // 레벨 테스트는 일반 시험 목록에서 제외 (Finding 3)
         ...(classId ? { classId } : {}),
         ...(category1Id ? { category1Id } : {}),
         ...(category2Id ? { category2Id } : {}),
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
       name: e.name,
       subject: e.subject,
       classId: e.classId,
-      className: e.class.name,
+      className: e.class?.name ?? '',
       date: e.date.toISOString().slice(0, 10),
       totalScore: e.totalScore,
       scoringMethod: e.scoringMethod,
@@ -143,19 +144,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    void sendPushToClass(exam.classId, {
-      title: `${exam.class.name} 시험 등록`,
-      body: `${exam.name} (${exam.date.toISOString().slice(0, 10)})`,
-      url: '/mobile/grades',
-      tag: `exam-${exam.id}`,
-    });
+    if (exam.classId) {
+      void sendPushToClass(exam.classId, {
+        title: `${exam.class?.name ?? ''} 시험 등록`,
+        body: `${exam.name} (${exam.date.toISOString().slice(0, 10)})`,
+        url: '/mobile/grades',
+        tag: `exam-${exam.id}`,
+      });
+    }
 
     return NextResponse.json({
       id: exam.id,
       name: exam.name,
       subject: exam.subject,
       classId: exam.classId,
-      className: exam.class.name,
+      className: exam.class?.name ?? '',
       date: exam.date.toISOString().slice(0, 10),
       totalScore: exam.totalScore,
       scoringMethod: exam.scoringMethod,

@@ -88,7 +88,7 @@ export async function buildPerExamContexts(
       context: {
         학생: stu.name,
         학년: stu.grade,
-        반: exam.class.name,
+        반: exam.class?.name ?? '',
         시험명: exam.name,
         시험일: dateStr,
         만점: exam.totalScore,
@@ -113,7 +113,7 @@ export async function buildPerExamContexts(
         classCount,
         examName: exam.name,
         examDate: dateStr,
-        className: exam.class.name,
+        className: exam.class?.name ?? '',
       },
     });
   }
