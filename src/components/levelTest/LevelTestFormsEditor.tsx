@@ -29,6 +29,26 @@ function blankEditor(): EditorState {
   return { grade: 1, subject: '', title: '', pdfUrl: null, types: [], total: 0, map: {}, showAverage: true };
 }
 
+// "1-10, 15" 같은 범위 문자열 → 문항 번호 배열 (1..total 범위 내, 무중복)
+function parseRanges(s: string, total: number): number[] {
+  const out = new Set<number>();
+  for (const part of s.split(',')) {
+    const t = part.trim();
+    if (!t) continue;
+    const m = t.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m) {
+      let a = Number(m[1]);
+      let b = Number(m[2]);
+      if (a > b) { const tmp = a; a = b; b = tmp; }
+      for (let n = a; n <= b; n++) if (n >= 1 && n <= total) out.add(n);
+    } else if (/^\d+$/.test(t)) {
+      const n = Number(t);
+      if (n >= 1 && n <= total) out.add(n);
+    }
+  }
+  return [...out];
+}
+
 export default function LevelTestFormsEditor() {
   const [forms, setForms] = useState<FormListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +56,7 @@ export default function LevelTestFormsEditor() {
   const [paintKey, setPaintKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [rangeInput, setRangeInput] = useState('');
   const keyCounter = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +122,19 @@ export default function LevelTestFormsEditor() {
     } finally {
       setUploading(false);
     }
+  };
+
+  // 선택한 유형(paintKey)에 범위 문자열을 적용해 해당 번호들을 칠한다 (탭과 병행)
+  const applyRange = () => {
+    if (!ed) return;
+    if (!paintKey) return toast('먼저 유형을 선택하세요.', 'error');
+    if (ed.total < 1) return toast('총 문항수를 먼저 입력하세요.', 'error');
+    const nums = parseRanges(rangeInput, ed.total);
+    if (nums.length === 0) return toast('범위를 인식하지 못했습니다. 예: 1-10, 15', 'error');
+    const map = { ...ed.map };
+    for (const n of nums) map[n] = paintKey;
+    setEd({ ...ed, map });
+    setRangeInput('');
   };
 
   const mappedCount = ed ? Object.keys(ed.map).length : 0;
@@ -250,6 +284,7 @@ export default function LevelTestFormsEditor() {
               <div key={t.key} className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorFor(ed.types, t.key) }} />
                 <input value={t.name} onChange={(e) => updateType(t.key, { name: e.target.value })} placeholder="예: 어휘"
+                  aria-label="유형 이름"
                   className="flex-1 border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 text-[13px]" />
                 <input type="number" min={0} max={100} value={t.benchmark} onChange={(e) => updateType(t.key, { benchmark: Number(e.target.value) })}
                   className="w-20 border border-[#e2e8f0] rounded-[8px] px-2 py-1.5 text-[13px] text-center tabular-nums" />
@@ -263,7 +298,7 @@ export default function LevelTestFormsEditor() {
         {/* 문항 매핑 */}
         <div className="bg-white border border-[#e2e8f0] rounded-[12px] p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] text-[#6b7280]">문항 매핑 — 유형을 고르고 번호를 탭하세요</span>
+            <span className="text-[12px] text-[#6b7280]">문항 매핑 — 유형 고르고 범위 입력 또는 번호 탭</span>
             <label className="flex items-center gap-1.5 text-[12px] text-[#6b7280]">
               총 문항수
               <input type="number" min={0} max={200} value={ed.total}
@@ -282,6 +317,17 @@ export default function LevelTestFormsEditor() {
               </button>
             ))}
           </div>
+          {/* 선택 유형에 범위 입력 (예: 1-10, 15) — 번호 탭과 병행 */}
+          {paintKey && ed.total > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] text-[#6b7280] shrink-0">선택 유형 범위</span>
+              <input value={rangeInput} onChange={(e) => setRangeInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyRange(); } }}
+                placeholder="예: 1-10, 15"
+                className="flex-1 border border-[#e2e8f0] rounded-[8px] px-2.5 py-1.5 text-[13px]" />
+              <button onClick={applyRange} className="text-[12px] text-[#12B886] border border-[#e2e8f0] rounded-[8px] px-3 py-1.5 shrink-0">적용</button>
+            </div>
+          )}
           {/* 격자 */}
           {ed.total > 0 && (
             <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(10, minmax(0, 1fr))' }}>
