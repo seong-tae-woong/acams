@@ -12,71 +12,109 @@ import type { SectionScore } from '@/lib/levelTest/types';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// POST /api/level-tests/[id]/report — 채점된 레벨 테스트 리포트 발행 (+학부모 푸시)
-export async function POST(req: NextRequest, ctx: Ctx) {
+function isStaff(role: string) {
+  return role === 'director' || role === 'teacher' || role === 'super_admin';
+}
+
+// 채점 완료된 레벨 테스트 Exam 로드 (학원 범위, level test만)
+async function loadGradedExam(id: string, academyId: string) {
+  return prisma.exam.findFirst({
+    where: { id, academyId, levelTestFormId: { not: null } },
+    include: {
+      gradeRecords: {
+        select: {
+          score: true,
+          sectionScores: true,
+          studentId: true,
+          student: { select: { name: true, grade: true } },
+        },
+      },
+    },
+  });
+}
+
+type GradedExam = NonNullable<Awaited<ReturnType<typeof loadGradedExam>>>;
+type GradeRec = GradedExam['gradeRecords'][number];
+
+// 리포트 데이터 조립 (미리보기·발행 공용 단일 소스). comment는 발행 시에만 전달.
+async function buildReportPayload(exam: GradedExam, gr: GradeRec, academyId: string, comment?: string) {
+  const formId = exam.levelTestFormId!;
+  const sectionScores = gr.sectionScores as unknown as SectionScore[];
+
+  const form = await prisma.levelTestForm.findUnique({ where: { id: formId }, select: { showAverage: true } });
+  const showAverage = form?.showAverage ?? true;
+
+  // 5A 즉석 집계: 같은 양식의 채점 완료 응시자 평균
+  const cohort = await prisma.gradeRecord.findMany({
+    where: { academyId, score: { not: null }, exam: { levelTestFormId: formId } },
+    select: { sectionScores: true },
+  });
+  const N = cohort.length;
+  warnIfCohortLarge(N, formId);
+  const useCohort = N >= LEVELTEST_COHORT_THRESHOLD;
+  const cohortAverages = useCohort
+    ? computeCohortAverages(
+        cohort.map((r) => (r.sectionScores as unknown as SectionScore[]) ?? []).filter((a) => a.length > 0),
+      )
+    : null;
+
+  return buildLevelTestReportData({
+    studentName: gr.student.name,
+    studentGrade: gr.student.grade,
+    subject: exam.subject,
+    date: exam.date.toISOString().slice(0, 10),
+    totalScore: gr.score!,
+    sectionScores,
+    showAverage,
+    useCohort,
+    cohortAverages,
+    comment,
+  });
+}
+
+// GET /api/level-tests/[id]/report — 리포트 미리보기 (발행 전, 저장 없음)
+export async function GET(req: NextRequest, ctx: Ctx) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const { academyId, role, userId } = auth;
-  if (role !== 'director' && role !== 'teacher' && role !== 'super_admin') {
-    return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
-  }
+  const { academyId, role } = auth;
+  if (!isStaff(role)) return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   const { id } = await ctx.params;
 
   try {
-    const exam = await prisma.exam.findFirst({
-      where: { id, academyId, levelTestFormId: { not: null } },
-      include: {
-        gradeRecords: {
-          select: {
-            score: true,
-            sectionScores: true,
-            studentId: true,
-            student: { select: { name: true, grade: true } },
-          },
-        },
-      },
-    });
+    const exam = await loadGradedExam(id, academyId);
     if (!exam) return NextResponse.json({ error: '레벨 테스트를 찾을 수 없습니다.' }, { status: 404 });
-
     const gr = exam.gradeRecords[0];
     if (!gr || gr.score == null || gr.sectionScores == null) {
       return NextResponse.json({ error: '먼저 채점을 완료하세요.' }, { status: 400 });
     }
-    const formId = exam.levelTestFormId!;
-    const sectionScores = gr.sectionScores as unknown as SectionScore[];
+    const data = await buildReportPayload(exam, gr, academyId);
+    return NextResponse.json({ data });
+  } catch (err) {
+    console.error('[GET /api/level-tests/[id]/report]', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}
 
-    // 양식 표시 토글
-    const form = await prisma.levelTestForm.findUnique({ where: { id: formId }, select: { showAverage: true } });
-    const showAverage = form?.showAverage ?? true;
+// POST /api/level-tests/[id]/report — 리포트 발행 (+학부모 푸시). body: { comment?: string }
+export async function POST(req: NextRequest, ctx: Ctx) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { academyId, role, userId } = auth;
+  if (!isStaff(role)) return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
+  const { id } = await ctx.params;
 
-    // 5A 즉석 집계: 같은 양식의 채점 완료 응시자
-    const cohort = await prisma.gradeRecord.findMany({
-      where: { academyId, score: { not: null }, exam: { levelTestFormId: formId } },
-      select: { sectionScores: true },
-    });
-    const N = cohort.length;
-    warnIfCohortLarge(N, formId);
-    const useCohort = N >= LEVELTEST_COHORT_THRESHOLD;
-    const cohortAverages = useCohort
-      ? computeCohortAverages(
-          cohort
-            .map((r) => (r.sectionScores as unknown as SectionScore[]) ?? [])
-            .filter((a) => a.length > 0),
-        )
-      : null;
+  try {
+    const exam = await loadGradedExam(id, academyId);
+    if (!exam) return NextResponse.json({ error: '레벨 테스트를 찾을 수 없습니다.' }, { status: 404 });
+    const gr = exam.gradeRecords[0];
+    if (!gr || gr.score == null || gr.sectionScores == null) {
+      return NextResponse.json({ error: '먼저 채점을 완료하세요.' }, { status: 400 });
+    }
 
-    const data = buildLevelTestReportData({
-      studentName: gr.student.name,
-      studentGrade: gr.student.grade,
-      subject: exam.subject,
-      date: exam.date.toISOString().slice(0, 10),
-      totalScore: gr.score,
-      sectionScores,
-      showAverage,
-      useCohort,
-      cohortAverages,
-    });
+    const body = await req.json().catch(() => ({}));
+    const comment = typeof body.comment === 'string' ? body.comment : undefined;
 
+    const data = await buildReportPayload(exam, gr, academyId, comment);
     const title = `${exam.name} 결과`;
     const summary = `종합 ${data.totalScore}점`;
 

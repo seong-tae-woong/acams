@@ -59,6 +59,7 @@ const TEACHER_PAGE_RULES: Array<[string, PermKey]> = [
 
 const TEACHER_API_RULES: Array<[string, PermKey]> = [
   ['/api/students', 'manageStudents'],
+  ['/api/level-test-comment-templates', 'manageGrades'],
   ['/api/level-test-forms', 'manageGrades'],
   ['/api/level-tests', 'manageGrades'],
   ['/api/attendance', 'manageAttendance'],

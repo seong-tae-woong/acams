@@ -52,6 +52,8 @@ export function buildLevelTestReportData(input: {
   useCohort: boolean;
   /** 응시자 평균 (key별). useCohort일 때만 사용, 없으면 benchmark 폴백 */
   cohortAverages: Map<string, number> | null;
+  /** 선생님 코멘트 (발행 시 입력, 선택) */
+  comment?: string;
 }): LevelTestReportData {
   const { sectionScores, showAverage, useCohort, cohortAverages } = input;
 
@@ -93,5 +95,6 @@ export function buildLevelTestReportData(input: {
     totalAverage,
     averageLabel: !showAverage ? null : useCohort ? '응시자 평균' : '학원 기준',
     sections,
+    comment: input.comment?.trim() ? input.comment.trim() : undefined,
   };
 }

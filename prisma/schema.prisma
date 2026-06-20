@@ -96,6 +96,7 @@ model Academy {
   monthlyAdjustments       MonthlyAdjustment[]
   adjustmentLabels         AdjustmentLabel[]
   levelTestForms           LevelTestForm[]
+  levelTestCommentTemplates LevelTestCommentTemplate[]
 
   @@map("academies")
 }
@@ -662,6 +663,24 @@ model LevelTestForm {
 
   @@index([academyId, grade])
   @@map("level_test_forms")
+}
+
+// 레벨 테스트 리포트용 코멘트 양식 — 원장/강사가 미리 만들어 두고 발행 시 불러 씀.
+// 발행 시 코멘트 본문은 Report.data.comment로 복사되므로 양식 삭제는 과거 리포트에 영향 없음.
+model LevelTestCommentTemplate {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  title String // 짧은 제목 (예: "기초 보강 권장")
+  body  String // 코멘트 본문
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([academyId, isActive])
+  @@map("level_test_comment_templates")
 }
 
 // ─────────────────────────────────────────────

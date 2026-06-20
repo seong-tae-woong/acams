@@ -6,6 +6,8 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import { Search, Send, ChevronRight } from 'lucide-react';
 import { gradeLabel } from '@/lib/format/grade';
+import LevelTestReportPreviewModal from './LevelTestReportPreviewModal';
+import type { LevelTestReportData } from '@/lib/levelTest/types';
 
 interface Student { id: string; name: string; grade: number }
 interface FormItem { id: string; title: string; grade: number; totalQuestions: number }
@@ -36,6 +38,8 @@ export default function LevelTestRunner() {
 
   const [gd, setGd] = useState<GradeData | null>(null);
   const [wrong, setWrong] = useState<Set<number>>(new Set());
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<LevelTestReportData | null>(null);
 
   useEffect(() => {
     fetch('/api/students')
@@ -104,10 +108,9 @@ export default function LevelTestRunner() {
     return { byType, correct: total - wrong.size, total };
   }, [gd, wrong]);
 
-  const publish = async () => {
+  // 채점 저장 → 미리보기 데이터 로드 → 미리보기 모달 (발행은 모달에서)
+  const openPreview = async () => {
     if (!gd) return;
-    const wrongCount = wrong.size;
-    if (!confirm(`${gd.questionMap.length}문항 중 ${wrongCount}개 오답으로 채점합니다. 리포트를 발행할까요?`)) return;
     setBusy(true);
     try {
       const g = await fetch(`/api/level-tests/${gd.examId}`, {
@@ -117,16 +120,22 @@ export default function LevelTestRunner() {
       });
       const gd2 = await g.json();
       if (!g.ok) throw new Error(gd2.error);
-      const p = await fetch(`/api/level-tests/${gd.examId}/report`, { method: 'POST' });
-      const pd = await p.json();
-      if (!p.ok) throw new Error(pd.error);
-      toast('리포트를 발행하고 학부모에게 알렸습니다.', 'success');
-      setMode('select'); setGd(null); setSelStudent(null); setSelFormId(null); setForms([]);
+      const pr = await fetch(`/api/level-tests/${gd.examId}/report`);
+      const pd = await pr.json();
+      if (!pr.ok) throw new Error(pd.error);
+      setPreviewData(pd.data);
+      setPreviewOpen(true);
     } catch (e) {
-      toast(e instanceof Error ? e.message : '발행 실패', 'error');
+      toast(e instanceof Error ? e.message : '미리보기 실패', 'error');
     } finally {
       setBusy(false);
     }
+  };
+
+  const handlePublished = () => {
+    setPreviewOpen(false);
+    setPreviewData(null);
+    setMode('select'); setGd(null); setSelStudent(null); setSelFormId(null); setForms([]); setWrong(new Set());
   };
 
   if (loading) return <div className="flex-1 grid place-items-center"><LoadingSpinner /></div>;
@@ -173,9 +182,19 @@ export default function LevelTestRunner() {
           <span className="text-[14px] font-medium text-[#111827] tabular-nums">종합 {tally.correct}/{tally.total} · {score}점</span>
         </div>
 
-        <Button variant="primary" onClick={publish} disabled={busy} className="w-full justify-center">
-          <Send size={15} /> {busy ? '발행 중…' : '리포트 발행'}
+        <Button variant="primary" onClick={openPreview} disabled={busy} className="w-full justify-center">
+          <Send size={15} /> {busy ? '여는 중…' : '리포트 미리보기'}
         </Button>
+
+        {gd && (
+          <LevelTestReportPreviewModal
+            open={previewOpen}
+            examId={gd.examId}
+            data={previewData}
+            onClose={() => setPreviewOpen(false)}
+            onPublished={handlePublished}
+          />
+        )}
       </div>
     );
   }

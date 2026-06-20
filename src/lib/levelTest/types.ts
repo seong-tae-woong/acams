@@ -57,4 +57,6 @@ export interface LevelTestReportData {
   /** "학원 기준" | "응시자 평균" | null(숨김) */
   averageLabel: string | null;
   sections: LevelTestReportSection[];
+  /** 선생님 코멘트 (발행 시 입력, 선택). 없으면 리포트에 코멘트 섹션 숨김 */
+  comment?: string;
 }
