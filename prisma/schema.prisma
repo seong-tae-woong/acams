@@ -653,6 +653,7 @@ model LevelTestForm {
   pdfUrl      String? // 업로드 시험지 PDF (Vercel Blob)
   types       Json    @default("[]")
   questionMap Json    @default("[]")
+  levelBands  Json    @default("[]") // 배치 척도 [{key,label,maxScore,recommendClass?}] — 비면 기본 프리셋(설계 §E)
   showAverage Boolean @default(true) // 리포트 평균 비교 표시 토글
   isActive    Boolean @default(true)
 

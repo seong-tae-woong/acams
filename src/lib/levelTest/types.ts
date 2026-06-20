@@ -33,6 +33,18 @@ export interface SectionScore {
   benchmark: number;
 }
 
+/** 레벨 밴드 — LevelTestForm.levelBands 원소 (배치 척도). 설계 §E·§F */
+export interface LevelTestBand {
+  /** 안정 slug (예: "inter") */
+  key: string;
+  /** 표시명 (예: "중급") */
+  label: string;
+  /** 이 밴드의 상한 점수(이하면 이 밴드). 오름차순 매칭, 최상위 밴드는 100 권장 */
+  maxScore: number;
+  /** 추천 반 (선택, 예: "정규반") */
+  recommendClass?: string | null;
+}
+
 // ── 리포트(Report.data) 구조 — 객관 점수형, 서버 빌더·PWA 렌더 공용 ──
 
 /** 리포트의 유형별 1행 (내 점수 vs 평균) */
@@ -42,6 +54,21 @@ export interface LevelTestReportSection {
   score: number;
   /** 비교 평균. null이면 그 영역 비교 숨김 (N=0/기준 미설정 — 1A) */
   average: number | null;
+  /** 맞힌 문항 수 (구 리포트엔 없음 — 옵셔널). "8/10" 표시용 (설계 §Q) */
+  correct?: number;
+  /** 총 문항 수 (구 리포트엔 없음) */
+  total?: number;
+}
+
+/** 배치 판정 (발행 시 스냅샷, 과거 리포트 불변 — §20 일치). 설계 §Q */
+export interface LevelTestPlacement {
+  bandKey: string;
+  bandLabel: string;
+  recommendClass: string | null;
+  /** 밴드 사다리 (스냅샷, 오름차순). "전체 N단계 중" 표시용 */
+  ladder: { key: string; label: string }[];
+  /** 제안 그대로 발행(suggested) vs 원장 override(overridden) */
+  source: 'suggested' | 'overridden';
 }
 
 /** Report.data (kind=LEVEL_TEST) */
@@ -59,4 +86,8 @@ export interface LevelTestReportData {
   sections: LevelTestReportSection[];
   /** 선생님 코멘트 (발행 시 입력, 선택). 없으면 리포트에 코멘트 섹션 숨김 */
   comment?: string;
+  /** 배치 판정 (구 리포트엔 없음 — 옵셔널, 없으면 배치 카드 숨김). 설계 §Q */
+  placement?: LevelTestPlacement | null;
+  /** 한 줄 판정 내러티브 (구 리포트엔 없음). 설계 §Q */
+  narrative?: string | null;
 }
