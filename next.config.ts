@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Turbopack 워크스페이스 루트를 이 앱(acams)으로 고정 — 상위 폴더의 stray
+  // package-lock.json 때문에 루트가 잘못 추론돼 tailwindcss/@swc를 못 찾는 문제 방지.
+  turbopack: {
+    root: __dirname,
+  },
   // PORT 환경변수가 있으면 해당 포트 사용 (preview tool 자동포트 지원)
   experimental: {
     // dynamic: 0 — 관리자/모바일 동적 페이지를 라우터 캐시에 보관하지 않음
