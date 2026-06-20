@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import Button from '@/components/shared/Button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Trash2, Save, X, Printer, Upload, FileText } from 'lucide-react';
+import { Plus, Trash2, Save, X, Printer, Upload, FileText, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
+import Link from 'next/link';
+import { gradeLabel, GRADE_OPTIONS } from '@/lib/format/grade';
 
 interface EType { key: string; name: string; benchmark: number }
 interface FormListItem {
@@ -185,6 +187,9 @@ export default function LevelTestFormsEditor() {
   if (!ed) {
     return (
       <div className="flex-1 overflow-y-auto p-5">
+        <Link href="/level-tests" className="inline-flex items-center gap-1 text-[12px] text-[#6b7280] hover:text-[#111827] mb-3">
+          <ChevronLeft size={14} /> 레벨 테스트
+        </Link>
         <div className="flex items-center justify-between mb-4">
           <span className="text-[13px] text-[#6b7280]">학년별로 레벨 테스트 양식을 등록해두고 재사용합니다.</span>
           <Button variant="primary" size="sm" onClick={openNew}><Plus size={14} /> 새 양식</Button>
@@ -201,13 +206,13 @@ export default function LevelTestFormsEditor() {
                   <div>
                     <div className="text-[14px] font-medium text-[#111827]">{f.title}</div>
                     <div className="text-[12px] text-[#6b7280] mt-0.5 tabular-nums">
-                      {f.grade}학년 · {f.subject || '과목 미지정'} · {f.totalQuestions}문항 · 유형 {f.types.length}
+                      {gradeLabel(f.grade)} · {f.subject || '과목 미지정'} · {f.totalQuestions}문항 · 유형 {f.types.length}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     {f.pdfUrl && (
-                      <button onClick={() => window.open(f.pdfUrl!, '_blank')} className="p-1.5 text-[#6b7280] hover:text-[#111827]" title="시험지 출력">
-                        <Printer size={15} />
+                      <button onClick={() => window.open(f.pdfUrl!, '_blank')} className="px-2 py-1 text-[12px] text-[#0F6E56] border border-[#cfeee2] bg-[#f0faf6] rounded-[6px] flex items-center gap-1" title="시험지 PDF 보기·출력">
+                        <FileText size={13} /> 시험지
                       </button>
                     )}
                     <button onClick={() => openEdit(f)} className="px-2 py-1 text-[12px] text-[#374151] border border-[#e2e8f0] rounded-[6px]">수정</button>
@@ -243,8 +248,10 @@ export default function LevelTestFormsEditor() {
           </label>
           <label className="block">
             <span className="text-[12px] text-[#6b7280]">학년</span>
-            <input type="number" min={1} max={12} value={ed.grade} onChange={(e) => setEd({ ...ed, grade: Number(e.target.value) })}
-              className="mt-1 w-full border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px] tabular-nums" />
+            <select value={ed.grade} onChange={(e) => setEd({ ...ed, grade: Number(e.target.value) })}
+              className="mt-1 w-full border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px] bg-white">
+              {GRADE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
           </label>
           <label className="block">
             <span className="text-[12px] text-[#6b7280]">과목</span>

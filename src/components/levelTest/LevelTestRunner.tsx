@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
 import { Search, Send, ChevronRight } from 'lucide-react';
+import { gradeLabel } from '@/lib/format/grade';
 
 interface Student { id: string; name: string; grade: number }
 interface FormItem { id: string; title: string; grade: number; totalQuestions: number }
@@ -199,7 +200,7 @@ export default function LevelTestRunner() {
           {filtered.slice(0, 40).map((s) => (
             <button key={s.id} onClick={() => pickStudent(s)}
               className={`w-full text-left px-2 py-2 text-[13px] flex items-center justify-between rounded-[6px] ${selStudent?.id === s.id ? 'bg-[#E1F5EE] text-[#0F6E56]' : 'hover:bg-[#f8fafc] text-[#111827]'}`}>
-              <span>{s.name}</span><span className="text-[11px] text-[#9ca3af] tabular-nums">{s.grade}학년</span>
+              <span>{s.name}</span><span className="text-[11px] text-[#9ca3af] tabular-nums">{gradeLabel(s.grade)}</span>
             </button>
           ))}
           {filtered.length === 0 && <div className="text-[12px] text-[#9ca3af] py-3 text-center">학생이 없습니다.</div>}
@@ -208,7 +209,7 @@ export default function LevelTestRunner() {
 
       {selStudent && (
         <div className="bg-white border border-[#e2e8f0] rounded-[12px] p-4 mb-3">
-          <span className="text-[12px] text-[#6b7280]">{selStudent.grade}학년 양식</span>
+          <span className="text-[12px] text-[#6b7280]">{gradeLabel(selStudent.grade)} 양식</span>
           {forms.length === 0 ? (
             <div className="text-[12px] text-[#9ca3af] py-3">
               이 학년의 양식이 없습니다. <Link href="/level-tests/forms" className="text-[#12B886]">양식 먼저 만들기</Link>
@@ -219,7 +220,7 @@ export default function LevelTestRunner() {
                 <button key={f.id} onClick={() => setSelFormId(f.id)}
                   className={`w-full text-left px-3 py-2 rounded-[8px] border text-[13px] flex items-center justify-between ${selFormId === f.id ? 'border-[#12B886] bg-[#E1F5EE]' : 'border-[#e2e8f0]'}`}>
                   <span className="text-[#111827]">{f.title}</span>
-                  <span className="text-[11px] text-[#9ca3af] tabular-nums">{f.totalQuestions}문항</span>
+                  <span className="text-[11px] text-[#9ca3af] tabular-nums">{gradeLabel(f.grade)} · {f.totalQuestions}문항</span>
                 </button>
               ))}
             </div>
@@ -228,7 +229,7 @@ export default function LevelTestRunner() {
       )}
 
       <Button variant="primary" onClick={start} disabled={!selStudent || !selFormId || busy} className="w-full justify-center">
-        {busy ? '시작 중…' : '레벨 테스트 시작'}
+        {busy ? '여는 중…' : '채점 시작'}
       </Button>
     </div>
   );
