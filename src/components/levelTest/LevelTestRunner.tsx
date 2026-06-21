@@ -7,7 +7,7 @@ import { toast } from '@/lib/stores/toastStore';
 import { Search, Send, ChevronRight } from 'lucide-react';
 import { gradeLabel } from '@/lib/format/grade';
 import LevelTestReportPreviewModal from './LevelTestReportPreviewModal';
-import type { LevelTestReportData, LevelTestBand } from '@/lib/levelTest/types';
+import type { LevelTestReportData, ClassOption } from '@/lib/levelTest/types';
 
 interface Student { id: string; name: string; grade: number }
 interface FormItem { id: string; title: string; grade: number; totalQuestions: number }
@@ -40,7 +40,7 @@ export default function LevelTestRunner() {
   const [wrong, setWrong] = useState<Set<number>>(new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<LevelTestReportData | null>(null);
-  const [previewBands, setPreviewBands] = useState<LevelTestBand[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
 
   useEffect(() => {
     fetch('/api/students')
@@ -51,6 +51,11 @@ export default function LevelTestRunner() {
       })
       .catch(() => toast('학생 목록을 불러오지 못했습니다.', 'error'))
       .finally(() => setLoading(false));
+    // 배치용 학원 반 목록
+    fetch('/api/classes')
+      .then((r) => r.json())
+      .then((d) => setClasses(Array.isArray(d) ? d.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })) : []))
+      .catch(() => {});
   }, []);
 
   const pickStudent = (s: Student) => {
@@ -125,7 +130,6 @@ export default function LevelTestRunner() {
       const pd = await pr.json();
       if (!pr.ok) throw new Error(pd.error);
       setPreviewData(pd.data);
-      setPreviewBands(pd.bandOptions ?? []);
       setPreviewOpen(true);
     } catch (e) {
       toast(e instanceof Error ? e.message : '미리보기 실패', 'error');
@@ -193,7 +197,7 @@ export default function LevelTestRunner() {
             open={previewOpen}
             examId={gd.examId}
             data={previewData}
-            bandOptions={previewBands}
+            classOptions={classes}
             onClose={() => setPreviewOpen(false)}
             onPublished={handlePublished}
           />

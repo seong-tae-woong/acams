@@ -6,7 +6,6 @@ import {
   buildLevelTestReportData,
   computeCohortAverages,
   warnIfCohortLarge,
-  resolveBands,
   LEVELTEST_COHORT_THRESHOLD,
 } from '@/lib/levelTest/report';
 import type { SectionScore } from '@/lib/levelTest/types';
@@ -37,20 +36,16 @@ async function loadGradedExam(id: string, academyId: string) {
 type GradedExam = NonNullable<Awaited<ReturnType<typeof loadGradedExam>>>;
 type GradeRec = GradedExam['gradeRecords'][number];
 
-type ReportOpts = { comment?: string; bandKey?: string; recommendClass?: string; narrative?: string };
+type ReportOpts = { comment?: string; classId?: string; className?: string; narrative?: string };
 
 // 리포트 데이터 조립 (미리보기·발행 공용 단일 소스). opts는 발행/원장 판정 시에만 전달.
-// 반환: { data, bandOptions } — bandOptions는 미리보기 모달의 밴드 select·클라 재생성용(설계 §Q 1A).
+// 반은 원장이 모달에서 직접 선택 → opts.className/classId로 전달(배치). 반 목록은 GET /api/classes.
 async function buildReportPayload(exam: GradedExam, gr: GradeRec, academyId: string, opts: ReportOpts = {}) {
   const formId = exam.levelTestFormId!;
   const sectionScores = gr.sectionScores as unknown as SectionScore[];
 
-  const form = await prisma.levelTestForm.findUnique({
-    where: { id: formId },
-    select: { showAverage: true, levelBands: true },
-  });
+  const form = await prisma.levelTestForm.findUnique({ where: { id: formId }, select: { showAverage: true } });
   const showAverage = form?.showAverage ?? true;
-  const bands = resolveBands(form?.levelBands); // 비면 기본 프리셋 폴백
 
   // 5A 즉석 집계: 같은 양식의 채점 완료 응시자 평균
   const cohort = await prisma.gradeRecord.findMany({
@@ -66,7 +61,7 @@ async function buildReportPayload(exam: GradedExam, gr: GradeRec, academyId: str
       )
     : null;
 
-  const data = buildLevelTestReportData({
+  return buildLevelTestReportData({
     studentName: gr.student.name,
     studentGrade: gr.student.grade,
     subject: exam.subject,
@@ -77,12 +72,10 @@ async function buildReportPayload(exam: GradedExam, gr: GradeRec, academyId: str
     useCohort,
     cohortAverages,
     comment: opts.comment,
-    bands,
-    chosenBandKey: opts.bandKey,
-    recommendClassOverride: opts.recommendClass,
+    className: opts.className,
+    classId: opts.classId,
     narrativeOverride: opts.narrative,
   });
-  return { data, bandOptions: bands };
 }
 
 // GET /api/level-tests/[id]/report — 리포트 미리보기 (발행 전, 저장 없음)
@@ -100,8 +93,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     if (!gr || gr.score == null || gr.sectionScores == null) {
       return NextResponse.json({ error: '먼저 채점을 완료하세요.' }, { status: 400 });
     }
-    const { data, bandOptions } = await buildReportPayload(exam, gr, academyId);
-    return NextResponse.json({ data, bandOptions });
+    const data = await buildReportPayload(exam, gr, academyId);
+    return NextResponse.json({ data });
   } catch (err) {
     console.error('[GET /api/level-tests/[id]/report]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
@@ -127,12 +120,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const body = await req.json().catch(() => ({}));
     const opts = {
       comment: typeof body.comment === 'string' ? body.comment : undefined,
-      bandKey: typeof body.bandKey === 'string' ? body.bandKey : undefined,
-      recommendClass: typeof body.recommendClass === 'string' ? body.recommendClass : undefined,
+      classId: typeof body.classId === 'string' ? body.classId : undefined,
+      className: typeof body.className === 'string' ? body.className : undefined,
       narrative: typeof body.narrative === 'string' ? body.narrative : undefined,
     };
 
-    const { data } = await buildReportPayload(exam, gr, academyId, opts);
+    const data = await buildReportPayload(exam, gr, academyId, opts);
     const title = `${exam.name} 결과`;
     const summary = `종합 ${data.totalScore}점`;
 

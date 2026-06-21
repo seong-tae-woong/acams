@@ -33,16 +33,10 @@ export interface SectionScore {
   benchmark: number;
 }
 
-/** 레벨 밴드 — LevelTestForm.levelBands 원소 (배치 척도). 설계 §E·§F */
-export interface LevelTestBand {
-  /** 안정 slug (예: "inter") */
-  key: string;
-  /** 표시명 (예: "중급") */
-  label: string;
-  /** 이 밴드의 상한 점수(이하면 이 밴드). 오름차순 매칭, 최상위 밴드는 100 권장 */
-  maxScore: number;
-  /** 추천 반 (선택, 예: "정규반") */
-  recommendClass?: string | null;
+/** 배치 후보 반 — 모달 드롭다운용 (학원 등록 반). GET /api/classes에서 도출 */
+export interface ClassOption {
+  id: string;
+  name: string;
 }
 
 // ── 리포트(Report.data) 구조 — 객관 점수형, 서버 빌더·PWA 렌더 공용 ──
@@ -60,15 +54,12 @@ export interface LevelTestReportSection {
   total?: number;
 }
 
-/** 배치 판정 (발행 시 스냅샷, 과거 리포트 불변 — §20 일치). 설계 §Q */
+/** 배치 판정 — 원장이 고른 학원 실제 반 (발행 시 스냅샷, 과거 리포트 불변). */
 export interface LevelTestPlacement {
-  bandKey: string;
-  bandLabel: string;
-  recommendClass: string | null;
-  /** 밴드 사다리 (스냅샷, 오름차순). "전체 N단계 중" 표시용 */
-  ladder: { key: string; label: string }[];
-  /** 제안 그대로 발행(suggested) vs 원장 override(overridden) */
-  source: 'suggested' | 'overridden';
+  /** 학원 Class id (스냅샷, 향후 연결용) */
+  classId: string | null;
+  /** 반 이름 (스냅샷, 표시용) */
+  className: string;
 }
 
 /** Report.data (kind=LEVEL_TEST) */

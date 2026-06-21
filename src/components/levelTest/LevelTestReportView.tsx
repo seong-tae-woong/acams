@@ -10,18 +10,16 @@ export default function LevelTestReportView({ data }: { data: LevelTestReportDat
   const place = data.placement;
   return (
     <>
-      {/* 배치 결과 — 내러티브 리드. 레거시 리포트(placement 없음)면 숨김(§Q·3B) */}
-      {showPlacement(data) && place && (
+      {/* 배치(진단) — 내러티브 리드 + 선택된 반. 레거시 리포트(narrative·placement 없음)면 숨김(§Q·3B) */}
+      {showPlacement(data) && (
         <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
           <div className="text-[11px] text-[#9ca3af] mb-1.5">배치</div>
           {data.narrative && (
-            <div className="text-[15px] font-medium text-[#111827] leading-relaxed mb-2">{data.narrative}</div>
+            <div className="text-[15px] font-medium text-[#111827] leading-relaxed">{data.narrative}</div>
           )}
-          <div className="text-[11px] text-[#6b7280]">
-            <span className="text-[#0F6E56] font-medium">{place.bandLabel}</span>
-            {place.recommendClass ? ` · ${place.recommendClass}` : ''}
-            {place.ladder.length > 0 ? ` · 전체 ${place.ladder.length}단계 중` : ''}
-          </div>
+          {place?.className && (
+            <div className="text-[12px] text-[#0F6E56] font-medium mt-2">{place.className}</div>
+          )}
         </div>
       )}
 

@@ -6,18 +6,18 @@ import { toast } from '@/lib/stores/toastStore';
 import { Settings2 } from 'lucide-react';
 import LevelTestReportView from './LevelTestReportView';
 import CommentTemplateManagerModal, { type CommentTemplate } from './CommentTemplateManagerModal';
-import type { LevelTestReportData, LevelTestBand } from '@/lib/levelTest/types';
+import type { LevelTestReportData, ClassOption } from '@/lib/levelTest/types';
 import { buildNarrative, deriveRead } from '@/lib/levelTest/report';
 
-// 채점 후 리포트 미리보기 + 배치 판정·코멘트 편집 → 발행. (설계 §D)
-// 밴드/추천반/내러티브는 GET 제안값으로 시작, 원장이 모달에서 확정/수정(클라 재계산, 라운드트립 0).
+// 채점 후 리포트 미리보기 + 배치(반 선택)·코멘트 편집 → 발행.
+// 원장이 학원 등록 반을 드롭다운에서 직접 선택 → 내러티브 클라 재생성(라운드트립 0).
 export default function LevelTestReportPreviewModal({
-  open, examId, data, bandOptions, onClose, onPublished,
+  open, examId, data, classOptions, onClose, onPublished,
 }: {
   open: boolean;
   examId: string;
   data: LevelTestReportData | null;
-  bandOptions: LevelTestBand[];
+  classOptions: ClassOption[];
   onClose: () => void;
   onPublished: () => void;
 }) {
@@ -26,9 +26,9 @@ export default function LevelTestReportPreviewModal({
   const [managerOpen, setManagerOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  // 배치 판정 컨트롤
-  const [bandKey, setBandKey] = useState('');
-  const [recommendClass, setRecommendClass] = useState('');
+  // 배치(반) 컨트롤
+  const [classId, setClassId] = useState('');
+  const [className, setClassName] = useState('');
   const [narrative, setNarrative] = useState('');
   const [narrativeDirty, setNarrativeDirty] = useState(false);
 
@@ -42,8 +42,8 @@ export default function LevelTestReportPreviewModal({
     if (open && data) {
       setComment('');
       loadTemplates();
-      setBandKey(data.placement?.bandKey ?? '');
-      setRecommendClass(data.placement?.recommendClass ?? '');
+      setClassId(data.placement?.classId ?? '');
+      setClassName(data.placement?.className ?? '');
       setNarrative(data.narrative ?? '');
       setNarrativeDirty(false);
     }
@@ -51,28 +51,17 @@ export default function LevelTestReportPreviewModal({
 
   // showAverage는 averageLabel로 역추론(빌더: !showAverage면 averageLabel=null)
   const showAverage = data ? data.averageLabel != null : true;
-  const autoNarrative = (band: LevelTestBand | undefined, rec: string): string => {
-    if (!data || !band) return '';
+  const autoNarrative = (name: string): string => {
+    if (!data) return '';
     const reads = data.sections.map((s) => ({ name: s.name, score: s.score, read: deriveRead(s.score, s.average) }));
-    return buildNarrative({
-      studentName: data.studentName,
-      sections: reads,
-      bandLabel: band.label,
-      recommendClass: rec.trim() || null,
-      showAverage,
-    });
+    return buildNarrative({ studentName: data.studentName, sections: reads, className: name.trim() || null, showAverage });
   };
 
-  const onBandChange = (key: string) => {
-    setBandKey(key);
-    const band = bandOptions.find((b) => b.key === key);
-    const rec = band?.recommendClass ?? '';
-    setRecommendClass(rec);
-    if (!narrativeDirty) setNarrative(autoNarrative(band, rec));
-  };
-  const onRecommendChange = (v: string) => {
-    setRecommendClass(v);
-    if (!narrativeDirty) setNarrative(autoNarrative(bandOptions.find((b) => b.key === bandKey), v));
+  const onClassChange = (id: string) => {
+    setClassId(id);
+    const name = classOptions.find((c) => c.id === id)?.name ?? '';
+    setClassName(name);
+    if (!narrativeDirty) setNarrative(autoNarrative(name));
   };
   const onNarrativeChange = (v: string) => {
     setNarrative(v);
@@ -85,22 +74,13 @@ export default function LevelTestReportPreviewModal({
     setComment((prev) => (prev.trim() ? `${prev.trim()}\n${t.body}` : t.body));
   };
 
-  // 미리보기는 입력 중인 판정·코멘트를 실시간 반영
-  const selectedBand = bandOptions.find((b) => b.key === bandKey);
+  // 미리보기는 입력 중인 배치·코멘트를 실시간 반영
   const previewData: LevelTestReportData | null = data
     ? {
         ...data,
         comment: comment.trim() || undefined,
         narrative: narrative.trim() || data.narrative,
-        placement: selectedBand
-          ? {
-              bandKey: selectedBand.key,
-              bandLabel: selectedBand.label,
-              recommendClass: recommendClass.trim() || null,
-              ladder: data.placement?.ladder ?? bandOptions.map((b) => ({ key: b.key, label: b.label })),
-              source: selectedBand.key === data.placement?.bandKey ? 'suggested' : 'overridden',
-            }
-          : data.placement,
+        placement: className.trim() ? { classId: classId || null, className: className.trim() } : null,
       }
     : null;
 
@@ -112,8 +92,8 @@ export default function LevelTestReportPreviewModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           comment: comment.trim(),
-          bandKey,
-          recommendClass: recommendClass.trim(),
+          classId,
+          className: className.trim(),
           narrative: narrative.trim(),
         }),
       });
@@ -149,35 +129,29 @@ export default function LevelTestReportPreviewModal({
             </div>
             <LevelTestReportView data={previewData} />
 
-            {/* 배치 판정 컨트롤 */}
-            {bandOptions.length > 0 && (
-              <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4 space-y-2">
-                <div className="text-[13px] font-semibold text-[#111827]">배치 판정</div>
-                <div className="flex gap-2">
-                  <select
-                    value={bandKey}
-                    onChange={(e) => onBandChange(e.target.value)}
-                    className="flex-1 border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px] bg-white text-[#374151]"
-                  >
-                    {bandOptions.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
-                  </select>
-                  <input
-                    value={recommendClass}
-                    onChange={(e) => onRecommendChange(e.target.value)}
-                    placeholder="추천 반"
-                    className="flex-1 border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px]"
-                  />
-                </div>
-                <textarea
-                  value={narrative}
-                  onChange={(e) => onNarrativeChange(e.target.value)}
-                  rows={2}
-                  placeholder="한 줄 판정 (밴드 변경 시 자동 갱신, 직접 고치면 유지)"
-                  className="w-full border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px] leading-relaxed resize-none"
-                />
-                <div className="text-[11px] text-[#9ca3af]">제안 밴드가 맞으면 그대로 발행하세요. 바꾸면 위 미리보기·문장이 즉시 반영됩니다.</div>
-              </div>
-            )}
+            {/* 배치 — 학원 반 선택 */}
+            <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4 space-y-2">
+              <div className="text-[13px] font-semibold text-[#111827]">배치 반</div>
+              <select
+                value={classId}
+                onChange={(e) => onClassChange(e.target.value)}
+                className="w-full border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px] bg-white text-[#374151]"
+              >
+                <option value="">반 선택…</option>
+                {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {classOptions.length === 0 && (
+                <div className="text-[11px] text-[#9ca3af]">등록된 반이 없습니다. 반 편성에서 먼저 반을 만들어 주세요.</div>
+              )}
+              <textarea
+                value={narrative}
+                onChange={(e) => onNarrativeChange(e.target.value)}
+                rows={2}
+                placeholder="한 줄 판정 (반 선택 시 자동 갱신, 직접 고치면 유지)"
+                className="w-full border border-[#e2e8f0] rounded-[8px] px-2.5 py-2 text-[13px] leading-relaxed resize-none"
+              />
+              <div className="text-[11px] text-[#9ca3af]">반을 고르면 위 미리보기·문장에 즉시 반영됩니다.</div>
+            </div>
 
             {/* 코멘트 편집 */}
             <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
