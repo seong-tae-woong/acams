@@ -50,16 +50,15 @@ async function buildReportPayload(exam: GradedExam, gr: GradeRec, academyId: str
   // 5A 즉석 집계: 같은 양식의 채점 완료 응시자 평균
   const cohort = await prisma.gradeRecord.findMany({
     where: { academyId, score: { not: null }, exam: { levelTestFormId: formId } },
-    select: { sectionScores: true },
+    select: { sectionScores: true, score: true },
   });
   const N = cohort.length;
   warnIfCohortLarge(N, formId);
   const useCohort = N >= LEVELTEST_COHORT_THRESHOLD;
-  const cohortAverages = useCohort
-    ? computeCohortAverages(
-        cohort.map((r) => (r.sectionScores as unknown as SectionScore[]) ?? []).filter((a) => a.length > 0),
-      )
-    : null;
+  const cohortSectionsList = cohort
+    .map((r) => (r.sectionScores as unknown as SectionScore[]) ?? [])
+    .filter((a) => a.length > 0);
+  const cohortAverages = useCohort ? computeCohortAverages(cohortSectionsList) : null;
 
   return buildLevelTestReportData({
     studentName: gr.student.name,
@@ -75,6 +74,8 @@ async function buildReportPayload(exam: GradedExam, gr: GradeRec, academyId: str
     className: opts.className,
     classId: opts.classId,
     narrativeOverride: opts.narrative,
+    cohortTotals: cohort.map((r) => r.score!).filter((s): s is number => s != null),
+    cohortSections: cohortSectionsList,
   });
 }
 

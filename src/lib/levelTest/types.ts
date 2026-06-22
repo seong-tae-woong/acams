@@ -62,6 +62,16 @@ export interface LevelTestPlacement {
   className: string;
 }
 
+/** 동급생(같은 양식 응시자) 중 백분위 — 발행 시 스냅샷. N<임계 또는 showAverage=false면 null. */
+export interface LevelTestPercentile {
+  /** 응시자 수 N (스냅샷). "응시자 N명 기준" 표시용 */
+  cohortSize: number;
+  /** 종합 상위 % (1~100, 작을수록 상위) */
+  total: number;
+  /** 영역별 상위 % */
+  sections: { name: string; top: number }[];
+}
+
 /** Report.data (kind=LEVEL_TEST) */
 export interface LevelTestReportData {
   studentName: string;
@@ -81,4 +91,6 @@ export interface LevelTestReportData {
   placement?: LevelTestPlacement | null;
   /** 한 줄 판정 내러티브 (구 리포트엔 없음). 설계 §Q */
   narrative?: string | null;
+  /** 동급생 백분위 (N<임계·showAverage=false·구 리포트엔 없음 → null이면 카드 숨김) */
+  percentile?: LevelTestPercentile | null;
 }

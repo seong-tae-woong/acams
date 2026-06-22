@@ -8,6 +8,7 @@ const clamp = (v: number) => Math.min(100, Math.max(0, v));
 export default function LevelTestReportView({ data }: { data: LevelTestReportData }) {
   const hasAverage = data.sections.some((s) => s.average != null);
   const place = data.placement;
+  const pct = data.percentile;
   return (
     <>
       {/* 배치(진단) — 내러티브 리드 + 선택된 반. 레거시 리포트(narrative·placement 없음)면 숨김(§Q·3B) */}
@@ -63,6 +64,43 @@ export default function LevelTestReportView({ data }: { data: LevelTestReportDat
         ))}
         {hasAverage && <div className="text-[10px] text-[#9ca3af] text-right pt-0.5">┃ = {data.averageLabel}</div>}
       </div>
+
+      {/* 동급생 비교 — 백분위 포지션 바 (N<임계·showAverage=false면 percentile=null → 숨김) */}
+      {pct && (
+        <div className="bg-white rounded-[12px] border border-[#e2e8f0] p-4">
+          <div className="flex items-baseline justify-between mb-3">
+            <span className="text-[13px] font-semibold text-[#111827]">동급생 비교</span>
+            <span className="text-[11px] text-[#9ca3af]">응시자 {pct.cohortSize}명 기준</span>
+          </div>
+          <div className="mb-3.5">
+            <div className="flex items-baseline justify-between mb-1.5">
+              <span className="text-[13px] font-medium text-[#111827]">종합</span>
+              <span className="text-[13px] font-bold text-[#0F6E56] tabular-nums">상위 {pct.total}%</span>
+            </div>
+            <div className="h-2 bg-[#f1f5f9] rounded-full">
+              <div className="h-full bg-[#1D9E75] rounded-full" style={{ width: `${clamp(100 - pct.total)}%` }} />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[10px] text-[#cbd5e1]">하위</span>
+              <span className="text-[10px] text-[#cbd5e1]">상위</span>
+            </div>
+          </div>
+          {pct.sections.map((s, i) => {
+            const high = s.top <= 50;
+            return (
+              <div key={i} className={i < pct.sections.length - 1 ? 'mb-2.5' : ''}>
+                <div className="flex items-baseline justify-between mb-1">
+                  <span className="text-[12px] text-[#374151]">{s.name}</span>
+                  <span className={`text-[12px] font-medium tabular-nums ${high ? 'text-[#374151]' : 'text-[#6b7280]'}`}>상위 {s.top}%</span>
+                </div>
+                <div className="h-1.5 bg-[#f1f5f9] rounded-full">
+                  <div className="h-full rounded-full" style={{ width: `${clamp(100 - s.top)}%`, background: high ? '#1D9E75' : '#9ca3af' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* 선생님 코멘트 */}
       {data.comment && data.comment.trim() && (

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildLevelTestReportData,
   computeCohortAverages,
+  computeTopPercent,
   josa,
   deriveRead,
   buildNarrative,
@@ -204,5 +205,73 @@ describe('buildLevelTestReportData — 배치(반)/내러티브/레거시', () =
   });
   it('레거시(구 빌더 데이터)처럼 narrative 없으면 카드 숨김', () => {
     expect(showPlacement({ narrative: null, placement: null })).toBe(false);
+  });
+});
+
+describe('computeTopPercent (동급생 상위 %)', () => {
+  it('순위 기반 상위 % (작을수록 상위)', () => {
+    const dist = [50, 60, 70, 80, 90];
+    expect(computeTopPercent(90, dist)).toBe(20); // 1/5 최상위
+    expect(computeTopPercent(70, dist)).toBe(60); // 3/5
+    expect(computeTopPercent(50, dist)).toBe(100); // 최하위
+  });
+  it('동점은 같은 순위', () => {
+    expect(computeTopPercent(90, [90, 90, 70, 60, 50])).toBe(20);
+  });
+  it('빈 분포 → 100, 최상위는 1로 clamp(상위 0% 방지)', () => {
+    expect(computeTopPercent(80, [])).toBe(100);
+    const big = Array.from({ length: 200 }, (_, i) => i); // 0..199
+    expect(computeTopPercent(199, big)).toBe(1);
+  });
+});
+
+describe('buildLevelTestReportData — 백분위', () => {
+  const mkCohort = (n: number) => {
+    const totals = Array.from({ length: n }, (_, i) => (i === 0 ? 72 : 50));
+    const sections: SectionScore[][] = Array.from({ length: n }, (_, i) =>
+      i === 0
+        ? sectionScores
+        : [
+            { key: 'vocab', name: '어휘', correct: 5, total: 10, score: 50, benchmark: 70 },
+            { key: 'grammar', name: '문법', correct: 5, total: 10, score: 50, benchmark: 73 },
+            { key: 'reading', name: '독해', correct: 2, total: 5, score: 40, benchmark: 74 },
+          ],
+    );
+    return { totals, sections };
+  };
+
+  it('N≥임계 + showAverage → percentile 계산', () => {
+    const { totals, sections } = mkCohort(20);
+    const d = buildLevelTestReportData({
+      ...base, showAverage: true, useCohort: true, cohortAverages: new Map(),
+      cohortTotals: totals, cohortSections: sections,
+    });
+    expect(d.percentile?.cohortSize).toBe(20);
+    expect(d.percentile?.total).toBe(5); // 72가 최상위(1/20)
+    expect(d.percentile?.sections.map((s) => s.name)).toEqual(['어휘', '문법', '독해']);
+    expect(d.percentile?.sections[0].top).toBe(5);
+  });
+
+  it('N<임계 → percentile null', () => {
+    const { totals, sections } = mkCohort(10);
+    const d = buildLevelTestReportData({
+      ...base, showAverage: true, useCohort: false, cohortAverages: null,
+      cohortTotals: totals, cohortSections: sections,
+    });
+    expect(d.percentile).toBeNull();
+  });
+
+  it('showAverage=false → percentile null (민감 상담)', () => {
+    const { totals, sections } = mkCohort(20);
+    const d = buildLevelTestReportData({
+      ...base, showAverage: false, useCohort: false, cohortAverages: null,
+      cohortTotals: totals, cohortSections: sections,
+    });
+    expect(d.percentile).toBeNull();
+  });
+
+  it('cohort 미전달(구 빌더) → percentile null', () => {
+    const d = buildLevelTestReportData({ ...base, showAverage: true, useCohort: false, cohortAverages: null });
+    expect(d.percentile).toBeNull();
   });
 });
