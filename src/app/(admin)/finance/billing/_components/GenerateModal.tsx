@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/shared/Button';
 import Modal from '@/components/shared/Modal';
 import { useFinanceStore } from '@/lib/stores/financeStore';
@@ -17,6 +17,15 @@ export default function GenerateModal({ open, onClose, refetchBills }: GenerateM
 
   const [generateSaving, setGenerateSaving] = useState(false);
   const [generateMonth, setGenerateMonth] = useState(prevMonth);
+  const [dueDay, setDueDay] = useState(25); // 학원 설정 납부일 (안내 문구용)
+
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/settings/academy')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (typeof d?.billingDueDay === 'number') setDueDay(d.billingDueDay); })
+      .catch(() => {});
+  }, [open]);
 
   const handleGenerateBills = async () => {
     setGenerateSaving(true);
@@ -62,7 +71,7 @@ export default function GenerateModal({ open, onClose, refetchBills }: GenerateM
         <div className="p-3 bg-[#f4f6f8] rounded-[8px] text-[12px] text-[#6b7280] space-y-1">
           <div>• 활성 수강생 전체를 대상으로 청구서를 일괄 생성합니다.</div>
           <div>• 금액은 시간표 기준으로 산정됩니다 (초기 청구). 출결 반영은 재청구 흐름을 사용하세요.</div>
-          <div>• 납부기한은 해당 월 25일로 자동 설정됩니다.</div>
+          <div>• 납부기한은 해당 월 {dueDay}일로 자동 설정됩니다. <span className="text-[#9ca3af]">(설정 &gt; 학원 정보에서 변경)</span></div>
         </div>
       </div>
     </Modal>

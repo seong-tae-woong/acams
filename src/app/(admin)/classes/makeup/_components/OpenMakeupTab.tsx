@@ -96,6 +96,16 @@ export default function OpenMakeupTab() {
     fetchMakeupClasses('OPEN');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 오픈 보강 신청 마감 리드타임 (학원 설정 — 안내 문구용)
+  const [leadHours, setLeadHours] = useState(24);
+  useEffect(() => {
+    fetch('/api/settings/academy')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (typeof d?.openMakeupApplyLeadHours === 'number') setLeadHours(d.openMakeupApplyLeadHours); })
+      .catch(() => {});
+  }, []);
+  const leadLabel = leadHours > 0 && leadHours % 24 === 0 ? `${leadHours / 24}일` : `${leadHours}시간`;
+
   /* ── 필터 ── */
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterClassId, setFilterClassId] = useState<string>('');
@@ -874,7 +884,7 @@ export default function OpenMakeupTab() {
           )}
 
           <div className="text-[10.5px] text-[#9ca3af]">
-            ※ 신청 마감은 자동으로 보강 시작 1시간 전으로 설정됩니다 (현재 버전).
+            ※ 신청 마감은 자동으로 보강 시작 <span className="font-semibold text-[#6b7280]">{leadLabel} 전</span>으로 설정됩니다. (설정 &gt; 학원 정보에서 변경)
           </div>
         </div>
       </Modal>

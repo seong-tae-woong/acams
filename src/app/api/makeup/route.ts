@@ -20,14 +20,14 @@ const MAKEUP_INCLUDE = {
 
 type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
-  makeupDate: Date; makeupTime: string; teacherId: string;
+  makeupDate: Date; makeupTime: string; teacherId: string | null;
   reason: string; attendanceChecked: boolean;
   slotType: MakeupSlotType;
   capacity: number | null;
   applicationDeadline: Date | null;
   recurrenceGroupId: string | null;
   originalClass: { name: string };
-  teacher: { name: string };
+  teacher: { name: string } | null;
   targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
 };
 
@@ -39,8 +39,8 @@ function mapMakeup(m: MakeupForMap) {
     originalDate: m.originalDate.toISOString().slice(0, 10),
     makeupDate: m.makeupDate.toISOString().slice(0, 10),
     makeupTime: m.makeupTime,
-    teacherId: m.teacherId,
-    teacherName: m.teacher.name,
+    teacherId: m.teacherId ?? '',
+    teacherName: m.teacher?.name ?? '',
     targetStudents: m.targets.map((t) => t.studentId),
     attendance: m.targets.map((t) => ({
       studentId: t.studentId,
@@ -145,6 +145,15 @@ interface RecurrencePattern {
   endTime?: string;       // HH:MM (옵션, 정보용)
 }
 
+// 오픈 보강 신청 마감 = 보강 시작 시각 − leadHours (학원 설정). startTime은 "HH:MM" 또는 "HH:MM~HH:MM".
+function computeDeadline(dateObj: Date, startTime: string, leadHours: number): Date {
+  const clean = (startTime || '00:00').split('~')[0];
+  const [hh, mm] = clean.split(':').map(Number);
+  const startDt = new Date(dateObj);
+  startDt.setUTCHours(Number.isFinite(hh) ? hh : 0, Number.isFinite(mm) ? mm : 0, 0, 0);
+  return new Date(startDt.getTime() - leadHours * 3600_000);
+}
+
 // 반복 패턴 → makeupDate 목록 펼침
 function expandRecurrence(p: RecurrencePattern): string[] {
   const start = new Date(`${p.startDate}T00:00:00.000Z`);
@@ -194,6 +203,13 @@ export async function POST(req: NextRequest) {
     const isOpen = slotType === 'OPEN';
     const slotEnum = isOpen ? MakeupSlotType.OPEN : MakeupSlotType.PERSONAL;
 
+    // 오픈 보강 기본 신청 마감 리드타임 (학원 설정, 기본 24h = 1일 전)
+    const academySettings = await prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { openMakeupApplyLeadHours: true },
+    });
+    const leadHours = academySettings?.openMakeupApplyLeadHours ?? 24;
+
     // ── 반복 슬롯 (OPEN 전용) ──
     if (isOpen && recurrencePattern) {
       const pattern = recurrencePattern as RecurrencePattern;
@@ -241,13 +257,7 @@ export async function POST(req: NextRequest) {
           const dateObj = new Date(`${date}T00:00:00.000Z`);
           const deadline = applicationDeadline
             ? new Date(applicationDeadline)
-            : (() => {
-                // 기본: 시작 시각 1시간 전
-                const [hh, mm] = pattern.startTime.split(':').map(Number);
-                const d = new Date(dateObj);
-                d.setUTCHours(hh - 1, mm, 0, 0);
-                return d;
-              })();
+            : computeDeadline(dateObj, pattern.startTime, leadHours);
           const m = await tx.makeupClass.create({
             data: {
               academyId,
@@ -298,12 +308,7 @@ export async function POST(req: NextRequest) {
     const deadline = isOpen
       ? (applicationDeadline
           ? new Date(applicationDeadline)
-          : (() => {
-              const [hh, mm] = (makeupTime || '00:00').split(':').map(Number);
-              const d = new Date(dateObj);
-              d.setUTCHours(hh - 1, mm, 0, 0);
-              return d;
-            })())
+          : computeDeadline(dateObj, makeupTime || '00:00', leadHours))
       : null;
 
     const makeup = await prisma.$transaction(async (tx) => {

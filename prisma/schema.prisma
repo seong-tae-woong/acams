@@ -31,6 +31,10 @@ model Academy {
   // ── 청구 설정 ────────────────────────────────────────
   siblingDiscountDefault Int    @default(0) // 형제/자매 할인 금액 (type=fixed면 원, percent면 0-100)
   siblingDiscountType    String @default("fixed") // "fixed" | "percent"
+  billingDueDay          Int    @default(25) // 청구 납부기한 일자 (1-31, 해당 월 말일 초과 시 말일로 보정)
+
+  // ── 보강 설정 ────────────────────────────────────────
+  openMakeupApplyLeadHours Int @default(24) // 오픈 보강 신청 마감: 보강 시작 N시간 전 (기본 24h = 1일)
 
   // ── 알림 설정 ────────────────────────────────────────
   smsEnabled Boolean @default(true) // 임시PW SMS 자동 발송 (false=테스트 모드: 폼에서 직접 지정, mustChangePassword 미강제)
@@ -460,6 +464,7 @@ model MakeupClass {
   academyId String
   academy   Academy @relation(fields: [academyId], references: [id])
 
+  // 대표 반: 개별 보강=해당 반, 오픈 보강=첫 선택 반(전체 반이면 학원 첫 반). 표시·집계의 앵커.
   originalClassId String
   originalClass   Class    @relation(fields: [originalClassId], references: [id])
   originalDate    DateTime
@@ -467,8 +472,9 @@ model MakeupClass {
   makeupDate DateTime
   makeupTime String   @default("")
 
-  teacherId String
-  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  // 강사: 개별 보강=필수, 오픈 보강=선택(없으면 null). 다중 강사는 teacherIds 사용.
+  teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId], references: [id])
 
   reason            String  @default("")
   attendanceChecked Boolean @default(false)
@@ -476,9 +482,13 @@ model MakeupClass {
   // ── 오픈 보강 슬롯 메타 (Phase 2~3에서 활용, Phase 1엔 default만 들어감) ──
   slotType            MakeupSlotType @default(PERSONAL)
   capacity            Int? // null = 무제한
-  applicationDeadline DateTime? // null = 앱에서 makeupDate-1h 계산
+  applicationDeadline DateTime? // null = 앱에서 학원 설정(openMakeupApplyLeadHours)으로 계산
   recurrenceGroupId   String? // 반복 슬롯 그룹 식별자
   recurrencePattern   Json? // { daysOfWeek: [1,3], startDate, endDate, time } 등
+  // ── 오픈 보강 다중 대상 (학생 공통) ──
+  openToAllClasses Boolean @default(false) // true = 전체 반 신청 가능
+  eligibleClassIds Json    @default("[]") // 전체반=false일 때 신청 가능 반 ID 목록 (string[])
+  teacherIds       Json    @default("[]") // 담당 강사 ID 목록 (0..N, 선택)
 
   targets       MakeupClassTarget[]
   comments      MakeupComment[]

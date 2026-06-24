@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
         attendanceNotifyEnabled: true,
         attendanceLateMinutes: true,
         attendanceAbsentMinutes: true,
+        billingDueDay: true,
+        openMakeupApplyLeadHours: true,
       },
     });
 
@@ -81,6 +83,9 @@ export async function PATCH(req: NextRequest) {
       attendanceNotifyEnabled,
       attendanceLateMinutes,
       attendanceAbsentMinutes,
+      // 청구 납부일 / 오픈 보강 신청 마감
+      billingDueDay,
+      openMakeupApplyLeadHours,
     } = body;
 
     // 한 줄 소개는 최대 40자 (히어로 태그라인)
@@ -108,6 +113,17 @@ export async function PATCH(req: NextRequest) {
       if (nextLate >= nextAbsent) {
         return NextResponse.json({ error: '지각 임계값은 결석 임계값보다 작아야 합니다.' }, { status: 400 });
       }
+    }
+
+    // 청구 납부일: 1-31일 (월말 초과 시 청구 생성 시 말일로 보정)
+    const dueDayNum = typeof billingDueDay === 'number' ? Math.trunc(billingDueDay) : undefined;
+    if (dueDayNum !== undefined && (dueDayNum < 1 || dueDayNum > 31)) {
+      return NextResponse.json({ error: '청구 납부일은 1-31일 범위여야 합니다.' }, { status: 400 });
+    }
+    // 오픈 보강 신청 마감 리드타임: 0-720시간(최대 30일)
+    const leadHoursNum = typeof openMakeupApplyLeadHours === 'number' ? Math.trunc(openMakeupApplyLeadHours) : undefined;
+    if (leadHoursNum !== undefined && (leadHoursNum < 0 || leadHoursNum > 720)) {
+      return NextResponse.json({ error: '오픈 보강 신청 마감은 0~720시간(30일) 범위로 설정해주세요.' }, { status: 400 });
     }
 
     // 결제 활성화 학원은 사업자정보·환불정책 필수 (토스 심사·전자상거래 법정 표시사항)
@@ -170,6 +186,8 @@ export async function PATCH(req: NextRequest) {
         ...(attendanceNotifyEnabled !== undefined && { attendanceNotifyEnabled: Boolean(attendanceNotifyEnabled) }),
         ...(lateNum !== undefined && { attendanceLateMinutes: lateNum }),
         ...(absentNum !== undefined && { attendanceAbsentMinutes: absentNum }),
+        ...(dueDayNum !== undefined && { billingDueDay: dueDayNum }),
+        ...(leadHoursNum !== undefined && { openMakeupApplyLeadHours: leadHoursNum }),
       },
       select: { slug: true, profileEnabled: true },
     });

@@ -25,7 +25,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'month(YYYY-MM)은 필수입니다.' }, { status: 400 });
     }
 
-    const dueDate = bodyDueDate ?? `${month}-25`;
+    // 납부기한: body 우선, 없으면 학원 설정(billingDueDay, 기본 25일).
+    // 설정 일자가 해당 월 말일을 넘으면 그 달 말일로 보정 (예: 31일 설정 + 2월 → 28/29일).
+    let dueDate: string;
+    if (bodyDueDate) {
+      dueDate = bodyDueDate;
+    } else {
+      const academy = await prisma.academy.findUnique({
+        where: { id: academyId },
+        select: { billingDueDay: true },
+      });
+      const [y, mo] = month.split('-').map(Number);
+      const lastDay = new Date(y, mo, 0).getDate(); // mo(1-based) → 해당 월 말일
+      const day = Math.min(Math.max(academy?.billingDueDay ?? 25, 1), lastDay);
+      dueDate = `${month}-${String(day).padStart(2, '0')}`;
+    }
 
     const enrollments = await prisma.classEnrollment.findMany({
       where: { isActive: true, class: { academyId } },

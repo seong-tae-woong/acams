@@ -27,14 +27,14 @@ const MAKEUP_INCLUDE = {
 
 type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
-  makeupDate: Date; makeupTime: string; teacherId: string;
+  makeupDate: Date; makeupTime: string; teacherId: string | null;
   reason: string; attendanceChecked: boolean;
   slotType: MakeupSlotType;
   capacity: number | null;
   applicationDeadline: Date | null;
   recurrenceGroupId: string | null;
   originalClass: { name: string };
-  teacher: { name: string };
+  teacher: { name: string } | null;
   targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
 };
 
@@ -46,8 +46,8 @@ function mapMakeup(m: MakeupForMap) {
     originalDate: m.originalDate.toISOString().slice(0, 10),
     makeupDate: m.makeupDate.toISOString().slice(0, 10),
     makeupTime: m.makeupTime,
-    teacherId: m.teacherId,
-    teacherName: m.teacher.name,
+    teacherId: m.teacherId ?? '',
+    teacherName: m.teacher?.name ?? '',
     targetStudents: m.targets.map((t) => t.studentId),
     attendance: m.targets.map((t) => ({
       studentId: t.studentId,

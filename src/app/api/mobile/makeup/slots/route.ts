@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
         classId: slot.originalClass.id,
         className: slot.originalClass.name,
         classColor: slot.originalClass.color,
-        teacherName: slot.teacher.name,
+        teacherName: slot.teacher?.name ?? '',
         makeupDate: slot.makeupDate.toISOString().slice(0, 10),
         makeupTime: slot.makeupTime,
         reason: slot.reason,
