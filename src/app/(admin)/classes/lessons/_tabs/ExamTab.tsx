@@ -16,6 +16,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import clsx from 'clsx';
 import PublishReportModal from '@/components/communication/PublishReportModal';
 import CategoryManagerModal from '../_components/CategoryManagerModal';
+import ClassSelector from '../_components/ClassSelector';
 import { type ExamForm, type MainTab, EMPTY_EXAM_FORM, PAGE_SIZE, fieldClass, TAB_OPTIONS } from '../_shared';
 
 interface ExamTabProps {
@@ -360,27 +361,15 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 반 선택 */}
-        <div className="flex gap-2">
-          {classes.map((cls) => (
-            <button
-              key={cls.id}
-              onClick={() => {
-                setSelectedClassId(cls.id);
-                setSelectedExam(null);
-                setFilterCat1(''); setFilterCat2(''); setFilterCat3('');
-              }}
-              className={clsx(
-                'px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium border transition-colors cursor-pointer',
-                selectedClassId === cls.id
-                  ? 'text-white border-transparent'
-                  : 'text-[#374151] border-[#e2e8f0] bg-white hover:bg-[#f4f6f8]',
-              )}
-              style={selectedClassId === cls.id ? { backgroundColor: cls.color } : {}}
-            >
-              {cls.name}
-            </button>
-          ))}
-        </div>
+        <ClassSelector
+          classes={classes}
+          selectedClassId={selectedClassId}
+          onSelect={(id) => {
+            setSelectedClassId(id);
+            setSelectedExam(null);
+            setFilterCat1(''); setFilterCat2(''); setFilterCat3('');
+          }}
+        />
 
         <div className="grid grid-cols-[260px_1fr] gap-4">
           {/* 시험 목록 */}

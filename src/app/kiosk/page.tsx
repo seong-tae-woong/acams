@@ -245,10 +245,10 @@ export default function KioskPage() {
     <div className="min-h-screen bg-[#0f1a2b] flex flex-col items-center justify-between p-8 relative">
       {/* 체크인 알림 플래시 */}
       {flashCheckIn && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#4fc3a1] text-white px-6 py-3 rounded-[16px] shadow-xl flex items-center gap-3">
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 text-white px-6 py-3 rounded-[16px] shadow-xl flex items-center gap-3 ${flashCheckIn.status === 'LATE' ? 'bg-yellow-500' : 'bg-[#4fc3a1]'}`}>
           <CheckCircle size={20} />
-          <span className="font-bold text-[16px]">{flashCheckIn.studentName}</span>
-          <span className="text-white/80 text-[13px]">{flashCheckIn.className} 출석</span>
+          <span className="font-bold text-[16px]">{flashCheckIn.studentName} 학생</span>
+          <span className="text-white/85 text-[13px]">{flashCheckIn.className} · {flashCheckIn.status === 'LATE' ? '지각 처리' : '정상 체크'}</span>
         </div>
       )}
 
@@ -359,33 +359,32 @@ export default function KioskPage() {
                 <div className="text-center py-4">
                   {checkInResult.alreadyChecked ? (
                     <>
-                      <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <AlertCircle size={32} className="text-yellow-400" />
+                      <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <AlertCircle size={40} className="text-yellow-400" />
                       </div>
-                      <p className="text-white text-[18px] font-bold mb-1">이미 출석 처리됨</p>
-                      <p className="text-white/60 text-[14px]">
-                        {checkInResult.studentName} · {checkInResult.className}
+                      <p className="text-white text-[24px] font-bold mb-1">
+                        <span className="text-yellow-400">{checkInResult.studentName}</span> 학생
                       </p>
-                      <p className="text-white/40 text-[13px] mt-1">{checkInResult.checkInTime} 체크인</p>
+                      <p className="text-white text-[18px] font-semibold mb-2">이미 체크되었습니다</p>
+                      <p className="text-white/55 text-[14px]">{checkInResult.className} · {checkInResult.checkInTime} 체크인</p>
                     </>
                   ) : (
                     <>
-                      <div className="w-16 h-16 bg-[#4fc3a1]/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle size={32} className="text-[#4fc3a1]" />
+                      <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${checkInResult.status === 'LATE' ? 'bg-yellow-400/20' : 'bg-[#4fc3a1]/20'}`}>
+                        <CheckCircle size={40} className={checkInResult.status === 'LATE' ? 'text-yellow-400' : 'text-[#4fc3a1]'} />
                       </div>
-                      <p className="text-white text-[18px] font-bold mb-1">출석 완료!</p>
-                      <p className="text-white/60 text-[14px]">
-                        {checkInResult.studentName} · {checkInResult.className}
+                      <p className="text-white text-[24px] font-bold mb-1">
+                        <span className={checkInResult.status === 'LATE' ? 'text-yellow-400' : 'text-[#4fc3a1]'}>{checkInResult.studentName}</span> 학생
                       </p>
-                      <div className="flex items-center justify-center gap-2 mt-2">
-                        <span className="text-white/40 text-[13px]">{checkInResult.checkInTime}</span>
+                      <p className="text-white text-[18px] font-semibold mb-2">
+                        {checkInResult.status === 'LATE' ? '지각 처리되었습니다' : '정상 체크되었습니다'}
+                      </p>
+                      <p className="text-white/55 text-[14px]">
+                        {checkInResult.className} · {checkInResult.checkInTime}
                         {checkInResult.status === 'LATE' && (
-                          <span className="text-[11px] text-yellow-400 font-semibold bg-yellow-400/10 px-2 py-0.5 rounded-full">지각</span>
+                          <span className="ml-2 text-[11px] text-yellow-400 font-semibold bg-yellow-400/10 px-2 py-0.5 rounded-full align-middle">지각</span>
                         )}
-                        {checkInResult.status === 'PRESENT' && (
-                          <span className="text-[11px] text-[#4fc3a1] font-semibold bg-[#4fc3a1]/10 px-2 py-0.5 rounded-full">출석</span>
-                        )}
-                      </div>
+                      </p>
                     </>
                   )}
                 </div>
@@ -415,42 +414,45 @@ export default function KioskPage() {
         <div className="text-white/40 text-[14px]">{todayLabel()} · 출결 체크 키오스크</div>
       </div>
 
-      {/* 중앙: QR */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="text-white text-[28px] font-bold mb-2">QR 코드를 스캔하세요</div>
-        <div className="text-white/50 text-[14px] mb-6">모바일 앱 → 출석 체크에서 카메라로 스캔</div>
+      {/* 중앙 */}
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        {/* 출결번호 직접 입력 — 주 수단 (상단·강조) */}
+        <div className="text-white text-[26px] font-bold mb-1">출결번호로 출석 체크</div>
+        <div className="text-white/50 text-[14px] mb-5">아래 버튼을 누르고 출결번호를 입력하세요</div>
 
-        <div className="bg-white p-4 rounded-[20px] shadow-2xl mb-4">
-          {qrDataUrl ? (
-            <img src={qrDataUrl} alt="출석 QR" width={260} height={260} />
-          ) : (
-            <div className="w-[260px] h-[260px] flex items-center justify-center">
-              {connected
-                ? <div className="w-10 h-10 border-4 border-[#4fc3a1] border-t-transparent rounded-full animate-spin" />
-                : <WifiOff size={40} className="text-red-400" />
-              }
-            </div>
-          )}
-        </div>
-
-        <div className="text-white/40 text-[13px] mb-5">
-          QR 갱신까지{' '}
-          <span className="text-[#4fc3a1] font-semibold tabular-nums">
-            {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
-          </span>
-        </div>
-
-        {/* 출결번호 직접 입력 버튼 */}
         <button
           onClick={openModal}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white/70 hover:text-white border border-white/15 rounded-[14px] px-5 py-2.5 text-[14px] font-medium cursor-pointer transition-all mb-3"
+          className="flex flex-col items-center gap-2.5 bg-[#4fc3a1] hover:bg-[#3db38f] active:scale-[0.98] text-white rounded-[28px] px-16 py-8 shadow-2xl cursor-pointer transition-all"
         >
-          <Hash size={15} className="text-[#4fc3a1]" />
-          출결번호 직접 입력
+          <Hash size={48} className="text-white" />
+          <span className="text-[30px] font-bold tracking-tight">출결번호 직접 입력</span>
         </button>
 
+        {/* QR — 보조 수단 (하단·축소) */}
+        <div className="flex flex-col items-center mt-8">
+          <div className="text-white/45 text-[13px] mb-2.5">또는 모바일 앱으로 QR 스캔</div>
+          <div className="bg-white p-3 rounded-[16px] shadow-xl">
+            {qrDataUrl ? (
+              <img src={qrDataUrl} alt="출석 QR" width={200} height={200} />
+            ) : (
+              <div className="w-[200px] h-[200px] flex items-center justify-center">
+                {connected
+                  ? <div className="w-9 h-9 border-4 border-[#4fc3a1] border-t-transparent rounded-full animate-spin" />
+                  : <WifiOff size={36} className="text-red-400" />
+                }
+              </div>
+            )}
+          </div>
+          <div className="text-white/35 text-[12px] mt-2">
+            QR 갱신까지{' '}
+            <span className="text-[#4fc3a1] font-semibold tabular-nums">
+              {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+            </span>
+          </div>
+        </div>
+
         {/* 출결 기준 안내 */}
-        <div className="text-white/25 text-[11px] text-center leading-relaxed mb-6">
+        <div className="text-white/25 text-[11px] text-center leading-relaxed mt-6 mb-5">
           수업 시작 30분 전 ~ 시작 후 10분 <span className="text-[#4fc3a1]/50">출석</span>
           {'  ·  '}
           시작 후 10분 ~ 30분 <span className="text-yellow-400/50">지각</span>

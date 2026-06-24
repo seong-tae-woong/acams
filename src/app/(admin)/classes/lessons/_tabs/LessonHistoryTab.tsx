@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import { type MainTab, TAB_OPTIONS } from '../_shared';
 import SessionDetailModal from '../_components/SessionDetailModal';
 import ClinicTemplateModal from '../_components/ClinicTemplateModal';
+import ClassSelector from '../_components/ClassSelector';
 import type { LessonSession } from '@/lib/types/lesson';
 
 interface LessonHistoryTabProps {
@@ -120,34 +121,12 @@ export default function LessonHistoryTab({
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 반 선택 */}
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setSelectedClassId('')}
-            className={clsx(
-              'px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium border transition-colors cursor-pointer',
-              selectedClassId === ''
-                ? 'text-white border-transparent bg-[#1a2535]'
-                : 'text-[#374151] border-[#e2e8f0] bg-white hover:bg-[#f4f6f8]',
-            )}
-          >
-            전체
-          </button>
-          {classes.map((cls) => (
-            <button
-              key={cls.id}
-              onClick={() => setSelectedClassId(cls.id)}
-              className={clsx(
-                'px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium border transition-colors cursor-pointer',
-                selectedClassId === cls.id
-                  ? 'text-white border-transparent'
-                  : 'text-[#374151] border-[#e2e8f0] bg-white hover:bg-[#f4f6f8]',
-              )}
-              style={selectedClassId === cls.id ? { backgroundColor: cls.color } : {}}
-            >
-              {cls.name}
-            </button>
-          ))}
-        </div>
+        <ClassSelector
+          classes={classes}
+          selectedClassId={selectedClassId}
+          onSelect={setSelectedClassId}
+          showAll
+        />
 
         {/* 캘린더 */}
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">

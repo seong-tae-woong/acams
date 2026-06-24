@@ -11,6 +11,7 @@ import { Plus, Trash2, Pencil } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { DAY_NAMES } from '@/lib/types/class';
 import clsx from 'clsx';
+import ClassSelector from '../_components/ClassSelector';
 import {
   type Assignment, type AssignmentForm, type MainTab,
   EMPTY_ASSIGNMENT_FORM, PAGE_SIZE, fieldClass, TAB_OPTIONS,
@@ -191,26 +192,14 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 반 선택 */}
-        <div className="flex gap-2">
-          {classes.map((cls) => (
-            <button
-              key={cls.id}
-              onClick={() => {
-                setSelectedClassId(cls.id);
-                setSelectedExam(null);
-              }}
-              className={clsx(
-                'px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium border transition-colors cursor-pointer',
-                selectedClassId === cls.id
-                  ? 'text-white border-transparent'
-                  : 'text-[#374151] border-[#e2e8f0] bg-white hover:bg-[#f4f6f8]',
-              )}
-              style={selectedClassId === cls.id ? { backgroundColor: cls.color } : {}}
-            >
-              {cls.name}
-            </button>
-          ))}
-        </div>
+        <ClassSelector
+          classes={classes}
+          selectedClassId={selectedClassId}
+          onSelect={(id) => {
+            setSelectedClassId(id);
+            setSelectedExam(null);
+          }}
+        />
 
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
