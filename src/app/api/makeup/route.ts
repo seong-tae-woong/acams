@@ -18,6 +18,28 @@ const MAKEUP_INCLUDE = {
   targets: { select: { studentId: true, status: true, memo: true } },
 } as const;
 
+function asIdArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
+}
+
+// eligibleClassIds / teacherIds(Json)의 이름 해석 맵 — 한 페이지 분량을 일괄 조회 (N+1 방지)
+async function buildMakeupNameMaps(items: { eligibleClassIds: unknown; teacherIds: unknown }[]) {
+  const classIds = new Set<string>();
+  const teacherIds = new Set<string>();
+  for (const it of items) {
+    asIdArray(it.eligibleClassIds).forEach((id) => classIds.add(id));
+    asIdArray(it.teacherIds).forEach((id) => teacherIds.add(id));
+  }
+  const [cls, tch] = await Promise.all([
+    classIds.size ? prisma.class.findMany({ where: { id: { in: [...classIds] } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    teacherIds.size ? prisma.teacher.findMany({ where: { id: { in: [...teacherIds] } }, select: { id: true, name: true } }) : Promise.resolve([]),
+  ]);
+  return {
+    classNames: new Map(cls.map((c) => [c.id, c.name])),
+    teacherNames: new Map(tch.map((t) => [t.id, t.name])),
+  };
+}
+
 type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
   makeupDate: Date; makeupTime: string; teacherId: string | null;
@@ -26,12 +48,21 @@ type MakeupForMap = {
   capacity: number | null;
   applicationDeadline: Date | null;
   recurrenceGroupId: string | null;
+  openToAllClasses: boolean;
+  eligibleClassIds: unknown;
+  teacherIds: unknown;
   originalClass: { name: string };
   teacher: { name: string } | null;
   targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
 };
 
-function mapMakeup(m: MakeupForMap) {
+function mapMakeup(
+  m: MakeupForMap,
+  classNames?: Map<string, string>,
+  teacherNames?: Map<string, string>,
+) {
+  const eligibleClassIds = asIdArray(m.eligibleClassIds);
+  const teacherIds = asIdArray(m.teacherIds);
   return {
     id: m.id,
     originalClassId: m.originalClassId,
@@ -53,6 +84,12 @@ function mapMakeup(m: MakeupForMap) {
     capacity: m.capacity,
     applicationDeadline: m.applicationDeadline ? m.applicationDeadline.toISOString() : null,
     recurrenceGroupId: m.recurrenceGroupId,
+    // ── 오픈 보강 다중 대상 ──
+    openToAllClasses: m.openToAllClasses,
+    eligibleClassIds,
+    eligibleClassNames: eligibleClassIds.map((id) => classNames?.get(id)).filter((n): n is string => !!n),
+    teacherIds,
+    teacherNames: teacherIds.map((id) => teacherNames?.get(id)).filter((n): n is string => !!n),
     // 신청 가능 인원 계산은 UI에서 capacity - targets.length로
   };
 }
@@ -126,8 +163,9 @@ export async function GET(req: NextRequest) {
       ? `${last.makeupDate.toISOString().slice(0, 10)}|${last.id}`
       : null;
 
+    const { classNames, teacherNames } = await buildMakeupNameMaps(items);
     return NextResponse.json({
-      items: items.map(mapMakeup),
+      items: items.map((m) => mapMakeup(m, classNames, teacherNames)),
       nextCursor,
     });
   } catch (err) {
@@ -194,14 +232,59 @@ export async function POST(req: NextRequest) {
       capacity,
       applicationDeadline,
       recurrencePattern,
+      // 오픈 보강 다중 대상
+      openToAllClasses,
+      eligibleClassIds,
+      teacherIds,
     } = body;
-
-    if (!originalClassId || !teacherId) {
-      return NextResponse.json({ error: '원래 반, 강사는 필수입니다.' }, { status: 400 });
-    }
 
     const isOpen = slotType === 'OPEN';
     const slotEnum = isOpen ? MakeupSlotType.OPEN : MakeupSlotType.PERSONAL;
+
+    // ── 대표 반/강사 + 다중 대상 산정 ──
+    // 개별 보강(PERSONAL): 단일 반·강사 필수. 오픈 보강(OPEN): 여러 반/전체 반 + 강사 0..N(선택).
+    let repClassId: string;
+    let repTeacherId: string | null = null;
+    let eligibleForDb: string[] = [];
+    let teachersForDb: string[] = [];
+    let allClassesForDb = false;
+
+    if (isOpen) {
+      let eligible = [...new Set(asIdArray(eligibleClassIds))];
+      let teachers = [...new Set(asIdArray(teacherIds))];
+      allClassesForDb = !!openToAllClasses;
+      // body의 id는 신뢰 금지 — 학원 소속만 통과
+      if (eligible.length > 0) {
+        const valid = await prisma.class.findMany({ where: { id: { in: eligible }, academyId }, select: { id: true } });
+        const vs = new Set(valid.map((c) => c.id));
+        eligible = eligible.filter((id) => vs.has(id));
+      }
+      if (teachers.length > 0) {
+        const validT = await prisma.teacher.findMany({ where: { id: { in: teachers }, academyId }, select: { id: true } });
+        const vt = new Set(validT.map((t) => t.id));
+        teachers = teachers.filter((id) => vt.has(id));
+      }
+      if (!allClassesForDb && eligible.length === 0) {
+        return NextResponse.json({ error: '대상 반을 선택하거나 전체 반을 지정해주세요.' }, { status: 400 });
+      }
+      if (allClassesForDb) {
+        const firstClass = await prisma.class.findFirst({ where: { academyId }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+        if (!firstClass) return NextResponse.json({ error: '학원에 등록된 반이 없습니다.' }, { status: 400 });
+        repClassId = firstClass.id;
+        eligibleForDb = [];
+      } else {
+        repClassId = eligible[0];
+        eligibleForDb = eligible;
+      }
+      teachersForDb = teachers;
+      repTeacherId = teachers[0] ?? null;
+    } else {
+      if (!originalClassId || !teacherId) {
+        return NextResponse.json({ error: '원래 반, 강사는 필수입니다.' }, { status: 400 });
+      }
+      repClassId = originalClassId;
+      repTeacherId = teacherId;
+    }
 
     // 오픈 보강 기본 신청 마감 리드타임 (학원 설정, 기본 24h = 1일 전)
     const academySettings = await prisma.academy.findUnique({
@@ -261,11 +344,11 @@ export async function POST(req: NextRequest) {
           const m = await tx.makeupClass.create({
             data: {
               academyId,
-              originalClassId,
+              originalClassId: repClassId,
               originalDate: dateObj, // 반복 슬롯은 originalDate=makeupDate로
               makeupDate: dateObj,
               makeupTime: pattern.startTime + (pattern.endTime ? `~${pattern.endTime}` : ''),
-              teacherId,
+              teacherId: repTeacherId,
               reason: reason ?? '정기 보강',
               attendanceChecked: false,
               slotType: slotEnum,
@@ -273,6 +356,9 @@ export async function POST(req: NextRequest) {
               applicationDeadline: deadline,
               recurrenceGroupId: groupId,
               recurrencePattern: pattern as object,
+              openToAllClasses: allClassesForDb,
+              eligibleClassIds: eligibleForDb,
+              teacherIds: teachersForDb,
             },
           });
           ids.push(m.id);
@@ -285,9 +371,10 @@ export async function POST(req: NextRequest) {
         where: { id: createdIds[0] },
         include: MAKEUP_INCLUDE,
       });
+      const firstMaps = await buildMakeupNameMaps([first!]);
       return NextResponse.json(
         {
-          ...mapMakeup(first!),
+          ...mapMakeup(first!, firstMaps.classNames, firstMaps.teacherNames),
           createdCount: createdIds.length,
           excludedCount: excludedDates.length,
           excludedDates,
@@ -315,16 +402,19 @@ export async function POST(req: NextRequest) {
       const m = await tx.makeupClass.create({
         data: {
           academyId,
-          originalClassId,
+          originalClassId: repClassId,
           originalDate: new Date(originalDate ?? makeupDate),
           makeupDate: dateObj,
           makeupTime: makeupTime ?? '',
-          teacherId,
+          teacherId: repTeacherId,
           reason: reason ?? '',
           attendanceChecked: false,
           slotType: slotEnum,
           capacity: isOpen && typeof capacity === 'number' && capacity > 0 ? capacity : null,
           applicationDeadline: deadline,
+          openToAllClasses: allClassesForDb,
+          eligibleClassIds: eligibleForDb,
+          teacherIds: teachersForDb,
         },
       });
 
@@ -345,8 +435,9 @@ export async function POST(req: NextRequest) {
       where: { id: makeup },
       include: MAKEUP_INCLUDE,
     });
+    const createdMaps = await buildMakeupNameMaps([created!]);
 
-    return NextResponse.json(mapMakeup(created!), { status: 201 });
+    return NextResponse.json(mapMakeup(created!, createdMaps.classNames, createdMaps.teacherNames), { status: 201 });
   } catch (err) {
     await logServerError(req, err);
     console.error('[POST /api/makeup]', err instanceof Error ? err.message : String(err));

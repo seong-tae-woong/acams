@@ -23,8 +23,9 @@ const labelCls = 'block text-[11.5px] text-[#6b7280] mb-1';
 type RegisterMode = 'single' | 'recurring';
 
 interface SingleForm {
-  originalClassId: string;
-  teacherId: string;
+  eligibleClassIds: string[];   // 신청 가능 반 (다중)
+  openToAllClasses: boolean;    // 전체 반
+  teacherIds: string[];         // 담당 강사 (선택, 다중)
   reason: string;
   capacity: string;        // text input → number 변환
   makeupDate: string;
@@ -32,8 +33,9 @@ interface SingleForm {
 }
 
 interface RecurringForm {
-  originalClassId: string;
-  teacherId: string;
+  eligibleClassIds: string[];
+  openToAllClasses: boolean;
+  teacherIds: string[];
   reason: string;
   capacity: string;
   daysOfWeek: number[];    // 1=월..7=일
@@ -44,8 +46,9 @@ interface RecurringForm {
 }
 
 const EMPTY_SINGLE: SingleForm = {
-  originalClassId: '',
-  teacherId: '',
+  eligibleClassIds: [],
+  openToAllClasses: false,
+  teacherIds: [],
   reason: '정기 보강',
   capacity: '',
   makeupDate: '',
@@ -53,8 +56,9 @@ const EMPTY_SINGLE: SingleForm = {
 };
 
 const EMPTY_RECURRING: RecurringForm = {
-  originalClassId: '',
-  teacherId: '',
+  eligibleClassIds: [],
+  openToAllClasses: false,
+  teacherIds: [],
   reason: '정기 보강',
   capacity: '',
   daysOfWeek: [],
@@ -191,24 +195,51 @@ export default function OpenMakeupTab() {
     setRegisterOpen(true);
   }
 
-  function handleClassChange(classId: string, isSingle: boolean) {
-    const cls = classes.find((c) => c.id === classId);
-    if (isSingle) {
-      setSingleForm((f) => ({ ...f, originalClassId: classId, teacherId: cls?.teacherId ?? '' }));
-    } else {
-      setRecurringForm((f) => ({ ...f, originalClassId: classId, teacherId: cls?.teacherId ?? '' }));
-    }
+  // 대상 반 토글 (전체 반이 켜져 있으면 끄고 해당 반만 선택)
+  function toggleClass(classId: string, isSingle: boolean) {
+    const apply = (f: { openToAllClasses: boolean; eligibleClassIds: string[] }) => {
+      if (f.openToAllClasses) return { openToAllClasses: false, eligibleClassIds: [classId] };
+      const has = f.eligibleClassIds.includes(classId);
+      return {
+        openToAllClasses: false,
+        eligibleClassIds: has ? f.eligibleClassIds.filter((id) => id !== classId) : [...f.eligibleClassIds, classId],
+      };
+    };
+    if (isSingle) setSingleForm((f) => ({ ...f, ...apply(f) }));
+    else setRecurringForm((f) => ({ ...f, ...apply(f) }));
+  }
+  function toggleAllClasses(isSingle: boolean) {
+    const apply = (f: { openToAllClasses: boolean; eligibleClassIds: string[] }) => ({
+      openToAllClasses: !f.openToAllClasses,
+      eligibleClassIds: !f.openToAllClasses ? [] : f.eligibleClassIds,
+    });
+    if (isSingle) setSingleForm((f) => ({ ...f, ...apply(f) }));
+    else setRecurringForm((f) => ({ ...f, ...apply(f) }));
+  }
+  function toggleTeacher(teacherId: string, isSingle: boolean) {
+    const apply = (f: { teacherIds: string[] }) => ({
+      teacherIds: f.teacherIds.includes(teacherId)
+        ? f.teacherIds.filter((id) => id !== teacherId)
+        : [...f.teacherIds, teacherId],
+    });
+    if (isSingle) setSingleForm((f) => ({ ...f, ...apply(f) }));
+    else setRecurringForm((f) => ({ ...f, ...apply(f) }));
   }
 
   async function handleSaveSingle() {
     const f = singleForm;
-    if (!f.originalClassId || !f.teacherId || !f.makeupDate || !f.makeupTime) {
-      toast('필수 항목을 모두 입력해주세요.', 'error');
+    if (!f.openToAllClasses && f.eligibleClassIds.length === 0) {
+      toast('대상 반을 선택하거나 전체 반을 지정해주세요.', 'error');
+      return;
+    }
+    if (!f.makeupDate || !f.makeupTime) {
+      toast('보강일과 보강 시간을 입력해주세요.', 'error');
       return;
     }
     const input: OpenSlotCreateInput = {
-      originalClassId: f.originalClassId,
-      teacherId: f.teacherId,
+      openToAllClasses: f.openToAllClasses,
+      eligibleClassIds: f.eligibleClassIds,
+      teacherIds: f.teacherIds,
       reason: f.reason,
       capacity: f.capacity ? Number(f.capacity) : null,
       makeupDate: f.makeupDate,
@@ -223,8 +254,12 @@ export default function OpenMakeupTab() {
 
   async function handleSaveRecurring() {
     const f = recurringForm;
-    if (!f.originalClassId || !f.teacherId || f.daysOfWeek.length === 0 || !f.startDate || !f.endDate || !f.startTime) {
-      toast('필수 항목을 모두 입력해주세요.', 'error');
+    if (!f.openToAllClasses && f.eligibleClassIds.length === 0) {
+      toast('대상 반을 선택하거나 전체 반을 지정해주세요.', 'error');
+      return;
+    }
+    if (f.daysOfWeek.length === 0 || !f.startDate || !f.endDate || !f.startTime) {
+      toast('반복 요일·기간·시작 시간을 입력해주세요.', 'error');
       return;
     }
     if (countRecurrence(f) === 0) {
@@ -239,8 +274,9 @@ export default function OpenMakeupTab() {
       endTime: f.endTime || undefined,
     };
     const input: OpenSlotCreateInput = {
-      originalClassId: f.originalClassId,
-      teacherId: f.teacherId,
+      openToAllClasses: f.openToAllClasses,
+      eligibleClassIds: f.eligibleClassIds,
+      teacherIds: f.teacherIds,
       reason: f.reason,
       capacity: f.capacity ? Number(f.capacity) : null,
       recurrencePattern: pattern,
@@ -285,9 +321,12 @@ export default function OpenMakeupTab() {
   }
 
   const classStudentsForModal = selected
-    ? students.filter(
-        (s) => s.classes?.includes(selected.originalClassId) && !selected.targetStudents.includes(s.id),
-      )
+    ? students.filter((s) => {
+        if (selected.targetStudents.includes(s.id)) return false;
+        if (selected.openToAllClasses) return true;
+        const eligible = new Set<string>([...(selected.eligibleClassIds ?? []), selected.originalClassId]);
+        return (s.classes ?? []).some((cid) => eligible.has(cid));
+      })
     : [];
 
   async function handleSaveAttendance() {
@@ -304,6 +343,24 @@ export default function OpenMakeupTab() {
   }
 
   const recurringCount = countRecurrence(recurringForm);
+
+  // 등록 모달 현재 폼 (단일/반복 공통 접근)
+  const isSingleMode = registerMode === 'single';
+  const curForm = isSingleMode ? singleForm : recurringForm;
+
+  // 슬롯의 대상 반 라벨 (전체 반 / 외 N개)
+  const slotClassLabel = (slot: { openToAllClasses?: boolean; eligibleClassNames?: string[]; originalClassName: string }) => {
+    if (slot.openToAllClasses) return '전체 반';
+    const names = slot.eligibleClassNames ?? [];
+    if (names.length === 0) return slot.originalClassName;
+    return names.length > 1 ? `${names[0]} 외 ${names.length - 1}개 반` : names[0];
+  };
+  // 슬롯의 강사 라벨 (없으면 미지정)
+  const slotTeacherLabel = (slot: { teacherNames?: string[]; teacherName?: string }) => {
+    const names = slot.teacherNames ?? [];
+    if (names.length > 0) return names.join(', ');
+    return slot.teacherName || '미지정';
+  };
 
   /* ── 슬롯 메타 표시용 ── */
   const formatDeadline = (iso: string | null | undefined) => {
@@ -414,7 +471,7 @@ export default function OpenMakeupTab() {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cls?.color ?? '#ccc' }} />
-                    <span className="text-[12.5px] font-medium text-[#111827]">{slot.originalClassName}</span>
+                    <span className="text-[12.5px] font-medium text-[#111827]">{slotClassLabel(slot)}</span>
                     {slot.recurrenceGroupId && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#EEEDFE] text-[#5B4FBE]">반복</span>
                     )}
@@ -454,7 +511,7 @@ export default function OpenMakeupTab() {
           <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[14px] font-bold text-[#111827]">
-                {selected.originalClassName} 오픈 슬롯
+                {slotClassLabel(selected)} 오픈 슬롯
               </span>
               <div className="flex gap-2">
                 {selected.recurrenceGroupId && (
@@ -476,7 +533,7 @@ export default function OpenMakeupTab() {
               </div>
               <div>
                 <div className="text-[#6b7280] mb-0.5">담당 강사</div>
-                <div className="font-medium text-[#111827]">{selected.teacherName}</div>
+                <div className="font-medium text-[#111827]">{slotTeacherLabel(selected)}</div>
               </div>
               <div>
                 <div className="text-[#6b7280] mb-0.5">사유</div>
@@ -680,7 +737,7 @@ export default function OpenMakeupTab() {
       >
         <div className="space-y-4">
           <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-[8px] px-3 py-2.5 text-[11.5px] text-[#166534]">
-            오픈 슬롯은 학부모가 PWA에서 자녀를 신청할 수 있습니다. 해당 반에 등록된 학생만 신청 가능합니다.
+            오픈 슬롯은 학부모가 PWA에서 자녀를 신청할 수 있습니다. 선택한 반(또는 전체 반)에 등록된 학생만 신청 가능합니다.
           </div>
 
           {/* 모드 토글 */}
@@ -707,36 +764,71 @@ export default function OpenMakeupTab() {
             </button>
           </div>
 
-          {/* 공통: 반 + 강사 */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* 공통: 대상 반(다중) + 담당 강사(선택) */}
+          <div className="space-y-3">
             <div>
-              <label className={labelCls}>대상 반 <span className="text-[#ef4444]">*</span></label>
-              <select
-                value={registerMode === 'single' ? singleForm.originalClassId : recurringForm.originalClassId}
-                onChange={(e) => handleClassChange(e.target.value, registerMode === 'single')}
-                className={inputCls}
-              >
-                <option value="">반을 선택하세요</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <label className={labelCls}>
+                대상 반 <span className="text-[#ef4444]">*</span>
+                <span className="text-[#9ca3af] font-normal"> · 여러 반 선택 가능</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => toggleAllClasses(isSingleMode)}
+                  className={clsx(
+                    'px-2.5 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                    curForm.openToAllClasses
+                      ? 'bg-[#1a2535] text-white border-transparent'
+                      : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
+                  )}
+                >
+                  전체 반
+                </button>
+                {classes.map((c) => {
+                  const active = !curForm.openToAllClasses && curForm.eligibleClassIds.includes(c.id);
+                  return (
+                    <button
+                      type="button"
+                      key={c.id}
+                      onClick={() => toggleClass(c.id, isSingleMode)}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                        active ? 'text-white border-transparent' : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
+                        curForm.openToAllClasses && 'opacity-40',
+                      )}
+                      style={active ? { backgroundColor: c.color } : {}}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {curForm.openToAllClasses && (
+                <p className="text-[10.5px] text-[#9ca3af] mt-1">전체 반의 학생이 신청할 수 있습니다.</p>
+              )}
             </div>
             <div>
-              <label className={labelCls}>담당 강사 <span className="text-[#ef4444]">*</span></label>
-              <select
-                value={registerMode === 'single' ? singleForm.teacherId : recurringForm.teacherId}
-                onChange={(e) => {
-                  if (registerMode === 'single') setSingleForm((f) => ({ ...f, teacherId: e.target.value }));
-                  else setRecurringForm((f) => ({ ...f, teacherId: e.target.value }));
-                }}
-                className={inputCls}
-              >
-                <option value="">강사를 선택하세요</option>
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
-                ))}
-              </select>
+              <label className={labelCls}>
+                담당 강사 <span className="text-[#9ca3af] font-normal">(선택 · 비워둬도 됩니다)</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {teachers.map((t) => {
+                  const active = curForm.teacherIds.includes(t.id);
+                  return (
+                    <button
+                      type="button"
+                      key={t.id}
+                      onClick={() => toggleTeacher(t.id, isSingleMode)}
+                      className={clsx(
+                        'px-2.5 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                        active ? 'bg-[#4fc3a1] text-white border-transparent' : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
+                      )}
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -906,7 +998,7 @@ export default function OpenMakeupTab() {
       >
         <div className="space-y-3">
           <div className="text-[11.5px] text-[#6b7280]">
-            해당 반 ({selected?.originalClassName}) 학생만 노출됩니다. 학부모 PWA 신청을 받지 않고 관리자가 직접 명단에 추가할 때 사용하세요.
+            {selected ? slotClassLabel(selected) : ''}의 학생만 노출됩니다. 학부모 PWA 신청을 받지 않고 관리자가 직접 명단에 추가할 때 사용하세요.
           </div>
           {classStudentsForModal.length === 0 ? (
             <p className="text-[12.5px] text-[#9ca3af] text-center py-4">

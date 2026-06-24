@@ -4,8 +4,10 @@ import type { MakeupClass, MakeupAttendance, RecurrencePattern } from '@/lib/typ
 import { toast } from '@/lib/stores/toastStore';
 
 export interface OpenSlotCreateInput {
-  originalClassId: string;
-  teacherId: string;
+  // 오픈 보강 다중 대상 (대표 반/강사는 서버에서 산정)
+  openToAllClasses?: boolean;
+  eligibleClassIds?: string[];
+  teacherIds?: string[];
   reason?: string;
   capacity?: number | null;
   // 단일 슬롯

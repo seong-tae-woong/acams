@@ -25,6 +25,23 @@ const MAKEUP_INCLUDE = {
   targets: { select: { studentId: true, status: true, memo: true } },
 } as const;
 
+function asIdArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
+}
+
+async function buildMakeupNameMaps(eligibleClassIds: unknown, teacherIds: unknown) {
+  const classIds = asIdArray(eligibleClassIds);
+  const teacherIdList = asIdArray(teacherIds);
+  const [cls, tch] = await Promise.all([
+    classIds.length ? prisma.class.findMany({ where: { id: { in: classIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    teacherIdList.length ? prisma.teacher.findMany({ where: { id: { in: teacherIdList } }, select: { id: true, name: true } }) : Promise.resolve([]),
+  ]);
+  return {
+    classNames: new Map(cls.map((c) => [c.id, c.name])),
+    teacherNames: new Map(tch.map((t) => [t.id, t.name])),
+  };
+}
+
 type MakeupForMap = {
   id: string; originalClassId: string; originalDate: Date;
   makeupDate: Date; makeupTime: string; teacherId: string | null;
@@ -33,12 +50,21 @@ type MakeupForMap = {
   capacity: number | null;
   applicationDeadline: Date | null;
   recurrenceGroupId: string | null;
+  openToAllClasses: boolean;
+  eligibleClassIds: unknown;
+  teacherIds: unknown;
   originalClass: { name: string };
   teacher: { name: string } | null;
   targets: { studentId: string; status: PrismaStatus | null; memo: string }[];
 };
 
-function mapMakeup(m: MakeupForMap) {
+function mapMakeup(
+  m: MakeupForMap,
+  classNames?: Map<string, string>,
+  teacherNames?: Map<string, string>,
+) {
+  const eligibleClassIds = asIdArray(m.eligibleClassIds);
+  const teacherIds = asIdArray(m.teacherIds);
   return {
     id: m.id,
     originalClassId: m.originalClassId,
@@ -60,6 +86,11 @@ function mapMakeup(m: MakeupForMap) {
     capacity: m.capacity,
     applicationDeadline: m.applicationDeadline ? m.applicationDeadline.toISOString() : null,
     recurrenceGroupId: m.recurrenceGroupId,
+    openToAllClasses: m.openToAllClasses,
+    eligibleClassIds,
+    eligibleClassNames: eligibleClassIds.map((id) => classNames?.get(id)).filter((n): n is string => !!n),
+    teacherIds,
+    teacherNames: teacherIds.map((id) => teacherNames?.get(id)).filter((n): n is string => !!n),
   };
 }
 
@@ -162,7 +193,8 @@ export async function PATCH(
       );
     }
 
-    return NextResponse.json(mapMakeup(updated!));
+    const maps = await buildMakeupNameMaps(updated!.eligibleClassIds, updated!.teacherIds);
+    return NextResponse.json(mapMakeup(updated!, maps.classNames, maps.teacherNames));
   } catch (err) {
     await logServerError(req, err);
     console.error('[PATCH /api/makeup/[id]]', err);

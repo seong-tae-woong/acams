@@ -9,13 +9,17 @@ interface StudentEligibility {
   applySource: MakeupApplySource;
 }
 
+function asIdArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
+}
+
 // 권한·자격 검증: 요청한 studentId가 학부모/학생 본인의 자녀이거나 본인인지 확인
 async function resolveEligibility(
   academyId: string,
   userId: string,
   role: string,
   requestedStudentId: string,
-  slotOriginalClassId: string,
+  slot: { openToAllClasses: boolean; eligibleClassIds: unknown; originalClassId: string },
 ): Promise<{ ok: true; eligibility: StudentEligibility } | { ok: false; error: string; status: number }> {
   if (role === 'student') {
     const s = await prisma.student.findFirst({
@@ -40,13 +44,24 @@ async function resolveEligibility(
     return { ok: false, error: '권한이 없습니다.', status: 403 };
   }
 
-  // 슬롯의 originalClassId에 학생이 활성 등록되어 있는지
-  const enrollment = await prisma.classEnrollment.findFirst({
-    where: { studentId: requestedStudentId, classId: slotOriginalClassId, isActive: true },
-    select: { id: true },
-  });
-  if (!enrollment) {
-    return { ok: false, error: '해당 반에 등록된 학생만 신청할 수 있습니다.', status: 403 };
+  // 자격: 전체 반 슬롯이면 활성 수강만 있으면 OK, 아니면 슬롯의 신청 가능 반(대표 반 포함) 중 하나에 활성 등록
+  if (slot.openToAllClasses) {
+    const anyEnrollment = await prisma.classEnrollment.findFirst({
+      where: { studentId: requestedStudentId, isActive: true, class: { academyId } },
+      select: { id: true },
+    });
+    if (!anyEnrollment) {
+      return { ok: false, error: '수강 중인 반이 없어 신청할 수 없습니다.', status: 403 };
+    }
+  } else {
+    const classIds = [...new Set([...asIdArray(slot.eligibleClassIds), slot.originalClassId])];
+    const enrollment = await prisma.classEnrollment.findFirst({
+      where: { studentId: requestedStudentId, classId: { in: classIds }, isActive: true },
+      select: { id: true },
+    });
+    if (!enrollment) {
+      return { ok: false, error: '신청 가능한 반에 등록된 학생만 신청할 수 있습니다.', status: 403 };
+    }
   }
 
   return {
@@ -100,7 +115,7 @@ export async function POST(
     }
 
     // 자격 검증
-    const elig = await resolveEligibility(academyId, userId, role, studentId, slot.originalClassId);
+    const elig = await resolveEligibility(academyId, userId, role, studentId, slot);
     if (!elig.ok) {
       return NextResponse.json({ error: elig.error }, { status: elig.status });
     }
@@ -170,7 +185,7 @@ export async function DELETE(
 
     const slot = await prisma.makeupClass.findFirst({
       where: { id: slotId, academyId, slotType: MakeupSlotType.OPEN },
-      select: { id: true, applicationDeadline: true, originalClassId: true },
+      select: { id: true, applicationDeadline: true, originalClassId: true, openToAllClasses: true, eligibleClassIds: true },
     });
     if (!slot) {
       return NextResponse.json({ error: '오픈 슬롯을 찾을 수 없습니다.' }, { status: 404 });
@@ -185,7 +200,7 @@ export async function DELETE(
     }
 
     // 자격 검증 (본인 자녀만 취소 가능)
-    const elig = await resolveEligibility(academyId, userId, role, studentId, slot.originalClassId);
+    const elig = await resolveEligibility(academyId, userId, role, studentId, slot);
     if (!elig.ok) {
       return NextResponse.json({ error: elig.error }, { status: elig.status });
     }

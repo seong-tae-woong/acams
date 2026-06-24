@@ -4,6 +4,10 @@ import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { MakeupSlotType } from '@/generated/prisma/client';
 
+function asIdArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
+}
+
 // GET /api/mobile/makeup/slots
 // 학부모/학생 본인이 등록된 반의 OPEN 슬롯 목록 (makeupDate >= today)
 // + 각 자녀별 신청 여부 동시 표현
@@ -60,11 +64,11 @@ export async function GET(req: NextRequest) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
+    // 다중 반/전체 반 슬롯은 eligibleClassIds(Json) 교집합 판정을 JS에서 하므로 학원 전체 OPEN 슬롯을 조회
     const slots = await prisma.makeupClass.findMany({
       where: {
         academyId,
         slotType: MakeupSlotType.OPEN,
-        originalClassId: { in: allClassIds },
         makeupDate: { gte: todayStart },
       },
       include: {
@@ -75,36 +79,64 @@ export async function GET(req: NextRequest) {
       orderBy: { makeupDate: 'asc' },
     });
 
-    const data = slots.map((slot) => {
-      const filledCount = slot.targets.length;
-      const remaining = slot.capacity != null ? Math.max(0, slot.capacity - filledCount) : null;
-      const deadlinePassed = slot.applicationDeadline ? new Date() >= slot.applicationDeadline : false;
-      // 어떤 자녀가 신청 가능한가? — 1) 등록된 반인 학생만, 2) 이미 신청 안 했어야
-      const enrolledStudentIds = students
-        .filter((s) => studentToClasses.get(s.id)?.has(slot.originalClassId))
-        .map((s) => s.id);
-      const appliedStudentIds = slot.targets
-        .map((t) => t.studentId)
-        .filter((sid) => enrolledStudentIds.includes(sid));
-      return {
-        id: slot.id,
-        classId: slot.originalClass.id,
-        className: slot.originalClass.name,
-        classColor: slot.originalClass.color,
-        teacherName: slot.teacher?.name ?? '',
-        makeupDate: slot.makeupDate.toISOString().slice(0, 10),
-        makeupTime: slot.makeupTime,
-        reason: slot.reason,
-        capacity: slot.capacity,
-        filledCount,
-        remaining,
-        applicationDeadline: slot.applicationDeadline ? slot.applicationDeadline.toISOString() : null,
-        deadlinePassed,
-        // 자녀별 신청/가능 여부
-        eligibleStudentIds: enrolledStudentIds,
-        appliedStudentIds,
-      };
+    // teacherIds / eligibleClassIds 이름 해석 맵 (일괄 조회)
+    const tIds = new Set<string>();
+    const cIds = new Set<string>();
+    slots.forEach((s) => {
+      asIdArray(s.teacherIds).forEach((id) => tIds.add(id));
+      asIdArray(s.eligibleClassIds).forEach((id) => cIds.add(id));
     });
+    const [tRows, cRows] = await Promise.all([
+      tIds.size ? prisma.teacher.findMany({ where: { id: { in: [...tIds] } }, select: { id: true, name: true } }) : Promise.resolve([]),
+      cIds.size ? prisma.class.findMany({ where: { id: { in: [...cIds] } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    ]);
+    const teacherNameMap = new Map(tRows.map((t) => [t.id, t.name]));
+    const classNameMap = new Map(cRows.map((c) => [c.id, c.name]));
+
+    const data = slots
+      .map((slot) => {
+        const eligClassIds = asIdArray(slot.eligibleClassIds);
+        // 슬롯의 신청 가능 반 집합 (대표 반 포함 — 구버전 단일반 슬롯 호환)
+        const slotClassSet = new Set<string>([...eligClassIds, slot.originalClassId]);
+        const isAll = slot.openToAllClasses;
+        // 이 슬롯에 신청 가능한 자녀: 전체 반이면 모두, 아니면 자녀의 수강 반이 슬롯 반 집합과 겹쳐야
+        const enrolledStudentIds = students
+          .filter((s) => isAll || [...(studentToClasses.get(s.id) ?? [])].some((cid) => slotClassSet.has(cid)))
+          .map((s) => s.id);
+        if (enrolledStudentIds.length === 0) return null; // 신청 가능한 자녀 없음 → 노출 제외
+        const filledCount = slot.targets.length;
+        const remaining = slot.capacity != null ? Math.max(0, slot.capacity - filledCount) : null;
+        const deadlinePassed = slot.applicationDeadline ? new Date() >= slot.applicationDeadline : false;
+        const appliedStudentIds = slot.targets
+          .map((t) => t.studentId)
+          .filter((sid) => enrolledStudentIds.includes(sid));
+        const teacherNames = asIdArray(slot.teacherIds).map((id) => teacherNameMap.get(id)).filter((n): n is string => !!n);
+        if (slot.teacher?.name && teacherNames.length === 0) teacherNames.push(slot.teacher.name); // 구버전 단일 강사 호환
+        const eligibleClassNames = eligClassIds.map((id) => classNameMap.get(id)).filter((n): n is string => !!n);
+        const classLabel = isAll
+          ? '전체 반'
+          : eligibleClassNames.length > 0
+            ? (eligibleClassNames.length > 1 ? `${eligibleClassNames[0]} 외 ${eligibleClassNames.length - 1}개 반` : eligibleClassNames[0])
+            : slot.originalClass.name;
+        return {
+          id: slot.id,
+          classId: slot.originalClass.id,
+          className: classLabel,
+          classColor: slot.originalClass.color,
+          teacherName: teacherNames.join(', '),
+          makeupDate: slot.makeupDate.toISOString().slice(0, 10),
+          makeupTime: slot.makeupTime,
+          reason: slot.reason,
+          capacity: slot.capacity,
+          filledCount,
+          remaining,
+          applicationDeadline: slot.applicationDeadline ? slot.applicationDeadline.toISOString() : null,
+          deadlinePassed,
+          eligibleStudentIds: enrolledStudentIds,
+          appliedStudentIds,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
 
     return NextResponse.json({ children: students, slots: data });
   } catch (err) {

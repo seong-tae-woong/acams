@@ -55,6 +55,12 @@ export interface MakeupClass {
   capacity?: number | null;          // null = 무제한
   applicationDeadline?: string | null; // ISO timestamp
   recurrenceGroupId?: string | null;
+  // ── 오픈 보강 다중 대상 (학생 공통) ──
+  openToAllClasses?: boolean;        // true = 전체 반 신청 가능
+  eligibleClassIds?: string[];       // 신청 가능 반 ID (openToAllClasses=false일 때)
+  eligibleClassNames?: string[];     // 신청 가능 반 이름 (표시용)
+  teacherIds?: string[];             // 담당 강사 ID (0..N)
+  teacherNames?: string[];           // 담당 강사 이름 (표시용)
 }
 
 export type CalendarEventCreateInput = Omit<CalendarEvent, 'id'>;
