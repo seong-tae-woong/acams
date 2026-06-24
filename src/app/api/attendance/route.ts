@@ -149,13 +149,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
   }
 
-  // checkedById is Teacher.id — only set when a teacher is checking in
-  let checkedById: string | null = null;
-  if (userId && userRole === 'teacher') {
-    const teacher = await prisma.teacher.findFirst({ where: { userId }, select: { id: true } });
-    checkedById = teacher?.id ?? null;
-  }
-
   try {
     const body = await req.json();
     const { classId, date, records } = body;
@@ -165,6 +158,19 @@ export async function POST(req: NextRequest) {
     }
 
     const dateObj = new Date(date);
+
+    // checkedById(Teacher.id)는 "누가 체크했는지" 기록용 메타데이터 — 강사가 체크할 때만 설정.
+    // 강사 경로에서만 도는 추가 조회이므로, 이 조회가 실패해도 출결 저장 자체는 막지 않는다
+    // (감사 정보보다 출결 저장이 우선). academyId로 스코프해 멀티테넌트 안전성도 확보.
+    let checkedById: string | null = null;
+    if (userId && userRole === 'teacher') {
+      try {
+        const teacher = await prisma.teacher.findFirst({ where: { userId, academyId }, select: { id: true } });
+        checkedById = teacher?.id ?? null;
+      } catch (lookupErr) {
+        console.error('[POST /api/attendance] checkedBy 조회 실패 — null로 저장 진행', lookupErr instanceof Error ? lookupErr.message : String(lookupErr));
+      }
+    }
 
     // 출결 일괄 upsert — 모든 레코드를 커밋한 뒤 청구서 재계산하도록 트랜잭션으로 묶음
     const upserted = await prisma.$transaction(
@@ -210,7 +216,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(upserted.map(mapRecord));
   } catch (err) {
-    console.error('[POST /api/attendance]', err instanceof Error ? err.message : String(err));
+    // Prisma 에러는 code/meta에 실제 원인(FK 위반·커넥션 등)이 담기므로 함께 남긴다 — 운영 500 추적용
+    const e = err as { code?: string; message?: string; meta?: unknown };
+    console.error('[POST /api/attendance]', {
+      role: userRole,
+      code: e.code ?? null,
+      message: e.message ?? String(err),
+      meta: e.meta ?? null,
+    });
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
