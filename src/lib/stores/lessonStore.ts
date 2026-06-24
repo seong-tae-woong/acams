@@ -7,6 +7,8 @@ import type {
   LessonSession,
   LessonComment,
   LessonCommentUpsertInput,
+  LessonSessionNote,
+  LessonSessionNoteUpsertInput,
   ClinicResult,
   ClinicResultUpsertInput,
   MakeupComment,
@@ -21,6 +23,7 @@ interface LessonStore {
   templates: ClinicTemplate[];
   sessions: LessonSession[];
   comments: LessonComment[];     // 현재 선택 수업 기준 (정규)
+  sessionNotes: LessonSessionNote[]; // 수업 단위 내용 (반×날짜, 학생 공통)
   clinicResults: ClinicResult[]; // 현재 선택 수업 기준 (정규)
   makeupComments: MakeupComment[];          // 현재 선택 보강 기준
   makeupClinicResults: MakeupClinicResult[]; // 현재 선택 보강 기준
@@ -38,6 +41,11 @@ interface LessonStore {
   // 정규 수업 코멘트
   fetchComments: (classId: string, sessionDate: string) => Promise<void>;
   upsertComment: (input: LessonCommentUpsertInput) => Promise<void>;
+
+  // 수업 내용 (수업 단위 — 학생 공통)
+  fetchSessionNote: (classId: string, sessionDate: string) => Promise<void>;
+  upsertSessionNote: (input: LessonSessionNoteUpsertInput) => Promise<void>;
+  getSessionNoteFor: (classId: string, sessionDate: string) => LessonSessionNote | undefined;
 
   // 정규 수업 Clinic 결과
   fetchClinicResults: (classId: string, sessionDate: string) => Promise<void>;
@@ -77,6 +85,7 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   templates: [],
   sessions: [],
   comments: [],
+  sessionNotes: [],
   clinicResults: [],
   makeupComments: [],
   makeupClinicResults: [],
@@ -176,6 +185,40 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
       return { comments: [...state.comments, saved] };
     });
   },
+
+  fetchSessionNote: async (classId, sessionDate) => {
+    const params = new URLSearchParams({ classId, date: sessionDate });
+    const res = await fetch(`/api/lessons/session-note?${params.toString()}`);
+    if (!res.ok) throw new Error('수업 내용 조회 실패');
+    const data: LessonSessionNote | null = await res.json();
+    set((state) => {
+      const others = state.sessionNotes.filter(
+        (n) => !(n.classId === classId && n.sessionDate === sessionDate),
+      );
+      return { sessionNotes: data ? [...others, data] : others };
+    });
+  },
+
+  upsertSessionNote: async (input) => {
+    const res = await fetch('/api/lessons/session-note', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('수업 내용 저장 실패');
+    const saved: LessonSessionNote = await res.json();
+    set((state) => {
+      const others = state.sessionNotes.filter(
+        (n) => !(n.classId === saved.classId && n.sessionDate === saved.sessionDate),
+      );
+      return { sessionNotes: [...others, saved] };
+    });
+  },
+
+  getSessionNoteFor: (classId, sessionDate) =>
+    get().sessionNotes.find(
+      (n) => n.classId === classId && n.sessionDate === sessionDate,
+    ),
 
   fetchClinicResults: async (classId, sessionDate) => {
     const params = new URLSearchParams({ classId, date: sessionDate });

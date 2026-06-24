@@ -6,6 +6,7 @@ import { useStudentStore } from '@/lib/stores/studentStore';
 import { useLessonStore } from '@/lib/stores/lessonStore';
 import { StudentStatus } from '@/lib/types/student';
 import clsx from 'clsx';
+import { toast } from '@/lib/stores/toastStore';
 import type { LessonSession } from '@/lib/types/lesson';
 import CommentClinicPanel from './CommentClinicPanel';
 
@@ -17,7 +18,15 @@ interface SessionDetailModalProps {
 
 export default function SessionDetailModal({ open, onClose, session }: SessionDetailModalProps) {
   const { students } = useStudentStore();
-  const { comments, clinicResults, getCommentFor } = useLessonStore();
+  const {
+    comments,
+    clinicResults,
+    getCommentFor,
+    sessionNotes,
+    fetchSessionNote,
+    upsertSessionNote,
+    getSessionNoteFor,
+  } = useLessonStore();
 
   const classStudents = useMemo(
     () =>
@@ -29,12 +38,47 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
+  // 수업 내용 (수업 단위 — 학생 공통)
+  const [noteContent, setNoteContent] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const sessionKey = `${session.classId}:${session.date}`;
+
   // 첫 학생 자동 선택
   useEffect(() => {
     if (open && !selectedStudentId && classStudents.length > 0) {
       setSelectedStudentId(classStudents[0].id);
     }
   }, [open, selectedStudentId, classStudents]);
+
+  // 수업 내용 로드 (수업 변경 시)
+  useEffect(() => {
+    if (!open) return;
+    fetchSessionNote(session.classId, session.date).catch(() => {});
+    // sessionKey가 classId·date를 모두 인코딩하므로 불안정한 session 객체는 deps에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sessionKey, fetchSessionNote]);
+
+  // 수업 내용 복원 (fetch 완료 / 수업 변경 시)
+  useEffect(() => {
+    setNoteContent(getSessionNoteFor(session.classId, session.date)?.content ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionKey, sessionNotes]);
+
+  const handleSaveNote = async () => {
+    setNoteSaving(true);
+    try {
+      await upsertSessionNote({
+        classId: session.classId,
+        sessionDate: session.date,
+        content: noteContent,
+      });
+      toast('수업 내용을 저장했습니다.', 'success');
+    } catch {
+      toast('저장에 실패했습니다.', 'error');
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -44,6 +88,8 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
     day: 'numeric',
     weekday: 'short',
   });
+
+  const savedNote = getSessionNoteFor(session.classId, session.date);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -60,6 +106,33 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
           <button onClick={onClose} className="text-[#9ca3af] hover:text-[#374151] cursor-pointer">
             <X size={16} />
           </button>
+        </div>
+
+        {/* 수업 내용 — 이 수업 전체에 대한 기록 (학생별이 아닌 수업 단위) */}
+        <div className="px-5 py-3.5 border-b border-[#e2e8f0] bg-[#fafbfc]">
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[12px] font-semibold text-[#111827]">
+              수업 내용
+              <span className="ml-1.5 text-[11px] font-normal text-[#9ca3af]">
+                이 수업에서 배운 내용 (학생 공통)
+              </span>
+            </label>
+            <div className="flex items-center gap-2">
+              {savedNote?.authorName && (
+                <span className="text-[11px] text-[#9ca3af]">작성 {savedNote.authorName}</span>
+              )}
+              <Button variant="dark" size="sm" onClick={handleSaveNote} disabled={noteSaving}>
+                {noteSaving ? '저장 중...' : '저장'}
+              </Button>
+            </div>
+          </div>
+          <textarea
+            value={noteContent}
+            onChange={(e) => setNoteContent(e.target.value)}
+            rows={2}
+            placeholder="이 수업에서 다룬 내용을 입력하세요. (예: Unit 5 본문 독해 / 문법 — 관계대명사)"
+            className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1] resize-none"
+          />
         </div>
 
         <div className="flex flex-1 overflow-hidden">

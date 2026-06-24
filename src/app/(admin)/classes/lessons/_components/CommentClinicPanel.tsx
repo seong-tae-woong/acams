@@ -276,13 +276,13 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
       {/* Comment */}
       <div>
         <label className="block text-[12px] font-semibold text-[#111827] mb-1.5">
-          수업 코멘트
+          Clinic 전달 내용
         </label>
         <textarea
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           rows={4}
-          placeholder="수업 중 관찰한 내용, 학습 코멘트 등을 입력하세요."
+          placeholder="Clinic 강사에게 전달할 학생별 내용(관찰·요청 등)을 입력하세요."
           className="w-full text-[12.5px] border border-[#e2e8f0] rounded-[8px] px-3 py-2 focus:outline-none focus:border-[#4fc3a1] resize-none"
         />
       </div>

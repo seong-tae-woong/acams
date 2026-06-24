@@ -237,7 +237,7 @@ export default function LessonHistoryTab({
         </div>
 
         <div className="text-[11px] text-[#9ca3af]">
-          ※ 수업 블록을 클릭하면 학생별 코멘트와 Clinic 체크리스트를 입력할 수 있습니다.
+          ※ 수업 블록을 클릭하면 수업 내용과 학생별 Clinic 전달 내용·체크리스트를 입력할 수 있습니다.
         </div>
       </div>
 

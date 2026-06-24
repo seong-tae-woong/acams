@@ -90,6 +90,7 @@ model Academy {
   clinicTemplates          ClinicTemplate[]
   lessonComments           LessonComment[]
   clinicResults            ClinicResult[]
+  lessonSessionNotes       LessonSessionNote[]
   makeupComments           MakeupComment[]
   makeupClinicResults      MakeupClinicResult[]
   enrollmentRules          EnrollmentRule[]
@@ -364,6 +365,7 @@ model Class {
   reports            Report[]
   lessonComments     LessonComment[]
   clinicResults      ClinicResult[]
+  lessonSessionNotes LessonSessionNote[]
   monthlyAdjustments MonthlyAdjustment[]
 
   createdAt DateTime @default(now())
@@ -1650,6 +1652,28 @@ model ClinicResult {
   @@unique([classId, studentId, sessionDate, templateId])
   @@index([academyId, sessionDate])
   @@map("clinic_results")
+}
+
+// 수업 단위 기록 — 학생별이 아니라 해당 수업(반 × 날짜) 전체에 대한 내용 (반 × 날짜 별 1행)
+model LessonSessionNote {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id])
+
+  sessionDate DateTime // 날짜만 의미 있음 (00:00:00 UTC 정규화)
+  content     String   // 이 수업에서 배운 내용 (학생 공통)
+
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, sessionDate])
+  @@index([academyId, sessionDate])
+  @@map("lesson_session_notes")
 }
 
 // 마케팅 페이지(/intro) 상담 신청 — 기존 고객이 아닌 잠재 원장 리드. 학원에 종속되지 않음(플랫폼 전역).

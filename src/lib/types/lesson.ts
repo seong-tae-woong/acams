@@ -56,6 +56,24 @@ export interface LessonCommentUpsertInput {
   comment: string;
 }
 
+// 수업 단위 기록 (학생별이 아닌 해당 수업 전체에 대한 내용) — 반 × 날짜 별 1행
+export interface LessonSessionNote {
+  id: string;
+  classId: string;
+  sessionDate: string; // YYYY-MM-DD
+  content: string;
+  authorId: string;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonSessionNoteUpsertInput {
+  classId: string;
+  sessionDate: string; // YYYY-MM-DD
+  content: string;
+}
+
 export interface ClinicCheck {
   itemId: string;
   checked: boolean;
