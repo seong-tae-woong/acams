@@ -22,8 +22,9 @@ const ATT_STYLE: Record<AttendanceUiStatus, string> = {
 };
 
 function AttitudeChip({ score }: { score: number }) {
+  // 같은 표의 출석 배지와 동일한 틴트 언어 (우수=teal틴트 / 보통=회색 / 미흡=red틴트)
   const tier =
-    score >= 4 ? 'bg-[#4fc3a1] text-white' : score === 3 ? 'bg-[#e2e8f0] text-[#374151]' : 'bg-[#FCA5A5] text-[#7f1d1d]';
+    score >= 4 ? 'bg-[#E1F5EE] text-[#065f46]' : score === 3 ? 'bg-[#F3F4F6] text-[#374151]' : 'bg-[#FEE2E2] text-[#b91c1c]';
   return (
     <span
       title={ATTITUDE_LABELS[score]}
