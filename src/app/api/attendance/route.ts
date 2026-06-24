@@ -176,49 +176,50 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 출결 일괄 upsert — 모든 레코드를 커밋한 뒤 청구서 재계산하도록 트랜잭션으로 묶음
-    const upserted = await prisma.$transaction(
-      records.map((r: {
-        studentId: string;
-        status: string;
-        checkInTime?: string;
-        checkOutTime?: string;
-        memo?: string;
-      }) =>
-        prisma.attendanceRecord.upsert({
-          where: {
-            studentId_classId_date: {
+    // 출결 일괄 upsert — 원자성을 위해 한 트랜잭션으로 묶는다.
+    // include는 제거: 응답 본문을 클라이언트가 사용하지 않으므로(저장 화면은 res.ok만 확인)
+    // 레코드당 조인 쿼리(student·class·checkedBy)가 사라져 DB 왕복이 ~1/4로 줄어든다.
+    // 운영 환경(함수↔DB 교차 리전 지연)에서 기본 5초 트랜잭션 타임아웃(P2028)을 넘던 문제를
+    // 왕복 감소 + 타임아웃 상향(20초)으로 함께 해소한다.
+    const checkedAt = new Date();
+    await prisma.$transaction(
+      async (tx) => {
+        for (const r of records as Array<{
+          studentId: string;
+          status: string;
+          checkInTime?: string;
+          checkOutTime?: string;
+          memo?: string;
+        }>) {
+          await tx.attendanceRecord.upsert({
+            where: { studentId_classId_date: { studentId: r.studentId, classId, date: dateObj } },
+            update: {
+              status: STATUS_TO_PRISMA[r.status] ?? PrismaStatus.PRESENT,
+              checkInTime: r.checkInTime ?? null,
+              checkOutTime: r.checkOutTime ?? null,
+              memo: r.memo ?? '',
+              checkedById: checkedById || undefined,
+              checkedAt,
+            },
+            create: {
+              academyId,
               studentId: r.studentId,
               classId,
               date: dateObj,
+              status: STATUS_TO_PRISMA[r.status] ?? PrismaStatus.PRESENT,
+              checkInTime: r.checkInTime ?? null,
+              checkOutTime: r.checkOutTime ?? null,
+              memo: r.memo ?? '',
+              checkedById: checkedById || undefined,
+              checkedAt,
             },
-          },
-          update: {
-            status: STATUS_TO_PRISMA[r.status] ?? PrismaStatus.PRESENT,
-            checkInTime: r.checkInTime ?? null,
-            checkOutTime: r.checkOutTime ?? null,
-            memo: r.memo ?? '',
-            checkedById: checkedById || undefined,
-            checkedAt: new Date(),
-          },
-          create: {
-            academyId,
-            studentId: r.studentId,
-            classId,
-            date: dateObj,
-            status: STATUS_TO_PRISMA[r.status] ?? PrismaStatus.PRESENT,
-            checkInTime: r.checkInTime ?? null,
-            checkOutTime: r.checkOutTime ?? null,
-            memo: r.memo ?? '',
-            checkedById: checkedById || undefined,
-            checkedAt: new Date(),
-          },
-          include: INCLUDE,
-        })
-      )
+          });
+        }
+      },
+      { timeout: 20000, maxWait: 10000 },
     );
 
-    return NextResponse.json(upserted.map(mapRecord));
+    return NextResponse.json({ ok: true, count: records.length });
   } catch (err) {
     // 실시간(Vercel 로그) + 영구(ErrorLog 테이블 — super_admin 조회)에 모두 남긴다.
     // ErrorLog에 학원·작업자·Prisma code/meta·요청 컨텍스트가 기록돼 운영 500을 사후 추적 가능.
