@@ -452,10 +452,10 @@ export default function KioskPage() {
         </div>
 
         {/* 출결 기준 안내 */}
-        <div className="text-white/25 text-[11px] text-center leading-relaxed mt-6 mb-5">
-          수업 시작 30분 전 ~ 시작 후 10분 <span className="text-[#4fc3a1]/50">출석</span>
+        <div className="text-white/45 text-[12px] text-center leading-relaxed mt-6 mb-5">
+          수업 시작 30분 전 ~ 시작 후 10분 <span className="text-[#4fc3a1] font-medium">출석</span>
           {'  ·  '}
-          시작 후 10분 ~ 30분 <span className="text-yellow-400/50">지각</span>
+          시작 후 10분 ~ 30분 <span className="text-yellow-400 font-medium">지각</span>
           {'  ·  '}
           그 외 체크 불가
         </div>
