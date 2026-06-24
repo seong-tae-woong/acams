@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { PrismaClient } from '@/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { isRateLimited, getRemainingSeconds, getClientIp } from '@/lib/auth/rateLimit';
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
 
     return NextResponse.json({ id: inquiry.id }, { status: 201 });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/academy/[slug]/inquiry]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

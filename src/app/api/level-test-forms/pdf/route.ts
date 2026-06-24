@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { put } from '@vercel/blob';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/level-test-forms/pdf]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: 'PDF를 불러오지 못했습니다.' }, { status: 500 });
   }
@@ -95,6 +97,7 @@ export async function POST(req: NextRequest) {
     // 클라이언트는 이 프록시 URL을 그대로 pdfUrl로 저장·출력에 사용
     return NextResponse.json({ url: `/api/level-test-forms/pdf?url=${encodeURIComponent(blob.url)}` });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/level-test-forms/pdf]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '업로드에 실패했습니다.' }, { status: 500 });
   }

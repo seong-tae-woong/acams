@@ -7,6 +7,7 @@
  * - cancelledAt != null이면 워터마크 + 410 응답
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { renderToBuffer, Document, Page, Text, View, Font, StyleSheet } from '@react-pdf/renderer';
@@ -242,6 +243,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
       },
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/ingang/certificates/[id]/pdf]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: 'PDF 생성 실패' }, { status: 500 });
   }

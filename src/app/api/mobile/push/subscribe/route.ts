@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 
 // POST /api/mobile/push/subscribe — body: { endpoint, keys: { p256dh, auth } }
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/mobile/push/subscribe]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -48,6 +50,7 @@ export async function DELETE(req: NextRequest) {
     await prisma.pushSubscription.deleteMany({ where: { endpoint, userId } });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/mobile/push/subscribe]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

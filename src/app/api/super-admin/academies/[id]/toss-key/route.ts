@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { encryptTossKey, decryptTossKey, maskTossKey } from '@/lib/crypto/tossKey';
 
@@ -76,6 +77,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   try {
     secretKeyEnc = encryptTossKey(secretKey.trim());
   } catch (e) {
+    await logServerError(req, e);
     console.error('[toss-key PATCH] 암호화 오류:', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: '키 암호화에 실패했습니다. TOSS_KEY_ENC_SECRET 환경변수를 확인해주세요.' }, { status: 500 });
   }

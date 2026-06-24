@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { resyncAllSiblingDiscounts } from '@/lib/utils/billing';
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
     if (!academy) return NextResponse.json({ error: '학원을 찾을 수 없습니다.' }, { status: 404 });
     return NextResponse.json(academy);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/finance/settings]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -63,6 +65,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/finance/settings]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

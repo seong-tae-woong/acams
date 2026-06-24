@@ -8,15 +8,16 @@ import type { Prisma } from '@/generated/prisma/client';
  * - 절대 throw 하지 않는다: 로깅 실패가 본 요청을 막으면 안 된다(writeAuditLog와 동일 원칙).
  * - 작업자/학원 신원은 proxy(src/proxy.ts)가 주입한 헤더에서 추출한다.
  *
+ * - source(어느 API인지)는 요청에서 자동 추론한다: "METHOD /api/path".
+ *
  * 사용 예 (라우트 catch 블록):
  *   } catch (err) {
- *     await logServerError(req, 'POST /api/attendance', err, { classId, recordCount });
+ *     await logServerError(req, err, { classId, recordCount }); // context는 선택
  *     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
  *   }
  */
 export async function logServerError(
   req: NextRequest,
-  source: string,
   error: unknown,
   context?: Record<string, unknown>,
 ): Promise<void> {
@@ -26,7 +27,7 @@ export async function logServerError(
 
     await prisma.errorLog.create({
       data: {
-        source,
+        source: safeSource(req),
         academyId: req.headers.get('x-academy-id') || null,
         userId: req.headers.get('x-user-id') || null,
         userName: rawName ? safeDecode(rawName) : null,
@@ -39,6 +40,15 @@ export async function logServerError(
   } catch (logErr) {
     // 로깅 실패는 삼킨다 — 본 요청 처리에 영향 주지 않음
     console.error('[logServerError] 기록 실패', logErr instanceof Error ? logErr.message : String(logErr));
+  }
+}
+
+// 요청에서 "METHOD /api/path" 형태의 source를 추론. URL 파싱 실패해도 안전하게 처리.
+function safeSource(req: NextRequest): string {
+  try {
+    return `${req.method} ${new URL(req.url).pathname}`;
+  } catch {
+    return req.method ?? 'UNKNOWN';
   }
 }
 

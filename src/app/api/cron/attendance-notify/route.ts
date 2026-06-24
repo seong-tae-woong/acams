@@ -15,6 +15,7 @@
 //   6. NotificationTemplate(code) 가져와 변수 치환 후 Notification 생성 + 학부모에게 Web Push
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus } from '@/generated/prisma/client';
 import { sendPushToUserIds } from '@/lib/push/sendPush';
@@ -226,6 +227,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, stats });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[cron/attendance-notify] fatal:', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
   }

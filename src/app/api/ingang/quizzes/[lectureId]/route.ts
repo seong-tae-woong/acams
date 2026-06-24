@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { coerceExamCond, isYouTubeLecture } from '@/lib/lecture/source';
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
     return NextResponse.json(quiz);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/ingang/quizzes/[lectureId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -122,6 +124,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
     return NextResponse.json(quiz);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PUT /api/ingang/quizzes/[lectureId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -182,6 +185,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       passWatchPct: quiz.passWatchPct,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/ingang/quizzes/[lectureId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

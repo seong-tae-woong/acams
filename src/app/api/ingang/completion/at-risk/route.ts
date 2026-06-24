@@ -13,6 +13,7 @@
  * 미시청자(progress row 자체가 없는 학생)는 별도 표시.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { isLectureCompleted, type ExamCond } from '@/lib/ingang/completion';
@@ -145,6 +146,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ items: result, nextCursor });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/ingang/completion/at-risk]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

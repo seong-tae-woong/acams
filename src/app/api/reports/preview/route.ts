@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { renderBody } from '@/lib/reports/tokens';
 import { buildPerExamContexts } from '@/lib/reports/buildContext';
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
       context: ctx.context,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/reports/preview]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
   }

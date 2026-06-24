@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -21,6 +22,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     await prisma.notificationTemplate.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/communication/notification-templates/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

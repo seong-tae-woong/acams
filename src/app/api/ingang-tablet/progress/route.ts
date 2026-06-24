@@ -16,6 +16,7 @@
  * 임계 도달 시 completedAt set (WHERE NULL 조건부 update로 race 차단).
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -219,6 +220,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ watchedSeconds: updated.watchedSeconds, pct, completed });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/ingang-tablet/progress]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { LectureStatus } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!lecture) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
     return NextResponse.json(lecture);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/lectures/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -76,6 +78,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (updated.count === 0) return NextResponse.json({ error: '강의를 찾을 수 없습니다.' }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/lectures/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -96,6 +99,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     await prisma.lecture.deleteMany({ where: { id, academyId } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/lectures/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

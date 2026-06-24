@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
       directorId: result.director.id,
     }, { status: 201 });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[super-admin/academies POST]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

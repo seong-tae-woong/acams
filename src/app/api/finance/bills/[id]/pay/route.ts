@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { BillStatus as PrismaBS, PaymentMethod as PrismaPM } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
@@ -127,6 +128,7 @@ export async function POST(
       notifiedAt: null,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/finance/bills/[id]/pay]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

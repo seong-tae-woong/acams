@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import type { Prisma } from '@/generated/prisma/client';
@@ -103,6 +104,7 @@ export async function GET(req: NextRequest) {
     const nameMap = await buildNameMap(rows.flatMap((r) => [r.authorId, r.checkedById]));
     return NextResponse.json(rows.map((r) => serialize(r, nameMap)));
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/makeup/clinic-results]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -173,6 +175,7 @@ export async function PUT(req: NextRequest) {
     const nameMap = await buildNameMap([saved.authorId, saved.checkedById]);
     return NextResponse.json(serialize(saved, nameMap));
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PUT /api/makeup/clinic-results]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

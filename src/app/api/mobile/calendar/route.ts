@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import { resolveStudentId, resolveClassIds } from '@/lib/mobile/resolveStudent';
@@ -96,6 +97,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ events: [...result, ...makeupEvents, ...classEvents] });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/mobile/calendar]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

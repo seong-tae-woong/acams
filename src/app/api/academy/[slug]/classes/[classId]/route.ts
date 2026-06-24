@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 
 const DAY_LABEL = ['일', '월', '화', '수', '목', '금', '토'];
@@ -67,6 +68,7 @@ export async function GET(
       })),
     });
   } catch (err) {
+    await logServerError(_req, err);
     console.error('[GET /api/academy/[slug]/classes/[classId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

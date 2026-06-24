@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
@@ -42,6 +43,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     return NextResponse.json(updated);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/settings/tablets/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -63,6 +65,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     await prisma.user.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/settings/tablets/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

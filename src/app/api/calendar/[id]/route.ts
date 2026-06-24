@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import type { CalendarEventType } from '@/lib/types/calendar';
@@ -75,6 +76,7 @@ export async function PATCH(
       relatedStudentId: event.relatedStudentId,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/calendar/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -104,6 +106,7 @@ export async function DELETE(
     await prisma.calendarEvent.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/calendar/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

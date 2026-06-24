@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { MakeupSlotType, MakeupApplySource } from '@/generated/prisma/client';
@@ -129,6 +130,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     const msg = err instanceof Error ? err.message : String(err);
     if (msg === 'CAPACITY') return NextResponse.json({ error: '정원이 마감되었습니다.' }, { status: 400 });
     if (msg === 'DUPLICATE') return NextResponse.json({ error: '이미 신청한 슬롯입니다.' }, { status: 400 });
@@ -194,6 +196,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/mobile/makeup/slots/[id]/apply]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

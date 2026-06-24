@@ -135,6 +135,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json([...records.map(mapRecord), ...makeupMapped]);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/attendance]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -222,7 +223,7 @@ export async function POST(req: NextRequest) {
     // 실시간(Vercel 로그) + 영구(ErrorLog 테이블 — super_admin 조회)에 모두 남긴다.
     // ErrorLog에 학원·작업자·Prisma code/meta·요청 컨텍스트가 기록돼 운영 500을 사후 추적 가능.
     console.error('[POST /api/attendance]', err instanceof Error ? err.message : String(err));
-    await logServerError(req, 'POST /api/attendance', err, reqCtx);
+    await logServerError(req, err, reqCtx);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

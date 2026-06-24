@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { CalendarEventType as PrismaType } from '@/generated/prisma/client';
 import type { CalendarEventType } from '@/lib/types/calendar';
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
         relatedStudentId: e.relatedStudentId,
       })));
     } catch (err) {
+      await logServerError(req, err);
       console.error('[GET /api/calendar studentId]', err instanceof Error ? err.message : String(err));
       return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
     }
@@ -118,6 +120,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json([...result, ...makeupEvents, ...classEvents]);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/calendar]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -179,6 +182,7 @@ export async function POST(req: NextRequest) {
       relatedStudentId: event.relatedStudentId,
     }, { status: 201 });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/calendar]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

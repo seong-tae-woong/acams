@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -40,6 +41,7 @@ export async function PATCH(
       isbn: tb.isbn, purchaseDate: tb.purchaseDate ? tb.purchaseDate.toISOString().slice(0, 10) : '', memo: tb.memo,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/classes/[id]/textbooks/[tbId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -63,6 +65,7 @@ export async function DELETE(
     await prisma.textbook.delete({ where: { id: tbId, academyId } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/classes/[id]/textbooks/[tbId]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

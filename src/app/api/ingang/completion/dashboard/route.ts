@@ -11,6 +11,7 @@
  * 위험 학생 + 발급 대기자 리스트는 별도 cursor pagination API.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest) {
       seriesCompletionCount: lscCount,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/ingang/completion/dashboard]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

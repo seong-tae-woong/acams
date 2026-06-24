@@ -9,6 +9,7 @@
  * 향후 '시청 현황'·'이수율 통계' 페이지가 mockup에서 real로 전환될 때 소비.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -91,6 +92,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ items: data });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/ingang/progress]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

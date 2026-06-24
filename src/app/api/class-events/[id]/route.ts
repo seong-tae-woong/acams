@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -59,6 +60,7 @@ export async function PATCH(
     });
     return NextResponse.json(mapEvent(updated));
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/class-events/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -87,6 +89,7 @@ export async function DELETE(
     await prisma.classEvent.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE /api/class-events/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

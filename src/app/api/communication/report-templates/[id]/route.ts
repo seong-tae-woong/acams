@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -31,6 +32,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updated = await prisma.reportTemplate.update({ where: { id }, data });
     return NextResponse.json(updated);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH report-templates/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
   }
@@ -52,6 +54,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     await prisma.reportTemplate.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[DELETE report-templates/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '발행된 레포트가 있어 삭제할 수 없습니다.' }, { status: 500 });
   }

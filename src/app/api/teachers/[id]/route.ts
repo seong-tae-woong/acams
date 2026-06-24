@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -61,6 +62,7 @@ export async function PATCH(
       userId: updated.userId,
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/teachers/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

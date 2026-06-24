@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { StudentStatus as PrismaStatus } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
@@ -81,6 +82,7 @@ export async function GET(
 
     return NextResponse.json(mapStudent(student));
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/students/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -161,6 +163,7 @@ export async function PATCH(
 
     return NextResponse.json(mapStudent(updated!));
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/students/[id]]', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

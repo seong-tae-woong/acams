@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 
 function isSuperAdmin(req: NextRequest) {
@@ -37,6 +38,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updated = await prisma.demoRequest.update({ where: { id }, data });
     return NextResponse.json(updated);
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/super-admin/demo-requests/[id]]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

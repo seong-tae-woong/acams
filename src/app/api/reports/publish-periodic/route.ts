@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { ReportTemplateKind } from '@/generated/prisma/client';
 import { renderBody } from '@/lib/reports/tokens';
@@ -167,6 +168,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, count: created.length, periodLabel, reports: created });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/reports/publish-periodic]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류' }, { status: 500 });
   }

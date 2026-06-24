@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { signToken } from '@/lib/auth/jwt';
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[login]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

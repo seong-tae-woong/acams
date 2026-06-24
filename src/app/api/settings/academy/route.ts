@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { resyncAllSiblingDiscounts } from '@/lib/utils/billing';
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
       galleryImages: ((academy.galleryImages as string[] | null) ?? []).map(toProxyUrl),
     });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[GET /api/settings/academy]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
@@ -181,6 +183,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true, slug: updated.slug, profileEnabled: updated.profileEnabled });
   } catch (err) {
+    await logServerError(req, err);
     console.error('[PATCH /api/settings/academy]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }

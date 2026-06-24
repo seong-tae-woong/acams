@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log/logServerError';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
@@ -111,6 +112,7 @@ export async function POST(
       return NextResponse.json({ loginId: student.user.loginId, tempPassword: smsEnabled ? null : tempPassword, smsEnabled });
     }
   } catch (err) {
+    await logServerError(req, err);
     console.error('[POST /api/students/[id]/reset-password]', err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
