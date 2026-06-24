@@ -10,6 +10,7 @@ import Wordmark from '@/components/shared/Wordmark';
 const NAV = [
   { href: '/super-admin', label: '학원 관리' },
   { href: '/super-admin/demo-requests', label: '상담 신청' },
+  { href: '/super-admin/error-logs', label: '에러 로그' },
 ];
 
 export default function SuperAdminHeader() {

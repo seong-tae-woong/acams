@@ -27,7 +27,7 @@
 | 모바일 PWA | `mobile/*` (홈·grades·announcements·calendar·attendance·schedule·payments·notifications·profile) | `mobile/me/`, `mobile/children/`, `mobile/grades/`, `mobile/announcements/`, `mobile/calendar/`, `mobile/attendance/`, `mobile/makeup/`, `mobile/notifications/`, `mobile/reports/`, `mobile/push/` (schedule 페이지는 `mobile/me` 사용, 별도 API 없음) | — | — | Student, Parent, ClassEnrollment, GradeRecord, Exam, Announcement, CalendarEvent |
 | 모바일 결제 | `mobile/payments/*` (목록·success·fail) | `mobile/payments/`, `mobile/payments/order/`, `mobile/payments/toss-client-key/`, `mobile/payments/toss/confirm/` | — | — | Bill, Receipt, PaymentOrder |
 | 키오스크 | `kiosk/` (QR/수동 학번) | `kiosk/session/`, `kiosk/recent/`, `kiosk/check-in/` (인증 불필요) | `classStore` 일부 | — | AttendanceRecord |
-| 슈퍼어드민 | `super-admin/*` (학원 목록·상세·신규) | `super-admin/academies/`, `.../[id]/`, `.../[id]/users/[userId]/`, `.../[id]/toss-key/`, `super-admin/profile/password/` | — | — | Academy, User |
+| 슈퍼어드민 | `super-admin/*` (학원 목록·상세·신규·상담신청·에러로그) | `super-admin/academies/`, `.../[id]/`, `.../[id]/users/[userId]/`, `.../[id]/toss-key/`, `super-admin/profile/password/`, `super-admin/error-logs/`, `.../error-logs/[id]/` | — | — | Academy, User, ErrorLog |
 | 인증 | `login/`, `src/proxy.ts` | `auth/login/`, `auth/logout/`, `auth/me/` | `authStore.ts` | — | User |
 | 학원 공개 페이지 | `academy/[slug]/` (공개, 인증불필요) | `api/academy/[slug]/` (GET, 공개) · `api/academy/[slug]/inquiry/` (POST, 공개) · `api/settings/academy/` (GET·PATCH, 원장전용) · `api/settings/gallery/` (POST, 이미지 업로드) | — | — | Academy (공개프로필 필드), PublicInquiry |
 

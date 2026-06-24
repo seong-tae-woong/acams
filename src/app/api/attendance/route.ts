@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { AttendanceStatus as PrismaStatus } from '@/generated/prisma/client';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { logServerError } from '@/lib/log/logServerError';
 
 const STATUS_TO_PRISMA: Record<string, PrismaStatus> = {
   '출석': PrismaStatus.PRESENT,
@@ -149,6 +150,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '강사 이상 권한이 필요합니다.' }, { status: 403 });
   }
 
+  let reqCtx: Record<string, unknown> = {};
   try {
     const body = await req.json();
     const { classId, date, records } = body;
@@ -156,6 +158,7 @@ export async function POST(req: NextRequest) {
     if (!classId || !date || !Array.isArray(records)) {
       return NextResponse.json({ error: 'classId, date, records 는 필수입니다.' }, { status: 400 });
     }
+    reqCtx = { classId, date, recordCount: records.length };
 
     const dateObj = new Date(date);
 
@@ -216,14 +219,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(upserted.map(mapRecord));
   } catch (err) {
-    // Prisma 에러는 code/meta에 실제 원인(FK 위반·커넥션 등)이 담기므로 함께 남긴다 — 운영 500 추적용
-    const e = err as { code?: string; message?: string; meta?: unknown };
-    console.error('[POST /api/attendance]', {
-      role: userRole,
-      code: e.code ?? null,
-      message: e.message ?? String(err),
-      meta: e.meta ?? null,
-    });
+    // 실시간(Vercel 로그) + 영구(ErrorLog 테이블 — super_admin 조회)에 모두 남긴다.
+    // ErrorLog에 학원·작업자·Prisma code/meta·요청 컨텍스트가 기록돼 운영 500을 사후 추적 가능.
+    console.error('[POST /api/attendance]', err instanceof Error ? err.message : String(err));
+    await logServerError(req, 'POST /api/attendance', err, reqCtx);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
