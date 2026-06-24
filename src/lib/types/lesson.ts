@@ -74,6 +74,38 @@ export interface LessonSessionNoteUpsertInput {
   content: string;
 }
 
+// 학생별 수업 평가 (태도 점수 + 사유 + 과제 수행) — 학생 × 날짜 × 반 별 1행
+export interface LessonStudentEval {
+  id: string;
+  classId: string;
+  studentId: string;
+  sessionDate: string; // YYYY-MM-DD
+  attitude: number | null; // 1~5
+  attitudeReason: string | null;
+  homeworkDone: boolean | null; // null=미설정, true=했음, false=안 함
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonStudentEvalUpsertInput {
+  classId: string;
+  studentId: string;
+  sessionDate: string; // YYYY-MM-DD
+  attitude: number | null;
+  attitudeReason: string | null;
+  homeworkDone: boolean | null;
+}
+
+/** 태도 5단계 기본 라벨 (1~5) */
+export const ATTITUDE_LABELS: Record<number, string> = {
+  1: '매우 미흡',
+  2: '미흡',
+  3: '보통',
+  4: '우수',
+  5: '매우 우수',
+};
+
 export interface ClinicCheck {
   itemId: string;
   checked: boolean;
@@ -199,6 +231,19 @@ export interface StudentLessonTimelineClinic {
   }>;
 }
 
+export type AttendanceUiStatus = '출석' | '결석' | '지각' | '조퇴';
+
+// 성취 모니터링 — 시험 점수 (세션 단위가 아니므로 별도)
+export interface StudentLessonExam {
+  id: string;
+  name: string;
+  date: string; // YYYY-MM-DD
+  subject: string;
+  score: number;
+  totalScore: number;
+  rank: number | null;
+}
+
 export interface StudentLessonTimelineEntry {
   /** 'regular' = 정규 수업(class schedule 기반), 'makeup' = 보강 수업(MakeupClass) */
   kind: 'regular' | 'makeup';
@@ -212,6 +257,12 @@ export interface StudentLessonTimelineEntry {
   isOneTime: boolean;
   comment: string | null;
   clinics: StudentLessonTimelineClinic[];
+  // ── 성취 모니터링 필드 ──
+  sessionNote: string | null;          // 수업 내용 (반 공통)
+  attendanceStatus: AttendanceUiStatus | null; // 출석 상태
+  attitude: number | null;             // 태도 점수 1~5
+  attitudeReason: string | null;       // 태도 사유
+  homeworkDone: boolean | null;        // 과제 수행 (null=미설정)
   // 보강 세션 식별 (정규 수업이면 null) — 클릭 시 상세 모달이 어느 키로 데이터를 조회할지 결정
   makeupClassId?: string | null;
   makeupReason?: string | null;
@@ -224,7 +275,14 @@ export interface StudentLessonHistory {
   summary: {
     commentCount: number;
     clinicByTemplate: StudentLessonClinicSummary[];
+    // ── 성취 모니터링 KPI ──
+    attendance: { present: number; late: number; absent: number; earlyLeave: number; total: number; rate: number | null }; // rate = (출석+지각)/전체
+    avgAttitude: number | null;        // 평균 태도 (1~5)
+    attitudeCount: number;             // 태도 입력된 세션 수
+    homework: { done: number; notDone: number; rate: number | null }; // rate = 했음/(했음+안함)
+    avgScorePct: number | null;        // 평균 시험 점수 (만점 대비 %)
   };
+  exams: StudentLessonExam[];
   timeline: StudentLessonTimelineEntry[];
 }
 

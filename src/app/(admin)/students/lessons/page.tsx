@@ -9,6 +9,7 @@ import { useLessonStore } from '@/lib/stores/lessonStore';
 import { toast } from '@/lib/stores/toastStore';
 import FilterBar from './_components/FilterBar';
 import SummaryCard from './_components/SummaryCard';
+import ExamSection from './_components/ExamSection';
 import TimelineList from './_components/TimelineList';
 
 function defaultRange() {
@@ -122,6 +123,7 @@ function StudentLessonsInner() {
         ) : studentHistory ? (
           <>
             <SummaryCard data={studentHistory} />
+            <ExamSection exams={studentHistory.exams} />
             <TimelineList timeline={studentHistory.timeline} />
           </>
         ) : null}

@@ -9,6 +9,8 @@ import type {
   LessonCommentUpsertInput,
   LessonSessionNote,
   LessonSessionNoteUpsertInput,
+  LessonStudentEval,
+  LessonStudentEvalUpsertInput,
   ClinicResult,
   ClinicResultUpsertInput,
   MakeupComment,
@@ -24,6 +26,7 @@ interface LessonStore {
   sessions: LessonSession[];
   comments: LessonComment[];     // 현재 선택 수업 기준 (정규)
   sessionNotes: LessonSessionNote[]; // 수업 단위 내용 (반×날짜, 학생 공통)
+  studentEvals: LessonStudentEval[]; // 학생별 수업 평가 (태도·과제)
   clinicResults: ClinicResult[]; // 현재 선택 수업 기준 (정규)
   makeupComments: MakeupComment[];          // 현재 선택 보강 기준
   makeupClinicResults: MakeupClinicResult[]; // 현재 선택 보강 기준
@@ -46,6 +49,11 @@ interface LessonStore {
   fetchSessionNote: (classId: string, sessionDate: string) => Promise<void>;
   upsertSessionNote: (input: LessonSessionNoteUpsertInput) => Promise<void>;
   getSessionNoteFor: (classId: string, sessionDate: string) => LessonSessionNote | undefined;
+
+  // 학생별 수업 평가 (태도·과제)
+  fetchStudentEvals: (classId: string, sessionDate: string) => Promise<void>;
+  upsertStudentEval: (input: LessonStudentEvalUpsertInput) => Promise<void>;
+  getStudentEvalFor: (classId: string, studentId: string, sessionDate: string) => LessonStudentEval | undefined;
 
   // 정규 수업 Clinic 결과
   fetchClinicResults: (classId: string, sessionDate: string) => Promise<void>;
@@ -86,6 +94,7 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   sessions: [],
   comments: [],
   sessionNotes: [],
+  studentEvals: [],
   clinicResults: [],
   makeupComments: [],
   makeupClinicResults: [],
@@ -218,6 +227,43 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   getSessionNoteFor: (classId, sessionDate) =>
     get().sessionNotes.find(
       (n) => n.classId === classId && n.sessionDate === sessionDate,
+    ),
+
+  fetchStudentEvals: async (classId, sessionDate) => {
+    const params = new URLSearchParams({ classId, date: sessionDate });
+    const res = await fetch(`/api/lessons/student-eval?${params.toString()}`);
+    if (!res.ok) throw new Error('수업 평가 조회 실패');
+    const data: LessonStudentEval[] = await res.json();
+    set({ studentEvals: data });
+  },
+
+  upsertStudentEval: async (input) => {
+    const res = await fetch('/api/lessons/student-eval', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error('수업 평가 저장 실패');
+    const saved: LessonStudentEval = await res.json();
+    set((state) => {
+      const idx = state.studentEvals.findIndex(
+        (e) =>
+          e.classId === saved.classId &&
+          e.studentId === saved.studentId &&
+          e.sessionDate === saved.sessionDate,
+      );
+      if (idx >= 0) {
+        const next = [...state.studentEvals];
+        next[idx] = saved;
+        return { studentEvals: next };
+      }
+      return { studentEvals: [...state.studentEvals, saved] };
+    });
+  },
+
+  getStudentEvalFor: (classId, studentId, sessionDate) =>
+    get().studentEvals.find(
+      (e) => e.classId === classId && e.studentId === studentId && e.sessionDate === sessionDate,
     ),
 
   fetchClinicResults: async (classId, sessionDate) => {

@@ -5,6 +5,7 @@ import Button from '@/components/shared/Button';
 import { useLessonStore } from '@/lib/stores/lessonStore';
 import { toast } from '@/lib/stores/toastStore';
 import clsx from 'clsx';
+import { ATTITUDE_LABELS } from '@/lib/types/lesson';
 import type { ClinicCheck, ClinicCustomItem } from '@/lib/types/lesson';
 
 /**
@@ -39,6 +40,11 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
     getClinicResultFor,
     comments,
     clinicResults,
+    // 수업 평가 (태도·과제)
+    fetchStudentEvals,
+    upsertStudentEval,
+    getStudentEvalFor,
+    studentEvals,
     // makeup
     fetchMakeupComments,
     upsertMakeupComment,
@@ -58,6 +64,11 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
   const [newItemLabel, setNewItemLabel] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // 수업 평가 (태도·과제) — 정규 수업(lesson scope) 전용
+  const [attitude, setAttitude] = useState<number | null>(null);
+  const [homeworkDone, setHomeworkDone] = useState<boolean | null>(null);
+  const [attitudeReason, setAttitudeReason] = useState('');
+
   // scope의 식별 키 (useEffect deps용 안정값)
   const scopeKey = useMemo(() => {
     return scope.kind === 'lesson'
@@ -75,13 +86,30 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
     if (scope.kind === 'lesson') {
       fetchComments(scope.classId, scope.sessionDate).catch(() => {});
       fetchClinicResults(scope.classId, scope.sessionDate).catch(() => {});
+      fetchStudentEvals(scope.classId, scope.sessionDate).catch(() => {});
     } else {
       fetchMakeupComments(scope.makeupClassId).catch(() => {});
       fetchMakeupClinicResults(scope.makeupClassId).catch(() => {});
     }
     // scopeKey가 scope의 모든 식별 필드를 인코딩하므로, 불안정한 scope 객체는 deps에서 제외 (재렌더 루프 방지)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey, fetchComments, fetchClinicResults, fetchMakeupComments, fetchMakeupClinicResults]);
+  }, [scopeKey, fetchComments, fetchClinicResults, fetchStudentEvals, fetchMakeupComments, fetchMakeupClinicResults]);
+
+  // 학생/scope 변경 시 수업 평가 복원 (lesson scope 전용)
+  useEffect(() => {
+    if (scope.kind !== 'lesson' || !selectedStudentId) {
+      setAttitude(null);
+      setHomeworkDone(null);
+      setAttitudeReason('');
+      return;
+    }
+    const e = getStudentEvalFor(scope.classId, selectedStudentId, scope.sessionDate);
+    setAttitude(e?.attitude ?? null);
+    setHomeworkDone(e?.homeworkDone ?? null);
+    setAttitudeReason(e?.attitudeReason ?? '');
+    // scope 객체는 매 렌더 새로 생성되므로 안정값 scopeKey만 의존 (입력값 초기화 루프 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentId, scopeKey, studentEvals, getStudentEvalFor]);
 
   // 양식 선택: 학생에게 이미 저장된 클리닉이 있으면 그 양식을 자동 선택, 없으면 빈 상태로 시작
   useEffect(() => {
@@ -231,6 +259,14 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
           sessionDate: scope.sessionDate,
           comment: commentText,
         });
+        await upsertStudentEval({
+          classId: scope.classId,
+          studentId: selectedStudentId,
+          sessionDate: scope.sessionDate,
+          attitude,
+          attitudeReason: attitudeReason.trim() || null,
+          homeworkDone,
+        });
         if (selectedTemplateId && currentTemplate) {
           await upsertClinicResult({
             classId: scope.classId,
@@ -273,6 +309,80 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
 
   return (
     <div className="space-y-4">
+      {/* 수업 평가 (태도·과제) — 정규 수업 전용 */}
+      {scope.kind === 'lesson' && (
+        <div className="rounded-[8px] border border-[#e2e8f0] bg-[#fafbfc] p-3 space-y-2.5">
+          <div className="text-[12px] font-semibold text-[#111827]">수업 평가</div>
+
+          {/* 태도 점수 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11.5px] text-[#6b7280] w-9 shrink-0">태도</span>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  title={ATTITUDE_LABELS[n]}
+                  onClick={() => setAttitude(attitude === n ? null : n)}
+                  className={clsx(
+                    'w-8 h-8 rounded-[8px] text-[13px] font-semibold border transition-colors cursor-pointer',
+                    attitude === n
+                      ? 'bg-[#4fc3a1] text-white border-transparent'
+                      : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-[#9ca3af]">
+              {attitude ? ATTITUDE_LABELS[attitude] : '1 매우 미흡 · 5 매우 우수'}
+            </span>
+          </div>
+
+          {/* 과제 수행 */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11.5px] text-[#6b7280] w-9 shrink-0">과제</span>
+            <button
+              type="button"
+              onClick={() => setHomeworkDone(homeworkDone === true ? null : true)}
+              className={clsx(
+                'px-3 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                homeworkDone === true
+                  ? 'bg-[#4fc3a1] text-white border-transparent'
+                  : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
+              )}
+            >
+              했음
+            </button>
+            <button
+              type="button"
+              onClick={() => setHomeworkDone(homeworkDone === false ? null : false)}
+              className={clsx(
+                'px-3 py-1 rounded-[8px] text-[12px] border transition-colors cursor-pointer',
+                homeworkDone === false
+                  ? 'bg-[#ef4444] text-white border-transparent'
+                  : 'bg-white text-[#374151] border-[#e2e8f0] hover:bg-[#f4f6f8]',
+              )}
+            >
+              안 함
+            </button>
+            {homeworkDone === null && (
+              <span className="text-[11px] text-[#9ca3af]">미설정 (과제 없던 날)</span>
+            )}
+          </div>
+
+          {/* 사유 (선택) */}
+          <input
+            type="text"
+            value={attitudeReason}
+            onChange={(e) => setAttitudeReason(e.target.value)}
+            placeholder="태도 점수 사유 (선택)"
+            className="w-full text-[12px] border border-[#e2e8f0] rounded-[8px] px-3 py-1.5 focus:outline-none focus:border-[#4fc3a1]"
+          />
+        </div>
+      )}
+
       {/* Comment */}
       <div>
         <label className="block text-[12px] font-semibold text-[#111827] mb-1.5">

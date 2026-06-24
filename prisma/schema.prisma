@@ -95,6 +95,7 @@ model Academy {
   lessonComments           LessonComment[]
   clinicResults            ClinicResult[]
   lessonSessionNotes       LessonSessionNote[]
+  lessonStudentEvals       LessonStudentEval[]
   makeupComments           MakeupComment[]
   makeupClinicResults      MakeupClinicResult[]
   enrollmentRules          EnrollmentRule[]
@@ -257,6 +258,7 @@ model Student {
   lectureTargets      LectureStudentTarget[]
   lessonComments      LessonComment[]
   clinicResults       ClinicResult[]
+  lessonStudentEvals  LessonStudentEval[]
   makeupComments      MakeupComment[]
   makeupClinicResults MakeupClinicResult[]
   monthlyAdjustments  MonthlyAdjustment[]
@@ -370,6 +372,7 @@ model Class {
   lessonComments     LessonComment[]
   clinicResults      ClinicResult[]
   lessonSessionNotes LessonSessionNote[]
+  lessonStudentEvals LessonStudentEval[]
   monthlyAdjustments MonthlyAdjustment[]
 
   createdAt DateTime @default(now())
@@ -1684,6 +1687,32 @@ model LessonSessionNote {
   @@unique([classId, sessionDate])
   @@index([academyId, sessionDate])
   @@map("lesson_session_notes")
+}
+
+// 학생별 수업 평가 — 그 수업에서의 태도 점수 + 사유 + 과제 수행 여부 (학생 × 날짜 × 반 별 1행)
+model LessonStudentEval {
+  id        String  @id @default(cuid())
+  academyId String
+  academy   Academy @relation(fields: [academyId], references: [id])
+
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  sessionDate    DateTime // 날짜만 의미 있음 (00:00:00 UTC 정규화)
+  attitude       Int? // 1~5 (정량). null = 미입력
+  attitudeReason String? // 태도 점수 사유 (선택)
+  homeworkDone   Boolean? // null = 미설정(과제 없던 날), true = 했음, false = 안 함
+
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, studentId, sessionDate])
+  @@index([academyId, sessionDate])
+  @@map("lesson_student_evals")
 }
 
 // 마케팅 페이지(/intro) 상담 신청 — 기존 고객이 아닌 잠재 원장 리드. 학원에 종속되지 않음(플랫폼 전역).

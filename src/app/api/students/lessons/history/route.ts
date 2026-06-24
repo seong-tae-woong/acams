@@ -7,6 +7,8 @@ import type {
   StudentLessonClinicSummary,
   StudentLessonTimelineEntry,
   StudentLessonTimelineClinic,
+  StudentLessonExam,
+  AttendanceUiStatus,
   ClinicCheck,
   ClinicCustomItem,
   ClinicTemplateItem,
@@ -15,6 +17,13 @@ import type {
 function toDateOnly(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00.000Z`);
 }
+
+const ATT_STATUS_UI: Record<string, AttendanceUiStatus> = {
+  PRESENT: '출석',
+  ABSENT: '결석',
+  LATE: '지각',
+  EARLY_LEAVE: '조퇴',
+};
 
 // GET /api/students/lessons/history?studentId=&classId=&from=&to=
 export async function GET(req: NextRequest) {
@@ -103,7 +112,25 @@ export async function GET(req: NextRequest) {
         ] as const)
       : ([Promise.resolve([]), Promise.resolve([]), Promise.resolve([])] as const);
 
-    const [comments, clinicResults, makeupComments, makeupClinicResults, makeupTargets, templates, classRows] = await Promise.all([
+    // 성취 모니터링용 — 출석 / 수업평가(태도·과제) / 수업내용 / 시험성적
+    const monitorFetches = targetClassIds.length > 0
+      ? ([
+          prisma.attendanceRecord.findMany({
+            where: { academyId, studentId, classId: { in: targetClassIds }, date: { gte: from, lte: to } },
+            select: { classId: true, date: true, status: true },
+          }),
+          prisma.lessonStudentEval.findMany({
+            where: { academyId, studentId, classId: { in: targetClassIds }, sessionDate: { gte: from, lte: to } },
+            select: { classId: true, sessionDate: true, attitude: true, attitudeReason: true, homeworkDone: true },
+          }),
+          prisma.lessonSessionNote.findMany({
+            where: { academyId, classId: { in: targetClassIds }, sessionDate: { gte: from, lte: to } },
+            select: { classId: true, sessionDate: true, content: true },
+          }),
+        ] as const)
+      : ([Promise.resolve([]), Promise.resolve([]), Promise.resolve([])] as const);
+
+    const [comments, clinicResults, makeupComments, makeupClinicResults, makeupTargets, templates, classRows, attendanceRows, evalRows, sessionNoteRows, gradeRows] = await Promise.all([
       regularFetches[0],
       regularFetches[1],
       // 보강 코멘트 — 학생이 명단에 있는 보강 (학생 활성 반과 무관, 오픈 보강 포함)
@@ -177,10 +204,32 @@ export async function GET(req: NextRequest) {
       }),
       prisma.clinicTemplate.findMany({ where: { academyId } }),
       regularFetches[2],
+      monitorFetches[0], // attendanceRows
+      monitorFetches[1], // evalRows
+      monitorFetches[2], // sessionNoteRows
+      // 시험 성적 (세션 단위 아님 — 기간 내 학생의 모든 시험)
+      prisma.gradeRecord.findMany({
+        where: { studentId, exam: { academyId, date: { gte: from, lte: to } } },
+        include: { exam: { select: { id: true, name: true, subject: true, date: true, totalScore: true } } },
+      }),
     ]);
 
     const classMap = new Map(classRows.map((c) => [c.id, c]));
     const templateMap = new Map(templates.map((t) => [t.id, t]));
+
+    // 성취 모니터링 — (classId|date) 키 맵
+    const dateKey = (classId: string, d: Date) => `${classId}|${d.toISOString().slice(0, 10)}`;
+    const attendanceMap = new Map<string, AttendanceUiStatus>();
+    for (const a of attendanceRows) attendanceMap.set(dateKey(a.classId, a.date), ATT_STATUS_UI[a.status] ?? null);
+    const evalMap = new Map<string, { attitude: number | null; attitudeReason: string | null; homeworkDone: boolean | null }>();
+    for (const e of evalRows) evalMap.set(dateKey(e.classId, e.sessionDate), { attitude: e.attitude, attitudeReason: e.attitudeReason, homeworkDone: e.homeworkDone });
+    const noteMap = new Map<string, string>();
+    for (const n of sessionNoteRows) noteMap.set(dateKey(n.classId, n.sessionDate), n.content);
+    // 보강 학생 출결 (MakeupClassTarget.status)
+    const makeupStatusMap = new Map<string, AttendanceUiStatus>();
+    for (const t of makeupTargets) {
+      if (t.status) makeupStatusMap.set(t.makeupClass.id, ATT_STATUS_UI[t.status] ?? null);
+    }
 
     // 4. 양식별 체크율 요약 계산
     const summaryAgg = new Map<
@@ -305,6 +354,14 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 5-b. 출석·평가만 있는 세션도 모니터링에 표시 (코멘트/Clinic 없어도)
+    const ensureRegular = (classId: string, date: string) => {
+      const key = `${classId}|${date}`;
+      if (!timelineMap.has(key)) timelineMap.set(key, { date, classId, comment: null, clinicsByTemplate: new Map() });
+    };
+    for (const e of evalRows) ensureRegular(e.classId, dateOnly(e.sessionDate));
+    for (const a of attendanceRows) ensureRegular(a.classId, dateOnly(a.date));
+
     // 6. 각 entry에 수업 시간 정보 매칭 (ClassSchedule 기반, 요일 매칭)
     const timeline: StudentLessonTimelineEntry[] = [];
     for (const e of timelineMap.values()) {
@@ -313,6 +370,8 @@ export async function GET(req: NextRequest) {
       const jsDay = dateObj.getUTCDay();
       const dow = jsDay === 0 ? 7 : jsDay;
       const sched = cls?.schedules.find((s) => s.dayOfWeek === dow);
+      const key = `${e.classId}|${e.date}`;
+      const ev = evalMap.get(key);
 
       timeline.push({
         kind: 'regular',
@@ -325,6 +384,11 @@ export async function GET(req: NextRequest) {
         isOneTime: !sched, // (deprecated) 호환성 유지 — UI는 kind를 사용
         comment: e.comment,
         clinics: [...e.clinicsByTemplate.values()],
+        sessionNote: noteMap.get(key) ?? null,
+        attendanceStatus: attendanceMap.get(key) ?? null,
+        attitude: ev?.attitude ?? null,
+        attitudeReason: ev?.attitudeReason ?? null,
+        homeworkDone: ev?.homeworkDone ?? null,
         makeupClassId: null,
         makeupReason: null,
       });
@@ -421,6 +485,11 @@ export async function GET(req: NextRequest) {
         isOneTime: true,
         comment: m.comment,
         clinics: [...m.clinicsByTemplate.values()],
+        sessionNote: null,
+        attendanceStatus: makeupStatusMap.get(m.makeupClassId) ?? null,
+        attitude: null, // 보강 태도 평가는 후속 (MakeupStudentEval)
+        attitudeReason: null,
+        homeworkDone: null,
         makeupClassId: m.makeupClassId,
         makeupReason: m.reason,
       });
@@ -431,7 +500,43 @@ export async function GET(req: NextRequest) {
       return b.startTime.localeCompare(a.startTime);
     });
 
-    // 7. 응답 조립
+    // 7. 시험 점수 + KPI 집계
+    const exams: StudentLessonExam[] = gradeRows
+      .filter((g) => g.score != null)
+      .map((g) => ({
+        id: g.exam.id,
+        name: g.exam.name,
+        date: dateOnly(g.exam.date),
+        subject: g.exam.subject,
+        score: g.score as number,
+        totalScore: g.exam.totalScore,
+        rank: g.rank ?? null,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    const att = { present: 0, late: 0, absent: 0, earlyLeave: 0 };
+    for (const a of attendanceRows) {
+      if (a.status === 'PRESENT') att.present++;
+      else if (a.status === 'LATE') att.late++;
+      else if (a.status === 'ABSENT') att.absent++;
+      else if (a.status === 'EARLY_LEAVE') att.earlyLeave++;
+    }
+    const attTotal = att.present + att.late + att.absent + att.earlyLeave;
+    const attendanceRate = attTotal > 0 ? (att.present + att.late) / attTotal : null;
+
+    const attitudeVals = evalRows.map((e) => e.attitude).filter((v): v is number => v != null);
+    const avgAttitude = attitudeVals.length > 0 ? attitudeVals.reduce((s, v) => s + v, 0) / attitudeVals.length : null;
+
+    const hwDone = evalRows.filter((e) => e.homeworkDone === true).length;
+    const hwNot = evalRows.filter((e) => e.homeworkDone === false).length;
+    const homeworkRate = hwDone + hwNot > 0 ? hwDone / (hwDone + hwNot) : null;
+
+    const pcts = gradeRows
+      .filter((g) => g.score != null && g.exam.totalScore > 0)
+      .map((g) => ((g.score as number) / g.exam.totalScore) * 100);
+    const avgScorePct = pcts.length > 0 ? pcts.reduce((s, v) => s + v, 0) / pcts.length : null;
+
+    // 8. 응답 조립
     const classesRef = student.classEnrollments.map((e) => ({
       id: e.class.id,
       name: e.class.name,
@@ -447,7 +552,13 @@ export async function GET(req: NextRequest) {
           comments.filter((c) => c.comment.trim() !== '').length +
           makeupComments.filter((c) => c.comment.trim() !== '').length,
         clinicByTemplate,
+        attendance: { ...att, total: attTotal, rate: attendanceRate },
+        avgAttitude,
+        attitudeCount: attitudeVals.length,
+        homework: { done: hwDone, notDone: hwNot, rate: homeworkRate },
+        avgScorePct,
       },
+      exams,
       timeline,
     };
 

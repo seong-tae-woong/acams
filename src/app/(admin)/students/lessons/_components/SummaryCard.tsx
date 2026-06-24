@@ -10,8 +10,23 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="flex-1 min-w-[130px] rounded-[10px] border border-[#e2e8f0] bg-white p-3">
+      <div className="text-[11.5px] text-[#6b7280] mb-1">{label}</div>
+      <div className="text-[20px] font-bold text-[#111827] tabular-nums leading-none">{value}</div>
+      <div className="text-[10.5px] text-[#9ca3af] mt-1">{sub}</div>
+    </div>
+  );
+}
+
 export default function SummaryCard({ data }: SummaryCardProps) {
-  const { student, range, summary } = data;
+  const { student, range, summary, exams } = data;
+  const a = summary.attendance;
+  const attRate = a.rate != null ? `${Math.round(a.rate * 100)}%` : '–';
+  const avgAtt = summary.avgAttitude != null ? summary.avgAttitude.toFixed(1) : '–';
+  const hwRate = summary.homework.rate != null ? `${Math.round(summary.homework.rate * 100)}%` : '–';
+  const avgScore = summary.avgScorePct != null ? `${Math.round(summary.avgScorePct)}점` : '–';
 
   return (
     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
@@ -22,57 +37,28 @@ export default function SummaryCard({ data }: SummaryCardProps) {
         </span>
       </div>
 
-      <div className="text-[12.5px] text-[#374151]">
-        코멘트 작성된 수업: <span className="font-semibold text-[#111827]">{summary.commentCount}회</span>
+      <div className="flex gap-2 flex-wrap">
+        <Kpi
+          label="출석률"
+          value={attRate}
+          sub={a.total > 0 ? `출석 ${a.present} · 지각 ${a.late} · 결석 ${a.absent}${a.earlyLeave ? ` · 조퇴 ${a.earlyLeave}` : ''}` : '출결 기록 없음'}
+        />
+        <Kpi
+          label="평균 태도"
+          value={avgAtt}
+          sub={summary.attitudeCount > 0 ? `${summary.attitudeCount}회 평가 · 5점 만점` : '평가 없음'}
+        />
+        <Kpi
+          label="과제 수행률"
+          value={hwRate}
+          sub={summary.homework.done + summary.homework.notDone > 0 ? `했음 ${summary.homework.done} · 안 함 ${summary.homework.notDone}` : '기록 없음'}
+        />
+        <Kpi
+          label="평균 시험점수"
+          value={avgScore}
+          sub={exams.length > 0 ? `${exams.length}회 · 만점 대비` : '시험 없음'}
+        />
       </div>
-
-      {summary.clinicByTemplate.length === 0 ? (
-        <div className="text-[12px] text-[#9ca3af]">기간 내 Clinic 결과 없음</div>
-      ) : (
-        <div className="space-y-2">
-          <div className="text-[12px] font-semibold text-[#111827]">Clinic 체크율</div>
-          <div className="space-y-2">
-            {summary.clinicByTemplate.map((tmpl) => (
-              <div key={tmpl.templateId} className="border border-[#f1f5f9] rounded-[8px] p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[12.5px] font-medium text-[#111827]">{tmpl.templateName}</span>
-                  {!tmpl.isActive && (
-                    <span className="text-[10.5px] text-[#9ca3af]">(삭제됨)</span>
-                  )}
-                </div>
-                {tmpl.itemRates.length === 0 ? (
-                  <div className="text-[11.5px] text-[#9ca3af]">항목 결과 없음</div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {tmpl.itemRates.map((it) => {
-                      const pct = Math.round(it.rate * 100);
-                      return (
-                        <div key={it.itemId} className="flex flex-col gap-1">
-                          <div className="flex justify-between text-[11.5px]">
-                            <span className="text-[#374151] truncate">{it.label}</span>
-                            <span className="text-[#111827] font-semibold tabular-nums">
-                              {pct}%
-                            </span>
-                          </div>
-                          <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#4fc3a1] rounded-full"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <div className="text-[10.5px] text-[#9ca3af]">
-                            {it.checked}/{it.total}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

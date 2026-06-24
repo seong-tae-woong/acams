@@ -1,17 +1,37 @@
 'use client';
-import { Check, X as XIcon, CalendarPlus, BookOpen } from 'lucide-react';
-import type { StudentLessonTimelineEntry } from '@/lib/types/lesson';
+import { Check, X as XIcon } from 'lucide-react';
+import clsx from 'clsx';
+import { ATTITUDE_LABELS } from '@/lib/types/lesson';
+import type { StudentLessonTimelineEntry, AttendanceUiStatus } from '@/lib/types/lesson';
 
 interface TimelineListProps {
   timeline: StudentLessonTimelineEntry[];
 }
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-
-function formatHeader(dateStr: string): string {
+function fmtDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
-  const dow = DAY_LABELS[d.getDay()];
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} (${dow})`;
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} (${DAY_LABELS[d.getDay()]})`;
+}
+
+const ATT_STYLE: Record<AttendanceUiStatus, string> = {
+  출석: 'bg-[#E1F5EE] text-[#065f46]',
+  지각: 'bg-[#FEF3C7] text-[#92400e]',
+  결석: 'bg-[#FEE2E2] text-[#b91c1c]',
+  조퇴: 'bg-[#F3F4F6] text-[#374151]',
+};
+
+function AttitudeChip({ score }: { score: number }) {
+  const tier =
+    score >= 4 ? 'bg-[#4fc3a1] text-white' : score === 3 ? 'bg-[#e2e8f0] text-[#374151]' : 'bg-[#FCA5A5] text-[#7f1d1d]';
+  return (
+    <span
+      title={ATTITUDE_LABELS[score]}
+      className={clsx('inline-flex items-center justify-center w-6 h-6 rounded-[7px] text-[12px] font-bold', tier)}
+    >
+      {score}
+    </span>
+  );
 }
 
 export default function TimelineList({ timeline }: TimelineListProps) {
@@ -24,82 +44,80 @@ export default function TimelineList({ timeline }: TimelineListProps) {
   }
 
   return (
-    <div className="space-y-3">
-      {timeline.map((entry, idx) => {
-        const isMakeup = entry.kind === 'makeup';
-        return (
-        <div
-          key={`${isMakeup ? 'm' : 'r'}-${entry.makeupClassId ?? entry.classId}-${entry.date}-${idx}`}
-          className={`bg-white rounded-[10px] border overflow-hidden flex ${
-            isMakeup ? 'border-[#fde68a]' : 'border-[#e2e8f0]'
-          }`}
-        >
-          <div className="w-1 shrink-0" style={{ backgroundColor: entry.classColor }} />
-          <div className="flex-1 p-4 space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              {isMakeup ? (
-                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-[20px] bg-[#fef3c7] text-[#92400e] border border-[#fde68a]">
-                  <CalendarPlus size={11} /> 보강
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-[20px] bg-[#E1F5EE] text-[#065f46] border border-[#bbf7d0]">
-                  <BookOpen size={11} /> 정규
-                </span>
-              )}
-              <span className="text-[12.5px] font-semibold text-[#111827]">{formatHeader(entry.date)}</span>
-              <span className="text-[12px] text-[#374151]">{entry.className}</span>
-              {entry.startTime && (
-                <span className="text-[11.5px] text-[#6b7280]">
-                  {entry.endTime ? `${entry.startTime}~${entry.endTime}` : entry.startTime}
-                </span>
-              )}
-              {isMakeup && entry.makeupReason && (
-                <span className="text-[11px] text-[#92400e]">사유: {entry.makeupReason}</span>
-              )}
-            </div>
-
-            {entry.comment && entry.comment.trim() !== '' ? (
-              <div className="text-[12.5px] text-[#374151] leading-relaxed whitespace-pre-wrap">
-                {entry.comment}
-              </div>
-            ) : (
-              <div className="text-[11.5px] text-[#9ca3af]">코멘트 없음</div>
-            )}
-
-            {entry.clinics.length > 0 && (
-              <div className="space-y-2">
-                {entry.clinics.map((clinic) => (
-                  <div key={clinic.templateId} className="border border-[#f1f5f9] rounded-[8px] p-2.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="text-[11.5px] font-semibold text-[#374151]">
-                        {clinic.templateName}
-                      </span>
-                      {!clinic.isActive && (
-                        <span className="text-[10px] text-[#9ca3af]">(삭제됨)</span>
+    <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#e2e8f0] text-[12.5px] font-semibold text-[#111827]">
+        수업 세션 <span className="text-[11px] font-normal text-[#9ca3af]">{timeline.length}회</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead>
+            <tr className="bg-[#f9fafb] text-[#6b7280] text-[11px]">
+              <th className="text-left font-medium px-3 py-2 whitespace-nowrap">날짜</th>
+              <th className="text-left font-medium px-3 py-2 whitespace-nowrap">반</th>
+              <th className="text-center font-medium px-3 py-2 whitespace-nowrap">출석</th>
+              <th className="text-center font-medium px-3 py-2 whitespace-nowrap">태도</th>
+              <th className="text-center font-medium px-3 py-2 whitespace-nowrap">과제</th>
+              <th className="text-left font-medium px-3 py-2 min-w-[200px]">수업 내용</th>
+            </tr>
+          </thead>
+          <tbody>
+            {timeline.map((e, idx) => {
+              const isMakeup = e.kind === 'makeup';
+              return (
+                <tr
+                  key={`${isMakeup ? 'm' : 'r'}-${e.makeupClassId ?? e.classId}-${e.date}-${idx}`}
+                  className="border-t border-[#f1f5f9] align-top"
+                >
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-[#111827] tabular-nums">{fmtDate(e.date)}</span>
+                      {isMakeup && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e]">보강</span>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                      {clinic.checks.map((c) => (
-                        <div key={c.itemId} className="flex items-center gap-1 text-[11.5px]">
-                          {c.checked ? (
-                            <Check size={12} className="text-[#4fc3a1]" />
-                          ) : (
-                            <XIcon size={12} className="text-[#d1d5db]" />
-                          )}
-                          <span className={c.checked ? 'text-[#111827]' : 'text-[#9ca3af]'}>
-                            {c.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        );
-      })}
+                  </td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.classColor }} />
+                      <span className="text-[#374151]">{e.className}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    {e.attendanceStatus ? (
+                      <span className={clsx('inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full', ATT_STYLE[e.attendanceStatus])}>
+                        {e.attendanceStatus}
+                      </span>
+                    ) : (
+                      <span className="text-[#d1d5db]">–</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    {e.attitude ? <AttitudeChip score={e.attitude} /> : <span className="text-[#d1d5db]">–</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                    {e.homeworkDone === true ? (
+                      <Check size={15} className="inline text-[#4fc3a1]" />
+                    ) : e.homeworkDone === false ? (
+                      <XIcon size={15} className="inline text-[#ef4444]" />
+                    ) : (
+                      <span className="text-[#d1d5db]">–</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {e.sessionNote ? (
+                      <span className="text-[#374151] whitespace-pre-wrap">{e.sessionNote}</span>
+                    ) : isMakeup && e.makeupReason ? (
+                      <span className="text-[#9ca3af]">보강 · {e.makeupReason}</span>
+                    ) : (
+                      <span className="text-[#d1d5db]">–</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
