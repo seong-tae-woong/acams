@@ -26,7 +26,7 @@ export default function SummaryCard({ data }: SummaryCardProps) {
   const attRate = a.rate != null ? `${Math.round(a.rate * 100)}%` : '–';
   const avgAtt = summary.avgAttitude != null ? summary.avgAttitude.toFixed(1) : '–';
   const hwRate = summary.homework.rate != null ? `${Math.round(summary.homework.rate * 100)}%` : '–';
-  const avgScore = summary.avgScorePct != null ? `${Math.round(summary.avgScorePct)}%` : '–';
+  const avgScore = summary.avgScorePct != null ? `${Math.round(summary.avgScorePct)}점` : '–';
 
   return (
     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
