@@ -104,9 +104,9 @@ export default function TimelineList({ timeline }: TimelineListProps) {
                       <span className="text-[#d1d5db]">–</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3 py-2.5 max-w-[360px]">
                     {e.sessionNote ? (
-                      <span className="text-[#374151] whitespace-pre-wrap">{e.sessionNote}</span>
+                      <span className="text-[#374151] line-clamp-2" title={e.sessionNote}>{e.sessionNote}</span>
                     ) : isMakeup && e.makeupReason ? (
                       <span className="text-[#9ca3af]">보강 · {e.makeupReason}</span>
                     ) : (
