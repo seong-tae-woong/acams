@@ -15,7 +15,7 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub: string 
     <div className="flex-1 min-w-[130px] rounded-[10px] border border-[#e2e8f0] bg-white p-3">
       <div className="text-[11.5px] text-[#6b7280] mb-1">{label}</div>
       <div className="text-[20px] font-bold text-[#111827] tabular-nums leading-none">{value}</div>
-      <div className="text-[10.5px] text-[#9ca3af] mt-1">{sub}</div>
+      <div className="text-[10.5px] text-[#6b7280] mt-1">{sub}</div>
     </div>
   );
 }
@@ -26,7 +26,7 @@ export default function SummaryCard({ data }: SummaryCardProps) {
   const attRate = a.rate != null ? `${Math.round(a.rate * 100)}%` : '–';
   const avgAtt = summary.avgAttitude != null ? summary.avgAttitude.toFixed(1) : '–';
   const hwRate = summary.homework.rate != null ? `${Math.round(summary.homework.rate * 100)}%` : '–';
-  const avgScore = summary.avgScorePct != null ? `${Math.round(summary.avgScorePct)}점` : '–';
+  const avgScore = summary.avgScorePct != null ? `${Math.round(summary.avgScorePct)}%` : '–';
 
   return (
     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
