@@ -25,6 +25,8 @@ interface GradeStore {
       category1Id?: string;
       category2Id?: string;
       category3Id?: string;
+      from?: string; // YYYY-MM-DD (시험일 범위 — 월 필터)
+      to?: string;
     },
   ) => Promise<number>;
   fetchGrades: (examId: string) => Promise<void>;
@@ -60,6 +62,8 @@ export const useGradeStore = create<GradeStore>((set, get) => ({
       if (opts?.category1Id) params.set('category1Id', opts.category1Id);
       if (opts?.category2Id) params.set('category2Id', opts.category2Id);
       if (opts?.category3Id) params.set('category3Id', opts.category3Id);
+      if (opts?.from) params.set('from', opts.from);
+      if (opts?.to) params.set('to', opts.to);
       if (opts?.take !== undefined) {
         params.set('take', String(opts.take));
         params.set('skip', String(opts.skip ?? 0));

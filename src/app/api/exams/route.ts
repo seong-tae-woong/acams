@@ -17,6 +17,10 @@ export async function GET(req: NextRequest) {
   const category3Id = searchParams.get('category3Id');
   const takeParam = searchParams.get('take');
   const skipParam = searchParams.get('skip');
+  // from·to(YYYY-MM-DD)가 있으면 시험일(date) 범위 조회 — 월 단위 필터용
+  const fromStr = searchParams.get('from');
+  const toStr = searchParams.get('to');
+  const useRange = !!(fromStr && toStr && /^\d{4}-\d{2}-\d{2}$/.test(fromStr) && /^\d{4}-\d{2}-\d{2}$/.test(toStr));
   // take 파라미터가 있으면 등록일(createdAt) 최신순 페이지네이션, 없으면 기존 전체 조회
   const take = takeParam ? Math.max(1, Math.min(100, Number(takeParam) || 0)) : undefined;
   const skip = skipParam ? Math.max(0, Number(skipParam) || 0) : 0;
@@ -30,6 +34,9 @@ export async function GET(req: NextRequest) {
         ...(category1Id ? { category1Id } : {}),
         ...(category2Id ? { category2Id } : {}),
         ...(category3Id ? { category3Id } : {}),
+        ...(useRange
+          ? { date: { gte: new Date(`${fromStr}T00:00:00.000Z`), lte: new Date(`${toStr}T23:59:59.999Z`) } }
+          : {}),
       },
       include: {
         class: { select: { name: true, subject: true } },
@@ -37,8 +44,8 @@ export async function GET(req: NextRequest) {
         category2: { select: { id: true, name: true } },
         category3: { select: { id: true, name: true } },
       },
-      orderBy: take !== undefined ? { createdAt: 'desc' } : { date: 'desc' },
-      ...(take !== undefined ? { take, skip } : {}),
+      orderBy: useRange ? { date: 'desc' } : take !== undefined ? { createdAt: 'desc' } : { date: 'desc' },
+      ...(useRange ? {} : take !== undefined ? { take, skip } : {}),
     });
 
     const result = exams.map((e) => ({

@@ -11,13 +11,13 @@ import { StudentStatus } from '@/lib/types/student';
 import type { ScoringMethod, GradeRecord } from '@/lib/types/grade';
 import { formatKoreanDate } from '@/lib/utils/format';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Trash2, FolderTree, Pencil, Send } from 'lucide-react';
+import { Plus, Trash2, FolderTree, Pencil, Send, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import clsx from 'clsx';
 import PublishReportModal from '@/components/communication/PublishReportModal';
 import CategoryManagerModal from '../_components/CategoryManagerModal';
 import ClassSelector from '../_components/ClassSelector';
-import { type ExamForm, type MainTab, EMPTY_EXAM_FORM, PAGE_SIZE, fieldClass, TAB_OPTIONS } from '../_shared';
+import { type ExamForm, type MainTab, EMPTY_EXAM_FORM, fieldClass, TAB_OPTIONS } from '../_shared';
 
 interface ExamTabProps {
   selectedClassId: string;
@@ -36,9 +36,10 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
   } = useGradeStore();
   const { students } = useStudentStore();
 
-  // 시험 목록 페이지네이션 상태
-  const [examHasMore, setExamHasMore] = useState(false);
-  const [examLoadingMore, setExamLoadingMore] = useState(false);
+  // 시험 목록 월 필터 + 검색
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth()); // 0-based
+  const [examSearch, setExamSearch] = useState('');
 
   // 시험 등록/수정 모달
   const [examFormOpen, setExamFormOpen] = useState(false);
@@ -65,8 +66,12 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
   // 리포트 발행 모달
   const [publishModalOpen, setPublishModalOpen] = useState(false);
 
-  // 시험 목록은 서버에서 반·카테고리 필터 + 등록일순 페이지네이션으로 내려옴
+  // 시험 목록은 서버에서 반·카테고리 + 선택 월(시험일) 범위로 내려옴
   const classExams = getExamsByClass(selectedClassId);
+  const examSearchQ = examSearch.trim().toLowerCase();
+  const displayedExams = examSearchQ
+    ? classExams.filter((e) => (e.name || '').toLowerCase().includes(examSearchQ))
+    : classExams;
   const hasExamFilter = Boolean(filterCat1 || filterCat2 || filterCat3);
   const selectedExam = exams.find((e) => e.id === selectedExamId);
   const examGrades = selectedExamId ? getGradesByExam(selectedExamId) : [];
@@ -110,42 +115,40 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
   const filterCat2Options = filterCat1 ? (cat2ByParent.get(filterCat1) ?? []) : [];
   const filterCat3Options = filterCat2 ? (cat3ByParent.get(filterCat2) ?? []) : [];
 
-  // 시험 목록 1페이지 로드 (반·카테고리 필터 적용, 등록일 최신순)
+  // 시험 목록 로드 (반·카테고리 + 선택 월의 시험일 범위)
   const loadExamsFirstPage = useCallback(async () => {
     if (!selectedClassId) return;
-    const count = await fetchExams(selectedClassId, {
-      take: PAGE_SIZE,
-      skip: 0,
+    const from = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(calYear, calMonth + 1, 0).getDate();
+    const to = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    await fetchExams(selectedClassId, {
+      from,
+      to,
       category1Id: filterCat1 || undefined,
       category2Id: filterCat2 || undefined,
       category3Id: filterCat3 || undefined,
     });
-    setExamHasMore(count === PAGE_SIZE);
-  }, [selectedClassId, filterCat1, filterCat2, filterCat3, fetchExams]);
+  }, [selectedClassId, calYear, calMonth, filterCat1, filterCat2, filterCat3, fetchExams]);
 
-  // 시험 목록 다음 페이지 로드 (스크롤)
-  const loadMoreExams = useCallback(async () => {
-    if (examLoadingMore || !examHasMore || !selectedClassId) return;
-    setExamLoadingMore(true);
-    try {
-      const count = await fetchExams(selectedClassId, {
-        take: PAGE_SIZE,
-        skip: getExamsByClass(selectedClassId).length,
-        append: true,
-        category1Id: filterCat1 || undefined,
-        category2Id: filterCat2 || undefined,
-        category3Id: filterCat3 || undefined,
-      });
-      setExamHasMore(count === PAGE_SIZE);
-    } finally {
-      setExamLoadingMore(false);
-    }
-  }, [examLoadingMore, examHasMore, selectedClassId, filterCat1, filterCat2, filterCat3, fetchExams, getExamsByClass]);
-
-  // 시험 탭 진입 / 반·카테고리 필터 변경 시 1페이지 재로딩
+  // 시험 탭 진입 / 반·월·카테고리 변경 시 재로딩
   useEffect(() => {
     loadExamsFirstPage();
   }, [loadExamsFirstPage]);
+
+  const prevMonth = () => {
+    setSelectedExam(null);
+    if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); } else setCalMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    setSelectedExam(null);
+    if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); } else setCalMonth((m) => m + 1);
+  };
+  const goToday = () => {
+    setSelectedExam(null);
+    const t = new Date();
+    setCalYear(t.getFullYear());
+    setCalMonth(t.getMonth());
+  };
 
   // 시험 선택 시 성적 로드
   const handleSelectExam = useCallback(async (examId: string | null) => {
@@ -193,7 +196,9 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
     }
     setSubmitting(true);
     try {
+      let targetExamId = '';
       if (editingExamId) {
+        targetExamId = editingExamId;
         // 수정 (배점 방식은 잠금 — totalScore/totalQuestions만 모드에 맞게 전송)
         await updateExam(editingExamId, {
           name: examForm.name,
@@ -245,14 +250,24 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
         }
 
         toast(`'${examForm.name}' 시험이 등록되었습니다.`, 'success');
-        // 새 시험이 등록일 최신순 목록 맨 앞에 오도록 1페이지 재로딩
-        await loadExamsFirstPage();
-        await handleSelectExam(examId);
+        targetExamId = examId;
       }
 
       setExamFormOpen(false);
       setEditingExamId(null);
+      const submittedDate = examForm.date;
       setExamForm(EMPTY_EXAM_FORM);
+      // 등록/수정한 시험의 시험일 달로 이동(다른 달이면) 후 해당 시험 선택
+      const jd = new Date(`${submittedDate}T00:00:00`);
+      const jy = jd.getFullYear();
+      const jm = jd.getMonth();
+      if (!Number.isNaN(jy) && (jy !== calYear || jm !== calMonth)) {
+        setCalYear(jy);
+        setCalMonth(jm); // useEffect가 해당 월 로드
+      } else {
+        await loadExamsFirstPage();
+      }
+      if (targetExamId) await handleSelectExam(targetExamId);
     } catch (err) {
       toast(err instanceof Error ? err.message : '저장에 실패했습니다.', 'error');
     } finally {
@@ -376,9 +391,29 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
             <span className="text-[12.5px] font-semibold text-[#111827]">시험 목록</span>
-            <span className="text-[11px] text-[#9ca3af]">
-              {classExams.length}개{examHasMore ? '+' : ''}
-            </span>
+            <span className="text-[11px] text-[#9ca3af] tabular-nums">{displayedExams.length}개</span>
+          </div>
+
+          {/* 월 필터 + 시험명 검색 */}
+          <div className="px-3 py-2.5 border-b border-[#e2e8f0] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-0.5">
+                <button onClick={prevMonth} className="p-0.5 rounded hover:bg-[#f4f6f8] cursor-pointer" title="이전 달"><ChevronLeft size={13} /></button>
+                <span className="text-[11.5px] font-medium text-[#374151] tabular-nums min-w-[56px] text-center">{calYear}.{calMonth + 1}</span>
+                <button onClick={nextMonth} className="p-0.5 rounded hover:bg-[#f4f6f8] cursor-pointer" title="다음 달"><ChevronRight size={13} /></button>
+              </div>
+              <button onClick={goToday} className="text-[10.5px] text-[#6b7280] hover:text-[#111827] cursor-pointer">오늘</button>
+            </div>
+            <div className="relative">
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
+              <input
+                type="text"
+                value={examSearch}
+                onChange={(e) => setExamSearch(e.target.value)}
+                placeholder="시험명 검색"
+                className="w-full text-[11.5px] border border-[#e2e8f0] rounded-[6px] pl-6 pr-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
+              />
+            </div>
           </div>
 
           {/* 카테고리 필터 */}
@@ -428,20 +463,14 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
             </select>
           </div>
 
-          <div
-            className="divide-y divide-[#f1f5f9] max-h-[calc(100vh-280px)] overflow-y-auto"
-            onScroll={(e) => {
-              const el = e.currentTarget;
-              if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) loadMoreExams();
-            }}
-          >
+          <div className="divide-y divide-[#f1f5f9] max-h-[calc(100vh-280px)] overflow-y-auto">
             {loading ? (
               <LoadingSpinner size="inline" />
-            ) : classExams.length === 0 ? (
+            ) : displayedExams.length === 0 ? (
               <div className="p-6 text-center text-[12px] text-[#9ca3af]">
-                {hasExamFilter ? '필터 조건에 해당하는 시험 없음' : '시험 없음'}
+                {examSearchQ ? '검색 결과 없음' : hasExamFilter ? '필터 조건에 해당하는 시험 없음' : `${calYear}년 ${calMonth + 1}월 시험 없음`}
               </div>
-            ) : classExams.map((exam) => {
+            ) : displayedExams.map((exam) => {
               const crumbs = [exam.category1Name, exam.category2Name, exam.category3Name].filter(Boolean) as string[];
               return (
                 <div
@@ -502,9 +531,6 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
                 </div>
               );
             })}
-            {examLoadingMore && (
-              <div className="p-3 text-center text-[11px] text-[#9ca3af]">불러오는 중…</div>
-            )}
           </div>
         </div>
 
