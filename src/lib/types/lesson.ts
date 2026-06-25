@@ -242,6 +242,13 @@ export interface StudentLessonExam {
   score: number;
   totalScore: number;
   rank: number | null;
+  // 시험 카테고리 (1은 보통 필수, 2/3은 옵션 — 레거시 데이터는 모두 null 가능)
+  category1Id: string | null;
+  category1Name: string | null;
+  category2Id: string | null;
+  category2Name: string | null;
+  category3Id: string | null;
+  category3Name: string | null;
 }
 
 export interface StudentLessonTimelineEntry {

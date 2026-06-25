@@ -210,7 +210,16 @@ export async function GET(req: NextRequest) {
       // 시험 성적 (세션 단위 아님 — 기간 내 학생의 모든 시험)
       prisma.gradeRecord.findMany({
         where: { studentId, exam: { academyId, date: { gte: from, lte: to } } },
-        include: { exam: { select: { id: true, name: true, subject: true, date: true, totalScore: true } } },
+        include: {
+          exam: {
+            select: {
+              id: true, name: true, subject: true, date: true, totalScore: true,
+              category1Id: true, category1: { select: { name: true } },
+              category2Id: true, category2: { select: { name: true } },
+              category3Id: true, category3: { select: { name: true } },
+            },
+          },
+        },
       }),
     ]);
 
@@ -511,6 +520,12 @@ export async function GET(req: NextRequest) {
         score: g.score as number,
         totalScore: g.exam.totalScore,
         rank: g.rank ?? null,
+        category1Id: g.exam.category1Id,
+        category1Name: g.exam.category1?.name ?? null,
+        category2Id: g.exam.category2Id,
+        category2Name: g.exam.category2?.name ?? null,
+        category3Id: g.exam.category3Id,
+        category3Name: g.exam.category3?.name ?? null,
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
 
