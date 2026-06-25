@@ -99,10 +99,18 @@ export default function ExamSection({ exams }: { exams: StudentLessonExam[] }) {
 
   return (
     <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-      {/* 헤더 */}
-      <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-baseline gap-2">
-        <span className="text-[12.5px] font-semibold text-[#111827]">시험 점수</span>
-        <span className="text-[11px] font-normal text-[#9ca3af]">{filtered.length}회</span>
+      {/* 헤더 — 전체 보기일 땐 전체 평균을 우측에 (상단 KPI에서 빠진 자리 보완) */}
+      <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-baseline justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[12.5px] font-semibold text-[#111827]">시험 점수</span>
+          <span className="text-[11px] font-normal text-[#9ca3af]">{filtered.length}회</span>
+        </div>
+        {!hasFilter && overallAvg != null && (
+          <span className="text-[11.5px] text-[#6b7280]">
+            평균 <span className="font-semibold text-[#111827] tabular-nums">{overallAvg}점</span>
+            <span className="text-[#9ca3af]"> · 만점 대비</span>
+          </span>
+        )}
       </div>
 
       {/* 카테고리 칩 필터 (카테고리가 있는 경우에만) */}

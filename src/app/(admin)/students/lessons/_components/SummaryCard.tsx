@@ -1,4 +1,7 @@
 'use client';
+import type { ReactNode } from 'react';
+import clsx from 'clsx';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import type { StudentLessonHistory } from '@/lib/types/lesson';
 
 interface SummaryCardProps {
@@ -10,7 +13,12 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
+// 만점 대비 환산 점수 (다른 만점의 시험을 비교 가능하게)
+function examPct(e: { score: number; totalScore: number }): number | null {
+  return e.totalScore > 0 ? Math.round((e.score / e.totalScore) * 100) : null;
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string; sub: ReactNode }) {
   return (
     <div className="flex-1 min-w-[130px] rounded-[10px] border border-[#e2e8f0] bg-white p-3">
       <div className="text-[11.5px] text-[#6b7280] mb-1">{label}</div>
@@ -26,7 +34,36 @@ export default function SummaryCard({ data }: SummaryCardProps) {
   const attRate = a.rate != null ? `${Math.round(a.rate * 100)}%` : '–';
   const avgAtt = summary.avgAttitude != null ? summary.avgAttitude.toFixed(1) : '–';
   const hwRate = summary.homework.rate != null ? `${Math.round(summary.homework.rate * 100)}%` : '–';
-  const avgScore = summary.avgScorePct != null ? `${Math.round(summary.avgScorePct)}점` : '–';
+
+  // 최근 시험점수 + 직전 대비 추세 (exams는 API에서 최신순 정렬)
+  const latestPct = exams.length > 0 ? examPct(exams[0]) : null;
+  const latestScore = latestPct != null ? `${latestPct}점` : '–';
+
+  let examTrendSub: ReactNode;
+  if (exams.length === 0) {
+    examTrendSub = '시험 없음';
+  } else if (exams.length === 1) {
+    examTrendSub = '첫 시험 · 만점 대비';
+  } else {
+    const lp = examPct(exams[0]);
+    const pp = examPct(exams[1]);
+    if (lp == null || pp == null) {
+      examTrendSub = '만점 대비';
+    } else {
+      const d = lp - pp;
+      if (d === 0) {
+        examTrendSub = '직전과 동일';
+      } else {
+        const up = d > 0;
+        examTrendSub = (
+          <span className={clsx('inline-flex items-center gap-0.5', up ? 'text-[#0f6e56]' : 'text-[#b45309]')}>
+            {up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            직전 대비 {Math.abs(d)}점
+          </span>
+        );
+      }
+    }
+  }
 
   return (
     <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-4 space-y-3">
@@ -54,9 +91,9 @@ export default function SummaryCard({ data }: SummaryCardProps) {
           sub={summary.homework.done + summary.homework.notDone > 0 ? `했음 ${summary.homework.done} · 안 함 ${summary.homework.notDone}` : '기록 없음'}
         />
         <Kpi
-          label="평균 시험점수"
-          value={avgScore}
-          sub={exams.length > 0 ? `${exams.length}회 · 만점 대비` : '시험 없음'}
+          label="최근 시험점수"
+          value={latestScore}
+          sub={examTrendSub}
         />
       </div>
     </div>
