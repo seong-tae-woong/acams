@@ -179,7 +179,8 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-[#e2e8f0] flex justify-between items-center">
+        <div className="px-5 py-3 border-t border-[#e2e8f0] flex justify-end gap-2">
+          <Button variant="default" size="sm" onClick={onClose}>닫기</Button>
           <Button
             variant="dark"
             size="sm"
@@ -188,7 +189,6 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
           >
             이 수업 리포트 발행
           </Button>
-          <Button variant="default" size="sm" onClick={onClose}>닫기</Button>
         </div>
       </div>
 

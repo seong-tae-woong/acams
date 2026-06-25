@@ -476,7 +476,7 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
                       value={entry?.comment ?? ''}
                       onChange={(e) => setCheckComment(item.id, e.target.value)}
                       placeholder="피드백 (선택)"
-                      className="mt-1 ml-6 w-[calc(100%-1.5rem)] text-[11.5px] border border-[#e2e8f0] rounded-[6px] px-2 py-0.5 focus:outline-none focus:border-[#4fc3a1]"
+                      className="mt-1 ml-6 w-[calc(100%-1.5rem)] text-[11.5px] border border-[#e2e8f0] rounded-[6px] px-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
                     />
                   </div>
                 );

@@ -25,7 +25,7 @@ interface Batch {
 
 const KIND_STYLE: Record<'PER_EXAM' | 'PERIODIC' | 'DAILY', { bg: string; text: string; label: string }> = {
   PER_EXAM: { bg: '#DBEAFE', text: '#1d4ed8', label: '시험별' },
-  DAILY: { bg: '#D1FAE5', text: '#0D9E7A', label: '수업' },
+  DAILY: { bg: '#E1F5EE', text: '#0D9E7A', label: '수업' },
   PERIODIC: { bg: '#EDE9FE', text: '#5B4FBE', label: '주기별' },
 };
 
