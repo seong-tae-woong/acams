@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     // batchId로 그룹화
     const groups = new Map<string, {
       batchId: string;
-      kind: 'PER_EXAM' | 'PERIODIC' | 'LEVEL_TEST';
+      kind: 'PER_EXAM' | 'PERIODIC' | 'LEVEL_TEST' | 'DAILY';
       templateName: string;
       examName: string | null;
       periodLabel: string;

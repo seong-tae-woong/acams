@@ -4,7 +4,7 @@ import { getTokenGroups } from '@/lib/reports/tokens';
 interface Props {
   onInsert: (token: string) => void;
   variant?: 'sidebar' | 'inline'; // sidebar: 우측 고정 패널 / inline: 모달 내부
-  kind?: 'PER_EXAM' | 'PERIODIC';  // 기본 PER_EXAM
+  kind?: 'PER_EXAM' | 'PERIODIC' | 'DAILY';  // 기본 PER_EXAM
 }
 
 export default function TokenPanel({ onInsert, variant = 'sidebar', kind = 'PER_EXAM' }: Props) {

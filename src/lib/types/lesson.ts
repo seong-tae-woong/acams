@@ -109,6 +109,7 @@ export const ATTITUDE_LABELS: Record<number, string> = {
 export interface ClinicCheck {
   itemId: string;
   checked: boolean;
+  comment?: string; // 항목별 피드백 (선택) — 체크하는 사람이 작성, 리포트 {{클리닉피드백}}로 노출
 }
 
 // 이 세션에서만 사용하는 커스텀 항목 (양식과 분리)
@@ -116,6 +117,7 @@ export interface ClinicCustomItem {
   id: string;
   label: string;
   checked: boolean;
+  comment?: string; // 항목별 피드백 (선택)
 }
 
 export interface ClinicResult {

@@ -201,16 +201,35 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
       const idx = prev.findIndex((c) => c.itemId === itemId);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { itemId, checked: !next[idx].checked };
+        next[idx] = { ...next[idx], checked: !next[idx].checked }; // comment 보존
         return next;
       }
       return [...prev, { itemId, checked: true }];
     });
   };
 
+  // 항목별 피드백 입력 (체크 여부와 독립 — 체크 안 해도 코멘트만 남길 수 있음)
+  const setCheckComment = (itemId: string, comment: string) => {
+    setLocalChecks((prev) => {
+      const idx = prev.findIndex((c) => c.itemId === itemId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], comment };
+        return next;
+      }
+      return [...prev, { itemId, checked: false, comment }];
+    });
+  };
+
   const toggleCustomCheck = (id: string) => {
     setLocalCustomItems((prev) =>
       prev.map((c) => (c.id === id ? { ...c, checked: !c.checked } : c)),
+    );
+  };
+
+  const setCustomComment = (id: string, comment: string) => {
+    setLocalCustomItems((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, comment } : c)),
     );
   };
 
@@ -426,29 +445,39 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
               .sort((a, b) => a.order - b.order)
               .filter((item) => !localHiddenItemIds.includes(item.id))
               .map((item) => {
-                const checked = localChecks.find((c) => c.itemId === item.id)?.checked ?? false;
+                const entry = localChecks.find((c) => c.itemId === item.id);
+                const checked = entry?.checked ?? false;
                 return (
                   <div
                     key={item.id}
-                    className="group flex items-center gap-2 text-[12.5px] text-[#374151] hover:bg-[#f9fafb] px-1.5 py-1 rounded"
+                    className="group text-[12.5px] text-[#374151] hover:bg-[#f9fafb] px-1.5 py-1 rounded"
                   >
-                    <label className="flex items-center gap-2 cursor-pointer flex-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleCheck(item.id)}
-                        className="cursor-pointer accent-[#4fc3a1]"
-                      />
-                      <span>{item.label}</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => hideTemplateItem(item.id)}
-                      className="opacity-0 group-hover:opacity-100 text-[#9ca3af] hover:text-[#ef4444] transition-opacity cursor-pointer"
-                      title="이 수업에서만 숨기기"
-                    >
-                      <EyeOff size={13} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCheck(item.id)}
+                          className="cursor-pointer accent-[#4fc3a1]"
+                        />
+                        <span>{item.label}</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => hideTemplateItem(item.id)}
+                        className="opacity-0 group-hover:opacity-100 text-[#9ca3af] hover:text-[#ef4444] transition-opacity cursor-pointer"
+                        title="이 수업에서만 숨기기"
+                      >
+                        <EyeOff size={13} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={entry?.comment ?? ''}
+                      onChange={(e) => setCheckComment(item.id, e.target.value)}
+                      placeholder="피드백 (선택)"
+                      className="mt-1 ml-6 w-[calc(100%-1.5rem)] text-[11.5px] border border-[#e2e8f0] rounded-[6px] px-2 py-0.5 focus:outline-none focus:border-[#4fc3a1]"
+                    />
                   </div>
                 );
               })}
@@ -457,28 +486,35 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
             {localCustomItems.map((item) => (
               <div
                 key={item.id}
-                className={clsx(
-                  'group flex items-center gap-2 text-[12.5px] text-[#374151] hover:bg-[#f9fafb] px-1.5 py-1 rounded',
-                )}
+                className="group text-[12.5px] text-[#374151] hover:bg-[#f9fafb] px-1.5 py-1 rounded"
               >
-                <label className="flex items-center gap-2 cursor-pointer flex-1">
-                  <input
-                    type="checkbox"
-                    checked={item.checked}
-                    onChange={() => toggleCustomCheck(item.id)}
-                    className="cursor-pointer accent-[#4fc3a1]"
-                  />
-                  <span>{item.label}</span>
-                  <span className="text-[10.5px] text-[#a78bfa]">(이 수업)</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => removeCustomItem(item.id)}
-                  className="opacity-0 group-hover:opacity-100 text-[#9ca3af] hover:text-[#ef4444] transition-opacity cursor-pointer"
-                  title="이 항목 삭제"
-                >
-                  <Trash2 size={13} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer flex-1">
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={() => toggleCustomCheck(item.id)}
+                      className="cursor-pointer accent-[#4fc3a1]"
+                    />
+                    <span>{item.label}</span>
+                    <span className="text-[10.5px] text-[#a78bfa]">(이 수업)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeCustomItem(item.id)}
+                    className="opacity-0 group-hover:opacity-100 text-[#9ca3af] hover:text-[#ef4444] transition-opacity cursor-pointer"
+                    title="이 항목 삭제"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={item.comment ?? ''}
+                  onChange={(e) => setCustomComment(item.id, e.target.value)}
+                  placeholder="피드백 (선택)"
+                  className="mt-1 ml-6 w-[calc(100%-1.5rem)] text-[11.5px] border border-[#e2e8f0] rounded-[6px] px-2 py-0.5 focus:outline-none focus:border-[#4fc3a1]"
+                />
               </div>
             ))}
 

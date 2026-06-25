@@ -54,11 +54,16 @@ interface Props {
   // 진입점:
   //  - 'exam': 시험 목록에서 진입 (시험 컨텍스트 고정, PER_EXAM 전용, kind 토글 없음)
   //  - 'tab' : 리포트 발행 탭에서 진입 (kind 토글, PER_EXAM 시 반·시험 드롭다운)
-  source: 'exam' | 'tab';
+  source: 'exam' | 'tab' | 'session';
   // source='exam' 전용 (필수)
   exam?: ExamLite;
   examClassName?: string;
   examClassStudents?: { id: string; name: string }[];
+  // source='session' 전용 (DAILY — 반·날짜 고정, 학생만 선택)
+  sessionClassId?: string;
+  sessionClassName?: string;
+  sessionDate?: string; // YYYY-MM-DD
+  sessionClassStudents?: { id: string; name: string }[];
   // 공통: 학원 전체 반·학생·시험 목록 (source='tab' 또는 PERIODIC 발행에 사용)
   allClasses?: ClassInfo[];
   studentsByClass?: Record<string, { id: string; name: string }[]>;
@@ -67,33 +72,45 @@ interface Props {
 }
 
 type Mode = 'class' | 'student';
-type Kind = 'PER_EXAM' | 'PERIODIC';
+type Kind = 'PER_EXAM' | 'PERIODIC' | 'DAILY';
 
 export default function PublishReportModal({
   open, onClose, source,
   exam: examProp, examClassName, examClassStudents,
+  sessionClassId, sessionClassName, sessionDate, sessionClassStudents,
   allClasses, studentsByClass, allExams,
   onPublished,
 }: Props) {
-  const [kind, setKind] = useState<Kind>('PER_EXAM');
+  const [kind, setKind] = useState<Kind>(source === 'session' ? 'DAILY' : 'PER_EXAM');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
   const [mode, setMode] = useState<Mode>('class');
   // 'tab' 모드 PER_EXAM 시 반·시험을 사용자가 선택
   const [tabClassId, setTabClassId] = useState<string>('');
   const [tabExamId, setTabExamId] = useState<string>('');
+  const [tabDate, setTabDate] = useState<string>(''); // DAILY tab: 날짜 선택
 
   // 활성 시험·반 컨텍스트 (source에 따라 다름)
   const activeExam: ExamLite | undefined = source === 'exam'
     ? examProp
     : (allExams ?? []).find((e) => e.id === tabExamId);
-  const activeClassId = activeExam?.classId ?? '';
-  const activeClassName = source === 'exam'
-    ? (examClassName ?? '')
-    : ((allClasses ?? []).find((c) => c.id === activeClassId)?.name ?? '');
-  const activeClassStudents: { id: string; name: string }[] = source === 'exam'
-    ? (examClassStudents ?? [])
-    : ((studentsByClass ?? {})[activeClassId] ?? []);
+
+  // DAILY: 반·날짜는 session(고정) 또는 tab(선택)에서
+  const dailyClassId = source === 'session' ? (sessionClassId ?? '') : tabClassId;
+  const activeDate = source === 'session' ? (sessionDate ?? '') : tabDate;
+
+  // 단일 반 로스터 기반 종류(PER_EXAM·DAILY)의 활성 반/학생
+  const activeClassId = kind === 'DAILY' ? dailyClassId : (activeExam?.classId ?? '');
+  const activeClassName = kind === 'DAILY'
+    ? (source === 'session' ? (sessionClassName ?? '') : ((allClasses ?? []).find((c) => c.id === dailyClassId)?.name ?? ''))
+    : source === 'exam'
+      ? (examClassName ?? '')
+      : ((allClasses ?? []).find((c) => c.id === activeClassId)?.name ?? '');
+  const activeClassStudents: { id: string; name: string }[] = kind === 'DAILY'
+    ? (source === 'session' ? (sessionClassStudents ?? []) : ((studentsByClass ?? {})[dailyClassId] ?? []))
+    : source === 'exam'
+      ? (examClassStudents ?? [])
+      : ((studentsByClass ?? {})[activeClassId] ?? []);
 
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -110,6 +127,9 @@ export default function PublishReportModal({
   // PERIODIC 미리보기
   const [periodicPreview, setPeriodicPreview] = useState<PeriodicPreview | null>(null);
   const [periodicPreviewLoading, setPeriodicPreviewLoading] = useState(false);
+  // DAILY 미리보기
+  const [dailyPreview, setDailyPreview] = useState<{ renderedBody: string } | null>(null);
+  const [dailyPreviewLoading, setDailyPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -163,7 +183,7 @@ export default function PublishReportModal({
 
   // kind 변경 시 대상 초기화
   useEffect(() => {
-    if (kind === 'PER_EXAM' && activeClassId) {
+    if ((kind === 'PER_EXAM' || kind === 'DAILY') && activeClassId) {
       setSelectedClassIds([activeClassId]);
     } else {
       setSelectedClassIds([]);
@@ -239,6 +259,15 @@ export default function PublishReportModal({
     return undefined;
   }, [kind, mode, selectedStudentIds, selectedClassIds, activeClassId, activeClassStudents, activeExam]);
 
+  // DAILY 미리보기: 첫 대상 학생 결정
+  const dailyFirstTargetId = useMemo(() => {
+    if (kind !== 'DAILY') return undefined;
+    if (!activeClassId || !activeDate) return undefined;
+    if (mode === 'student') return selectedStudentIds[0];
+    if (selectedClassIds.includes(activeClassId)) return activeClassStudents[0]?.id;
+    return undefined;
+  }, [kind, mode, selectedStudentIds, selectedClassIds, activeClassId, activeDate, activeClassStudents]);
+
   // PERIODIC 미리보기: 첫 대상 학생 결정 (mode=class면 첫 반의 첫 학생, mode=student면 첫 학생)
   const periodicFirstTargetId = useMemo(() => {
     if (kind !== 'PERIODIC') return undefined;
@@ -301,10 +330,30 @@ export default function PublishReportModal({
     return () => clearTimeout(handle);
   }, [open, editedBody, firstTargetId, passThreshold, activeExam]);
 
+  // DAILY 미리보기 fetch
+  useEffect(() => {
+    if (!open || kind !== 'DAILY' || !dailyFirstTargetId || !editedBody || !activeClassId || !activeDate) {
+      setDailyPreview(null);
+      return;
+    }
+    setDailyPreviewLoading(true);
+    const handle = setTimeout(() => {
+      fetch('/api/reports/preview-daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classId: activeClassId, date: activeDate, studentId: dailyFirstTargetId, passThreshold, bodyMarkdown: editedBody }),
+      })
+        .then((r) => r.json())
+        .then((data) => { if (data.error) setDailyPreview(null); else setDailyPreview(data); })
+        .finally(() => setDailyPreviewLoading(false));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [open, kind, editedBody, dailyFirstTargetId, passThreshold, activeClassId, activeDate]);
+
   // 통합 발행 모달의 대상 인원 계산
   const targetCount = (() => {
     if (mode === 'student') return selectedStudentIds.length;
-    if (kind === 'PER_EXAM') {
+    if (kind === 'PER_EXAM' || kind === 'DAILY') {
       if (!activeClassId) return 0;
       return selectedClassIds.includes(activeClassId) ? activeClassStudents.length : 0;
     }
@@ -334,13 +383,32 @@ export default function PublishReportModal({
         toast('시험을 선택하세요.', 'error');
         return;
       }
-      const url = kind === 'PER_EXAM' ? '/api/reports/publish' : '/api/reports/publish-periodic';
+      if (kind === 'DAILY' && (!activeClassId || !activeDate)) {
+        toast('반과 날짜를 선택하세요.', 'error');
+        return;
+      }
+      const url = kind === 'PER_EXAM'
+        ? '/api/reports/publish'
+        : kind === 'DAILY'
+          ? '/api/reports/publish-daily'
+          : '/api/reports/publish-periodic';
       const targetIds = {
         classIds: mode === 'class' ? selectedClassIds : undefined,
         studentIds: mode === 'student' ? selectedStudentIds : undefined,
       };
       let payload: Record<string, unknown>;
-      if (kind === 'PER_EXAM') {
+      if (kind === 'DAILY') {
+        payload = {
+          templateId,
+          classId: activeClassId,
+          date: activeDate,
+          ...targetIds,
+          passThreshold,
+          summary,
+          overrideBody: bodyDirty ? editedBody : undefined,
+          overrideTitle: titleDirty ? editedTitle : undefined,
+        };
+      } else if (kind === 'PER_EXAM') {
         payload = {
           templateId,
           examId: activeExam!.id,
@@ -383,7 +451,10 @@ export default function PublishReportModal({
         toast(data.error || '발행 실패', 'error');
         return;
       }
-      toast(`${data.count}명에게 리포트 발송 완료`, 'success');
+      toast(
+        `${data.count}명에게 리포트 발송 완료${data.skipped ? ` (${data.skipped}명 데이터 없어 제외)` : ''}`,
+        'success',
+      );
       onClose();
       // 부모가 이력 새로고침할 시간 확보 (close가 먼저 처리되도록)
       await Promise.resolve();
@@ -403,7 +474,13 @@ export default function PublishReportModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={source === 'exam' && examProp ? `${examProp.name} 리포트 발행` : '리포트 발행'}
+      title={
+        source === 'exam' && examProp
+          ? `${examProp.name} 리포트 발행`
+          : source === 'session'
+            ? `${sessionClassName ?? ''} ${sessionDate ?? ''} 수업 리포트 발행`.trim()
+            : '리포트 발행'
+      }
       size="lg"
       footer={
         <div className="flex justify-end gap-2">
@@ -420,7 +497,7 @@ export default function PublishReportModal({
           <div>
             <label className="text-[11.5px] font-medium text-[#374151] block mb-1.5">리포트 종류</label>
             <div className="flex gap-2">
-              {(['PER_EXAM', 'PERIODIC'] as const).map((k) => (
+              {(['PER_EXAM', 'DAILY', 'PERIODIC'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => setKind(k)}
@@ -429,10 +506,17 @@ export default function PublishReportModal({
                     kind === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
                   )}
                 >
-                  {k === 'PER_EXAM' ? '시험별 리포트' : '주기별 리포트'}
+                  {k === 'PER_EXAM' ? '시험별 리포트' : k === 'DAILY' ? '수업 리포트' : '주기별 리포트'}
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 세션 진입(DAILY) — 반·날짜 고정 안내 */}
+        {source === 'session' && (
+          <div className="text-[12px] text-[#374151] bg-[#f1f5f9] rounded-[8px] px-3 py-2">
+            <b>{activeClassName}</b> · {activeDate} 수업 리포트 (학생만 선택)
           </div>
         )}
 
@@ -471,12 +555,40 @@ export default function PublishReportModal({
           </div>
         )}
 
+        {/* 'tab' & DAILY: 반·날짜 선택 */}
+        {source === 'tab' && kind === 'DAILY' && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11.5px] font-medium text-[#374151] block mb-1">반 선택</label>
+              <select
+                value={tabClassId}
+                onChange={(e) => setTabClassId(e.target.value)}
+                className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
+              >
+                <option value="">반을 선택하세요</option>
+                {(allClasses ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11.5px] font-medium text-[#374151] block mb-1">날짜 선택</label>
+              <input
+                type="date"
+                value={tabDate}
+                onChange={(e) => setTabDate(e.target.value)}
+                className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
+              />
+            </div>
+          </div>
+        )}
+
         {/* 양식 선택 */}
         <div>
           <label className="text-[11.5px] font-medium text-[#374151] block mb-1">양식</label>
-          {templates.length === 0 && kind === 'PER_EXAM' ? (
+          {templates.length === 0 && (kind === 'PER_EXAM' || kind === 'DAILY') ? (
             <div className="text-[12px] text-[#ef4444]">
-              발행 가능한 시험별 양식이 없습니다.
+              발행 가능한 {kind === 'DAILY' ? '수업' : '시험별'} 양식이 없습니다.
               {' '}<a href="/classes/lessons" className="underline">양식 관리에서 만들기</a>
             </div>
           ) : (
@@ -518,17 +630,17 @@ export default function PublishReportModal({
                 )}
               >
                 {m === 'class'
-                  ? (kind === 'PER_EXAM' ? `반 전체${activeClassName ? ` (${activeClassName})` : ''}` : '반 단위')
+                  ? (kind === 'PERIODIC' ? '반 단위' : `반 전체${activeClassName ? ` (${activeClassName})` : ''}`)
                   : '개별 학생 선택'}
               </button>
             ))}
           </div>
 
-          {/* PER_EXAM 학생 선택 — 시험 반의 학생만 */}
-          {kind === 'PER_EXAM' && mode === 'student' && (
+          {/* PER_EXAM·DAILY 학생 선택 — 해당 반의 학생만 */}
+          {(kind === 'PER_EXAM' || kind === 'DAILY') && mode === 'student' && (
             <div className="border border-[#e2e8f0] rounded-[8px] max-h-44 overflow-y-auto p-2">
               {activeClassStudents.length === 0 ? (
-                <div className="text-[12px] text-[#9ca3af] p-2">{activeClassId ? '반에 활성 학생이 없습니다.' : '먼저 반·시험을 선택하세요.'}</div>
+                <div className="text-[12px] text-[#9ca3af] p-2">{activeClassId ? '반에 활성 학생이 없습니다.' : (kind === 'DAILY' ? '먼저 반·날짜를 선택하세요.' : '먼저 반·시험을 선택하세요.')}</div>
               ) : (
                 activeClassStudents.map((s) => (
                   <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer hover:bg-[#f4f6f8] rounded px-1.5">
@@ -670,7 +782,7 @@ export default function PublishReportModal({
 
         {/* 합격 임계값 (PER_EXAM만) + 요약 */}
         <div className="grid grid-cols-2 gap-3">
-          {kind === 'PER_EXAM' && (
+          {(kind === 'PER_EXAM' || kind === 'DAILY') && (
             <div>
               <label className="text-[11.5px] font-medium text-[#374151] block mb-1">합격 임계값 (%)</label>
               <input
@@ -683,12 +795,12 @@ export default function PublishReportModal({
               />
             </div>
           )}
-          <div className={kind === 'PER_EXAM' ? '' : 'col-span-2'}>
+          <div className={(kind === 'PER_EXAM' || kind === 'DAILY') ? '' : 'col-span-2'}>
             <label className="text-[11.5px] font-medium text-[#374151] block mb-1">요약 (선택)</label>
             <input
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder={kind === 'PER_EXAM' ? '비워두면 점수·순위로 자동 생성' : '비워두면 평균/시험수로 자동 생성'}
+              placeholder={kind === 'PERIODIC' ? '비워두면 평균/시험수로 자동 생성' : kind === 'DAILY' ? '비워두면 태도·과제로 자동 생성' : '비워두면 점수·순위로 자동 생성'}
               className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
             />
           </div>
@@ -842,6 +954,22 @@ export default function PublishReportModal({
               {!previewLoading && preview && preview.renderedBody}
               {!previewLoading && !preview && (
                 <span className="text-[#9ca3af]">대상 학생을 선택하면 미리보기가 표시됩니다.</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 미리보기 (DAILY) */}
+        {kind === 'DAILY' && (
+          <div>
+            <label className="text-[11.5px] font-medium text-[#374151] block mb-1">
+              미리보기 {dailyFirstTargetId ? '(첫 번째 대상 학생 기준)' : ''}
+            </label>
+            <div className="bg-[#f9fafb] border border-[#e2e8f0] rounded-[8px] p-3 min-h-[80px] text-[12.5px] whitespace-pre-wrap leading-relaxed">
+              {dailyPreviewLoading && <span className="text-[#9ca3af]">불러오는 중…</span>}
+              {!dailyPreviewLoading && dailyPreview && dailyPreview.renderedBody}
+              {!dailyPreviewLoading && !dailyPreview && (
+                <span className="text-[#9ca3af]">반·날짜·대상 학생을 선택하면 미리보기가 표시됩니다.</span>
               )}
             </div>
           </div>

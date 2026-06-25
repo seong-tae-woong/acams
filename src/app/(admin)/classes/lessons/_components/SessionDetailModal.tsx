@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { toast } from '@/lib/stores/toastStore';
 import type { LessonSession } from '@/lib/types/lesson';
 import CommentClinicPanel from './CommentClinicPanel';
+import PublishReportModal from '@/components/communication/PublishReportModal';
 
 interface SessionDetailModalProps {
   open: boolean;
@@ -37,6 +38,7 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
   );
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [publishOpen, setPublishOpen] = useState(false);
 
   // 수업 내용 (수업 단위 — 학생 공통)
   const [noteContent, setNoteContent] = useState('');
@@ -177,10 +179,31 @@ export default function SessionDetailModal({ open, onClose, session }: SessionDe
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-[#e2e8f0] flex justify-end">
+        <div className="px-5 py-3 border-t border-[#e2e8f0] flex justify-between items-center">
+          <Button
+            variant="dark"
+            size="sm"
+            onClick={() => setPublishOpen(true)}
+            disabled={classStudents.length === 0}
+          >
+            이 수업 리포트 발행
+          </Button>
           <Button variant="default" size="sm" onClick={onClose}>닫기</Button>
         </div>
       </div>
+
+      {publishOpen && (
+        <PublishReportModal
+          open={publishOpen}
+          onClose={() => setPublishOpen(false)}
+          source="session"
+          sessionClassId={session.classId}
+          sessionClassName={session.className}
+          sessionDate={session.date}
+          sessionClassStudents={classStudents.map((s) => ({ id: s.id, name: s.name }))}
+          onPublished={() => setPublishOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { StudentStatus } from '@/lib/types/student';
 
 interface LayoutBlock { type: 'chart'; preset: ChartPresetKey; title?: string }
 
-type Kind = 'PER_EXAM' | 'PERIODIC';
+type Kind = 'PER_EXAM' | 'PERIODIC' | 'DAILY';
 interface ScopeFilter {
   category1Ids?: string[];
   category2Ids?: string[];
@@ -87,6 +87,13 @@ export default function ReportTemplatesEditor() {
   const [previewText, setPreviewText] = useState<string>('');
   const [previewError, setPreviewError] = useState<string>('');
 
+  // DAILY 미리보기용 반·날짜·학생 (별도 상태로 PER_EXAM과 분리)
+  const [dailyClassId, setDailyClassId] = useState<string>('');
+  const [dailyDate, setDailyDate] = useState<string>('');
+  const [dailyStudentId, setDailyStudentId] = useState<string>('');
+  const [dailyPrevText, setDailyPrevText] = useState<string>('');
+  const [dailyPrevError, setDailyPrevError] = useState<string>('');
+
   const previewExam = exams.find((e) => e.id === previewExamId);
   const previewClassStudents = previewExam ? studentsByClass[previewExam.classId] ?? [] : [];
   useEffect(() => {
@@ -124,6 +131,37 @@ export default function ReportTemplatesEditor() {
     }, 300);
     return () => clearTimeout(handle);
   }, [kind, body, previewExamId, previewStudentId, passThreshold]);
+
+  // 디바운스 미리보기 fetch (DAILY only)
+  useEffect(() => {
+    if (kind !== 'DAILY' || !dailyClassId || !dailyDate || !dailyStudentId || !body) {
+      setDailyPrevText('');
+      setDailyPrevError('');
+      return;
+    }
+    setDailyPrevError('');
+    const handle = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/reports/preview-daily', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            classId: dailyClassId,
+            date: dailyDate,
+            studentId: dailyStudentId,
+            bodyMarkdown: body,
+            passThreshold,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) setDailyPrevError(data.error);
+        else setDailyPrevText(data.renderedBody ?? '');
+      } catch {
+        setDailyPrevError('미리보기 불러오기 실패');
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [kind, body, dailyClassId, dailyDate, dailyStudentId, passThreshold]);
 
   const selected = templates.find((t) => t.id === selectedId);
 
@@ -283,16 +321,16 @@ export default function ReportTemplatesEditor() {
       {/* 좌측: 양식 목록 */}
       <div className="w-60 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden">
         <div className="px-3 py-2.5 border-b border-[#f1f5f9] flex gap-1">
-          {(['PER_EXAM', 'PERIODIC'] as const).map((k) => (
+          {(['PER_EXAM', 'DAILY', 'PERIODIC'] as const).map((k) => (
             <button
               key={k}
               onClick={() => setKind(k)}
               className={clsx(
-                'flex-1 px-2 py-1.5 rounded-[6px] text-[11.5px] font-medium cursor-pointer',
+                'flex-1 px-2 py-1.5 rounded-[6px] text-[11px] font-medium cursor-pointer',
                 kind === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
               )}
             >
-              {k === 'PER_EXAM' ? '시험별' : '주기별'}
+              {k === 'PER_EXAM' ? '시험별' : k === 'DAILY' ? '수업' : '주기별'}
             </button>
           ))}
         </div>
@@ -326,7 +364,7 @@ export default function ReportTemplatesEditor() {
                 <div className="text-[10.5px] text-[#0D9E7A] truncate mt-0.5">@ {t.alias}</div>
               )}
               <div className="text-[10.5px] text-[#9ca3af] mt-0.5">
-                {t.kind === 'PER_EXAM' ? '시험별' : `주기별 · 최근 ${t.periodMonths ?? '?'}개월`}
+                {t.kind === 'PER_EXAM' ? '시험별' : t.kind === 'DAILY' ? '수업' : `주기별 · 최근 ${t.periodMonths ?? '?'}개월`}
               </div>
             </button>
           ))}
@@ -382,9 +420,9 @@ export default function ReportTemplatesEditor() {
                   className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
                 />
                 <div className="text-[10.5px] text-[#9ca3af] mt-1">
-                  {kind === 'PER_EXAM'
-                    ? `백분율 ≥ 임계값이면 {{합격/불합격}} → "합격"`
-                    : `기간평균 ≥ 임계값이면 {{합격/불합격}} → "합격"`}
+                  {kind === 'PERIODIC'
+                    ? `기간평균 ≥ 임계값이면 {{합격/불합격}} → "합격"`
+                    : `그날 시험 백분율 ≥ 임계값이면 {{합격/불합격}} → "합격"`}
                 </div>
               </div>
               {kind === 'PERIODIC' && (
@@ -450,6 +488,8 @@ export default function ReportTemplatesEditor() {
                 rows={kind === 'PERIODIC' ? 8 : 10}
                 placeholder={kind === 'PERIODIC'
                   ? '예) {{학생}} 학생, {{기간}} {{대상카테고리}} 시험 평균은 {{기간평균}}점이며, 응시 {{기간시험수}}회입니다.'
+                  : kind === 'DAILY'
+                  ? '예) {{학생}} 학생, {{날짜}} 수업 내용: {{수업내용}}\n태도 {{태도점수}}점, 과제 {{과제수행}}.\n{{시험명}} {{시험점수}}점({{만점}}점).\n클리닉: {{클리닉피드백}}'
                   : '예) {{학생}} 학생, 이번 {{시험명}}에서 {{점수}}점({{만점}}점 만점)을 받아\n반 {{반인원}}명 중 {{순위}}등을 기록했습니다.\n반 평균 {{반평균}}점 대비 {{평균차이}}점 {{우수/저조}}한 결과입니다.'}
                 className="w-full px-3 py-2 border border-[#e2e8f0] rounded-[8px] text-[13px] font-mono leading-relaxed"
               />
@@ -496,6 +536,56 @@ export default function ReportTemplatesEditor() {
                     <span className="text-[#9ca3af]">본문을 입력하세요.</span>
                   ) : (
                     previewText || <span className="text-[#9ca3af]">불러오는 중...</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* DAILY: 실시간 미리보기 (반·날짜·학생) */}
+            {kind === 'DAILY' && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11.5px] font-medium text-[#374151]">실시간 미리보기</label>
+                  <span className="text-[10.5px] text-[#9ca3af]">실제 수업 데이터로 토큰 치환</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <select
+                    value={dailyClassId}
+                    onChange={(e) => { setDailyClassId(e.target.value); setDailyStudentId(''); }}
+                    className="px-2 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12px]"
+                  >
+                    <option value="">반 선택...</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    value={dailyDate}
+                    onChange={(e) => setDailyDate(e.target.value)}
+                    className="px-2 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12px]"
+                  />
+                  <select
+                    value={dailyStudentId}
+                    onChange={(e) => setDailyStudentId(e.target.value)}
+                    disabled={!dailyClassId}
+                    className="px-2 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12px] disabled:bg-[#f9fafb]"
+                  >
+                    <option value="">학생 선택...</option>
+                    {(studentsByClass[dailyClassId] ?? []).map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="bg-[#f9fafb] border border-[#e2e8f0] rounded-[8px] p-3 min-h-[80px] text-[12.5px] whitespace-pre-wrap leading-relaxed">
+                  {!dailyClassId || !dailyDate || !dailyStudentId ? (
+                    <span className="text-[#9ca3af]">반·날짜·학생을 선택하면 치환 결과가 표시됩니다.</span>
+                  ) : dailyPrevError ? (
+                    <span className="text-[#ef4444]">{dailyPrevError}</span>
+                  ) : !body ? (
+                    <span className="text-[#9ca3af]">본문을 입력하세요.</span>
+                  ) : (
+                    dailyPrevText || <span className="text-[#9ca3af]">불러오는 중...</span>
                   )}
                 </div>
               </div>

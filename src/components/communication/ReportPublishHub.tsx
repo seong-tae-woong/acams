@@ -13,7 +13,7 @@ import { StudentStatus } from '@/lib/types/student';
 
 interface Batch {
   batchId: string;
-  kind: 'PER_EXAM' | 'PERIODIC';
+  kind: 'PER_EXAM' | 'PERIODIC' | 'DAILY';
   templateName: string;
   examName: string | null;
   periodLabel: string;
@@ -23,8 +23,9 @@ interface Batch {
   readCount: number;
 }
 
-const KIND_STYLE: Record<'PER_EXAM' | 'PERIODIC', { bg: string; text: string; label: string }> = {
+const KIND_STYLE: Record<'PER_EXAM' | 'PERIODIC' | 'DAILY', { bg: string; text: string; label: string }> = {
   PER_EXAM: { bg: '#DBEAFE', text: '#1d4ed8', label: '시험별' },
+  DAILY: { bg: '#D1FAE5', text: '#0D9E7A', label: '수업' },
   PERIODIC: { bg: '#EDE9FE', text: '#5B4FBE', label: '주기별' },
 };
 
@@ -40,7 +41,7 @@ export default function ReportPublishHub() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'PER_EXAM' | 'PERIODIC'>('all');
+  const [filter, setFilter] = useState<'all' | 'PER_EXAM' | 'PERIODIC' | 'DAILY'>('all');
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
 
@@ -102,7 +103,7 @@ export default function ReportPublishHub() {
             <span className="text-[12.5px] font-semibold text-[#111827]">발행 이력</span>
             <span className="text-[11px] text-[#9ca3af]">{filtered.length}건</span>
             <div className="flex gap-1 ml-2">
-              {(['all', 'PER_EXAM', 'PERIODIC'] as const).map((k) => (
+              {(['all', 'PER_EXAM', 'DAILY', 'PERIODIC'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => setFilter(k)}
@@ -111,7 +112,7 @@ export default function ReportPublishHub() {
                     filter === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
                   )}
                 >
-                  {k === 'all' ? '전체' : k === 'PER_EXAM' ? '시험별' : '주기별'}
+                  {k === 'all' ? '전체' : k === 'PER_EXAM' ? '시험별' : k === 'DAILY' ? '수업' : '주기별'}
                 </button>
               ))}
             </div>

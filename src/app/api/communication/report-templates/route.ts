@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const kindParam = req.nextUrl.searchParams.get('kind');
   const where: { academyId: string; kind?: ReportTemplateKind } = { academyId };
-  if (kindParam === 'PER_EXAM' || kindParam === 'PERIODIC') {
+  if (kindParam === 'PER_EXAM' || kindParam === 'PERIODIC' || kindParam === 'DAILY') {
     where.kind = kindParam;
   }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     const { name, alias, kind, bodyMarkdown, layout, scopeFilter, passThreshold, periodMonths } = body;
 
     if (!name?.trim()) return NextResponse.json({ error: '이름을 입력하세요.' }, { status: 400 });
-    if (kind !== 'PER_EXAM' && kind !== 'PERIODIC') {
+    if (kind !== 'PER_EXAM' && kind !== 'PERIODIC' && kind !== 'DAILY') {
       return NextResponse.json({ error: '잘못된 kind 값' }, { status: 400 });
     }
 

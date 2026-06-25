@@ -13,7 +13,7 @@ interface LayoutBlock { type: 'chart'; preset: ChartPresetKey; title?: string }
 
 type ReportDetail = {
   id: string;
-  kind: 'PER_EXAM' | 'PERIODIC' | 'LEVEL_TEST';
+  kind: 'PER_EXAM' | 'PERIODIC' | 'LEVEL_TEST' | 'DAILY';
   title: string;
   summary: string;
   periodLabel: string;

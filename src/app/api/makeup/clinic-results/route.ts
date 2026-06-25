@@ -7,12 +7,14 @@ import type { Prisma } from '@/generated/prisma/client';
 interface ClinicCheck {
   itemId: string;
   checked: boolean;
+  comment?: string; // 항목별 피드백 (선택)
 }
 
 interface ClinicCustomItem {
   id: string;
   label: string;
   checked: boolean;
+  comment?: string; // 항목별 피드백 (선택)
 }
 
 function serialize(
@@ -50,20 +52,27 @@ function serialize(
   };
 }
 
-// 완료(체크) 상태의 시그니처 — 체크된 항목 집합이 바뀌었는지 비교용
+// 완료(체크)·코멘트 상태의 시그니처 — 체크 또는 항목별 코멘트가 바뀌었는지 비교용
+// 체크하는 사람이 항목별 코멘트도 작성하므로, 코멘트 변경도 checkedBy 갱신 대상에 포함
 function checkedSignature(checks: unknown, customItems: unknown): string {
-  const ids: string[] = [];
+  const parts: string[] = [];
   if (Array.isArray(checks)) {
     for (const c of checks) {
-      if (c && typeof c === 'object' && (c as ClinicCheck).checked) ids.push(`t:${(c as ClinicCheck).itemId}`);
+      if (!c || typeof c !== 'object') continue;
+      const cc = c as ClinicCheck;
+      if (cc.checked) parts.push(`t:${cc.itemId}`);
+      if (cc.comment && cc.comment.trim()) parts.push(`tc:${cc.itemId}=${cc.comment.trim()}`);
     }
   }
   if (Array.isArray(customItems)) {
     for (const c of customItems) {
-      if (c && typeof c === 'object' && (c as ClinicCustomItem).checked) ids.push(`c:${(c as ClinicCustomItem).id}`);
+      if (!c || typeof c !== 'object') continue;
+      const ci = c as ClinicCustomItem;
+      if (ci.checked) parts.push(`c:${ci.id}`);
+      if (ci.comment && ci.comment.trim()) parts.push(`cc:${ci.id}=${ci.comment.trim()}`);
     }
   }
-  return ids.sort().join('|');
+  return parts.sort().join('|');
 }
 
 // User.id → name 매핑 (작성자/체크자 이름 표시용)

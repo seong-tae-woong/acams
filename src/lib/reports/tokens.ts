@@ -28,6 +28,17 @@ export interface TokenContext {
   기간시험수?: number;
   대상카테고리?: string;          // 선택된 category1들의 이름 콤마 결합
 
+  // ── DAILY 전용 ────────────────────────────
+  날짜?: string;                  // "2026-06-25 (수)"
+  수업내용?: string;              // 그날 반 공통 수업 내용
+  과제내용?: string;              // 그날 과제 메모 (반 공통)
+  태도점수?: number | null;       // 1~5
+  태도사유?: string;
+  과제수행?: string;              // "완료" | "미완료" | "-"
+  코멘트?: string;                // 학생별 코멘트
+  시험점수?: number | null;       // 그날 대표 시험 점수 (시험명·만점·백분율은 PER_EXAM 필드 재사용)
+  클리닉피드백?: string;          // 항목별 코멘트 결합
+
   // 합격 임계값(%) — 발행 시점에 원장이 조정 가능, 기본 70
   passThreshold?: number;
 }
@@ -106,9 +117,69 @@ const PERIODIC_GROUPS: TokenGroup[] = [
   },
 ];
 
+const DAILY_GROUPS: TokenGroup[] = [
+  {
+    label: '기본',
+    tokens: [
+      { token: '학생', description: '학생 이름' },
+      { token: '학년', description: '학년' },
+      { token: '반', description: '반 이름' },
+      { token: '날짜', description: '수업 날짜 (예: 2026-06-25 (수))' },
+    ],
+  },
+  {
+    label: '수업',
+    tokens: [
+      { token: '수업내용', description: '그날 수업 내용 (반 공통)' },
+      { token: '과제내용', description: '그날 과제 메모 (반 공통)' },
+    ],
+  },
+  {
+    label: '태도',
+    tokens: [
+      { token: '태도점수', description: '태도 점수 (1~5)' },
+      { token: '태도사유', description: '태도 점수 사유' },
+    ],
+  },
+  {
+    label: '과제',
+    tokens: [
+      { token: '과제수행', description: '완료 / 미완료 / -' },
+    ],
+  },
+  {
+    label: '시험',
+    tokens: [
+      { token: '시험명', description: '그날 시험 이름 (여러 개면 쉼표)' },
+      { token: '시험점수', description: '그날 대표 시험 점수' },
+      { token: '만점', description: '대표 시험 만점' },
+    ],
+  },
+  {
+    label: '코멘트',
+    tokens: [
+      { token: '코멘트', description: '학생별 코멘트' },
+    ],
+  },
+  {
+    label: '클리닉',
+    tokens: [
+      { token: '클리닉피드백', description: '클리닉 항목별 코멘트 모음' },
+    ],
+  },
+  {
+    label: '조건부',
+    tokens: [
+      { token: '합격/불합격', description: '그날 시험 백분율 ≥ 임계값(%)이면 "합격"' },
+    ],
+  },
+];
+
 // kind 별 토큰 그룹 반환
-export function getTokenGroups(kind: 'PER_EXAM' | 'PERIODIC'): TokenGroup[] {
-  return kind === 'PERIODIC' ? PERIODIC_GROUPS : PER_EXAM_GROUPS;
+export function getTokenGroups(kind: 'PER_EXAM' | 'PERIODIC' | 'DAILY'): TokenGroup[] {
+  if (kind === 'PERIODIC') return PERIODIC_GROUPS;
+  if (kind === 'DAILY') return DAILY_GROUPS;
+  return PER_EXAM_GROUPS;
 }
 
 function fmt(v: unknown): string {
