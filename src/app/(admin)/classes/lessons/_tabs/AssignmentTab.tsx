@@ -7,14 +7,14 @@ import Tabs from '@/components/shared/Tabs';
 import { useClassStore } from '@/lib/stores/classStore';
 import { useGradeStore } from '@/lib/stores/gradeStore';
 import { toast } from '@/lib/stores/toastStore';
-import { Plus, Trash2, Pencil } from 'lucide-react';
+import { Plus, Trash2, Pencil, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { DAY_NAMES } from '@/lib/types/class';
 import clsx from 'clsx';
 import ClassSelector from '../_components/ClassSelector';
 import {
   type Assignment, type AssignmentForm, type MainTab,
-  EMPTY_ASSIGNMENT_FORM, PAGE_SIZE, fieldClass, TAB_OPTIONS,
+  EMPTY_ASSIGNMENT_FORM, fieldClass, TAB_OPTIONS,
 } from '../_shared';
 
 interface AssignmentTabProps {
@@ -31,8 +31,10 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
   // 과제 상태
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
-  const [assignmentHasMore, setAssignmentHasMore] = useState(false);
-  const [assignmentLoadingMore, setAssignmentLoadingMore] = useState(false);
+  // 월 필터 + 검색
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth()); // 0-based
+  const [search, setSearch] = useState('');
 
   const [assignmentFormOpen, setAssignmentFormOpen] = useState(false);
   const [assignmentForm, setAssignmentForm] = useState<AssignmentForm>(EMPTY_ASSIGNMENT_FORM);
@@ -42,48 +44,44 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
 
   const selectedClass = classes.find((c) => c.id === selectedClassId);
 
-  // 과제 목록 1페이지 로드 (등록일 최신순)
-  const loadAssignments = useCallback(async (classId: string) => {
+  // 과제 목록 로드 (선택 월의 출제일 범위)
+  const loadAssignments = useCallback(async (classId: string, year: number, month: number) => {
     if (!classId) return;
     setAssignmentLoading(true);
     try {
-      const res = await fetch(`/api/assignments?classId=${classId}&skip=0&take=${PAGE_SIZE}`);
+      const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const res = await fetch(`/api/assignments?classId=${classId}&from=${from}&to=${to}`);
       if (!res.ok) throw new Error('과제 목록을 불러올 수 없습니다.');
       const data = await res.json();
       setAssignments(Array.isArray(data) ? data : []);
-      setAssignmentHasMore(Array.isArray(data) && data.length === PAGE_SIZE);
     } catch {
       setAssignments([]);
-      setAssignmentHasMore(false);
     } finally {
       setAssignmentLoading(false);
     }
   }, []);
 
-  // 과제 목록 다음 페이지 로드 (스크롤)
-  const loadMoreAssignments = useCallback(async () => {
-    if (assignmentLoadingMore || !assignmentHasMore || !selectedClassId) return;
-    setAssignmentLoadingMore(true);
-    try {
-      const res = await fetch(`/api/assignments?classId=${selectedClassId}&skip=${assignments.length}&take=${PAGE_SIZE}`);
-      if (!res.ok) throw new Error('과제 목록을 불러올 수 없습니다.');
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setAssignments((prev) => [...prev, ...data]);
-        setAssignmentHasMore(data.length === PAGE_SIZE);
-      }
-    } catch {
-      // 추가 로딩 실패는 조용히 무시
-    } finally {
-      setAssignmentLoadingMore(false);
-    }
-  }, [assignmentLoadingMore, assignmentHasMore, selectedClassId, assignments.length]);
-
   useEffect(() => {
     if (selectedClassId) {
-      loadAssignments(selectedClassId);
+      loadAssignments(selectedClassId, calYear, calMonth);
     }
-  }, [selectedClassId, loadAssignments]);
+  }, [selectedClassId, calYear, calMonth, loadAssignments]);
+
+  const prevMonth = () => {
+    if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11); } else setCalMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0); } else setCalMonth((m) => m + 1);
+  };
+
+  // 검색(과제 내용) 필터 — 선택 월 데이터 안에서
+  const filteredAssignments = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return assignments;
+    return assignments.filter((a) => (a.memo || '').toLowerCase().includes(q));
+  }, [assignments, search]);
 
   // 선택된 반의 시간표
   const scheduleDates = useMemo(() => {
@@ -149,8 +147,17 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
       }
       setAssignmentFormOpen(false);
       setEditingAssignmentId(null);
+      // 등록/수정한 과제의 출제일 달로 이동(다른 달이면)해 결과를 바로 노출
+      const d = new Date(`${assignmentForm.date}T00:00:00`);
+      const ty = d.getFullYear();
+      const tm = d.getMonth();
       setAssignmentForm(EMPTY_ASSIGNMENT_FORM);
-      await loadAssignments(selectedClassId);
+      if (!Number.isNaN(ty) && (ty !== calYear || tm !== calMonth)) {
+        setCalYear(ty);
+        setCalMonth(tm); // useEffect가 해당 월 로드
+      } else {
+        await loadAssignments(selectedClassId, calYear, calMonth);
+      }
     } catch (err) {
       toast(err instanceof Error ? err.message : '저장 실패', 'error');
     } finally {
@@ -164,7 +171,7 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
       const res = await fetch(`/api/assignments/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('삭제 실패');
       toast('과제가 삭제되었습니다.', 'success');
-      await loadAssignments(selectedClassId);
+      await loadAssignments(selectedClassId, calYear, calMonth);
     } catch {
       toast('삭제에 실패했습니다.', 'error');
     }
@@ -202,28 +209,54 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
         />
 
         <div className="bg-white rounded-[10px] border border-[#e2e8f0] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between">
-            <span className="text-[12.5px] font-semibold text-[#111827]">
-              과제 목록 {selectedClass ? `· ${selectedClass.name}` : ''}
-            </span>
-            <span className="text-[11px] text-[#9ca3af]">
-              {assignments.length}건{assignmentHasMore ? '+' : ''}
-            </span>
+          <div className="px-4 py-3 border-b border-[#e2e8f0] flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[12.5px] font-semibold text-[#111827]">
+                과제 목록 {selectedClass ? `· ${selectedClass.name}` : ''}
+              </span>
+              {/* 월 네비게이션 */}
+              <div className="flex items-center gap-0.5 ml-1">
+                <button onClick={prevMonth} className="p-1 rounded hover:bg-[#f4f6f8] cursor-pointer" title="이전 달">
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-[12px] font-medium text-[#374151] tabular-nums min-w-[68px] text-center">
+                  {calYear}년 {calMonth + 1}월
+                </span>
+                <button onClick={nextMonth} className="p-1 rounded hover:bg-[#f4f6f8] cursor-pointer" title="다음 달">
+                  <ChevronRight size={14} />
+                </button>
+                <button
+                  onClick={() => { const t = new Date(); setCalYear(t.getFullYear()); setCalMonth(t.getMonth()); }}
+                  className="px-2 text-[11px] text-[#6b7280] hover:text-[#111827] cursor-pointer"
+                >
+                  오늘
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="과제 내용 검색"
+                  className="text-[12px] border border-[#e2e8f0] rounded-[8px] pl-7 pr-2.5 py-1 w-44 focus:outline-none focus:border-[#4fc3a1]"
+                />
+              </div>
+              <span className="text-[11px] text-[#9ca3af] tabular-nums">{filteredAssignments.length}건</span>
+            </div>
           </div>
           {assignmentLoading ? (
             <LoadingSpinner size="inline" />
-          ) : assignments.length === 0 ? (
+          ) : !selectedClassId ? (
+            <div className="p-8 text-center text-[12.5px] text-[#9ca3af]">반을 선택해주세요.</div>
+          ) : filteredAssignments.length === 0 ? (
             <div className="p-8 text-center text-[12.5px] text-[#9ca3af]">
-              {selectedClassId ? '등록된 과제가 없습니다.' : '반을 선택해주세요.'}
+              {search.trim() ? '검색 결과가 없습니다.' : `${calYear}년 ${calMonth + 1}월에 등록된 과제가 없습니다.`}
             </div>
           ) : (
-            <div
-              className="max-h-[calc(100vh-260px)] overflow-y-auto"
-              onScroll={(e) => {
-                const el = e.currentTarget;
-                if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) loadMoreAssignments();
-              }}
-            >
+            <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
             <table className="w-full text-[12.5px]">
               <thead>
                 <tr className="bg-[#f4f6f8]">
@@ -234,7 +267,7 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9]">
-                {assignments.map((a) => {
+                {filteredAssignments.map((a) => {
                   const today = new Date().toISOString().slice(0, 10);
                   const overdue = a.dueDate < today;
                   return (
@@ -270,9 +303,6 @@ export default function AssignmentTab({ selectedClassId, setSelectedClassId, mai
                 })}
               </tbody>
             </table>
-            {assignmentLoadingMore && (
-              <div className="p-3 text-center text-[11px] text-[#9ca3af]">불러오는 중…</div>
-            )}
             </div>
           )}
         </div>
