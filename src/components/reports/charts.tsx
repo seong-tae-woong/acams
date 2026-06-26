@@ -17,9 +17,10 @@ export interface ChartPresetMeta {
   description: string;
 }
 
+// 차트 추가 옵션. 방사형(CategoryRadar)은 시간 흐름 표현과 안 맞아 옵션에서 숨김(코드·렌더러는 보존,
+// 기존 양식의 방사형 블록은 계속 렌더). 다시 켜려면 CategoryRadar 항목을 배열에 복원.
 export const CHART_PRESETS: ChartPresetMeta[] = [
   { key: 'ScoreTrendLine', label: '성적 추이 (선)', description: '기간 내 시험 점수 추이' },
-  { key: 'CategoryRadar', label: '카테고리 평균 (방사형)', description: '카테고리별 평균 점수' },
   { key: 'RankBand', label: '순위 변동 (선)', description: '반 내 순위 변화' },
   { key: 'AvgVsClass', label: '본인 vs 반평균 (막대)', description: '본인 점수 vs 반 평균' },
   { key: 'AttendanceBar', label: '출결 추이 (막대)', description: '결석/지각 추이' },
