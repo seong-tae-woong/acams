@@ -141,7 +141,8 @@ export function shapeDailyContext(i: ShapeDailyInput): DailyContextResult {
     태도점수: i.attitude,
     태도사유: i.attitudeReason ?? undefined,
     과제수행: homework,
-    코멘트: i.comment ?? undefined,
+    코멘트: i.comment ?? undefined, // 기존 양식 {{코멘트}} 호환용 별칭
+    '클리닉 전달 내용': i.comment ?? undefined,
     시험명: examName ?? undefined,
     시험점수: examScore,
     만점: examTotal ?? undefined,

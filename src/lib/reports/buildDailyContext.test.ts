@@ -157,6 +157,12 @@ describe('renderBody로 DAILY 토큰 치환', () => {
     expect(renderBody('수업: {{수업내용}} / 코멘트: {{코멘트}}', context)).toBe('수업: - / 코멘트: -');
   });
 
+  it('{{클리닉 전달 내용}} = Clinic 전달 내용 (구 {{코멘트}} 별칭도 동작)', () => {
+    const { context } = shapeDailyContext(base); // comment: '발표 적극적'
+    expect(renderBody('{{클리닉 전달 내용}}', context)).toBe('발표 적극적');
+    expect(renderBody('{{코멘트}}', context)).toBe('발표 적극적');
+  });
+
   it('시험 없으면 시험 토큰·합격/불합격 모두 "-"', () => {
     const { context } = shapeDailyContext({ ...base, exams: [] });
     expect(renderBody('{{시험명}} {{시험점수}} {{시험결과}} {{합격/불합격}}', context)).toBe('- - - -');

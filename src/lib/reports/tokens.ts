@@ -38,7 +38,8 @@ export interface TokenContext {
   태도점수?: number | null;       // 1~5
   태도사유?: string;
   과제수행?: string;              // "완료" | "미완료" | "-"
-  코멘트?: string;                // 학생별 코멘트
+  코멘트?: string;                // (구) — {{클리닉 전달 내용}}으로 대체, 기존 양식 호환용 별칭
+  '클리닉 전달 내용'?: string;     // Clinic 전달 내용 칸 (학부모 리포트 노출)
   시험점수?: number | null;       // 그날 대표(첫 선택) 시험 점수 (시험명·만점·백분율은 PER_EXAM 필드 재사용)
   시험결과?: string;              // 선택된 시험 전체를 "• 시험명: 점수/만점" 줄로 (여러 시험 대응)
   클리닉피드백?: string;          // 항목별 코멘트 결합
@@ -160,9 +161,9 @@ const DAILY_GROUPS: TokenGroup[] = [
     ],
   },
   {
-    label: '코멘트',
+    label: '전달 내용',
     tokens: [
-      { token: '코멘트', description: '학생별 코멘트' },
+      { token: '클리닉 전달 내용', description: 'Clinic 전달 내용 칸의 학생별 내용 (학부모 리포트에 노출)' },
     ],
   },
   {
