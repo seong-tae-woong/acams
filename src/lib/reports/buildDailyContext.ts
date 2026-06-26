@@ -52,7 +52,7 @@ export function formatDateLabelShort(date: string): string {
 }
 
 interface ClinicResultLike {
-  templateId: string;
+  templateId: string | null; // null = 양식 없이 직접 추가 (양식항목 없이 customItems만)
   checks: ClinicCheck[];
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];
@@ -66,7 +66,7 @@ interface ClinicResultLike {
  */
 export function formatClinicFeedback(
   results: ClinicResultLike[],
-  labelOf: (templateId: string, itemId: string) => string | undefined,
+  labelOf: (templateId: string | null, itemId: string) => string | undefined,
 ): string {
   const lines: string[] = [];
   for (const r of results) {
@@ -251,7 +251,8 @@ export async function buildDailyContexts(
     const items = (t.items as unknown as ClinicTemplateItem[]) ?? [];
     labelMap.set(t.id, new Map(items.map((it) => [it.id, it.label])));
   }
-  const labelOf = (templateId: string, itemId: string) => labelMap.get(templateId)?.get(itemId);
+  const labelOf = (templateId: string | null, itemId: string) =>
+    templateId ? labelMap.get(templateId)?.get(itemId) : undefined;
 
   const studentMap = new Map(students.map((s) => [s.id, s]));
   const assignmentMemos = assignments.map((a) => a.memo);

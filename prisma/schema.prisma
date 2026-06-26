@@ -564,8 +564,8 @@ model MakeupClinicResult {
   makeupClass   MakeupClass    @relation(fields: [makeupClassId], references: [id])
   studentId     String
   student       Student        @relation(fields: [studentId], references: [id])
-  templateId    String
-  template      ClinicTemplate @relation(fields: [templateId], references: [id])
+  templateId    String?         // null = 양식 없이 직접 추가한 커스텀 항목만
+  template      ClinicTemplate? @relation(fields: [templateId], references: [id])
 
   checks        Json
   customItems   Json @default("[]")
@@ -1648,8 +1648,8 @@ model ClinicResult {
   class      Class          @relation(fields: [classId], references: [id])
   studentId  String
   student    Student        @relation(fields: [studentId], references: [id])
-  templateId String
-  template   ClinicTemplate @relation(fields: [templateId], references: [id])
+  templateId String?         // null = 양식 없이 직접 추가한 커스텀 항목만
+  template   ClinicTemplate? @relation(fields: [templateId], references: [id])
 
   sessionDate   DateTime
   checks        Json

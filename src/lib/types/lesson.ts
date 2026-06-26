@@ -125,7 +125,7 @@ export interface ClinicResult {
   classId: string;
   studentId: string;
   sessionDate: string; // YYYY-MM-DD
-  templateId: string;
+  templateId: string | null; // null = 양식 없이 직접 추가
   checks: ClinicCheck[];
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];
@@ -142,7 +142,7 @@ export interface ClinicResultUpsertInput {
   classId: string;
   studentId: string;
   sessionDate: string; // YYYY-MM-DD
-  templateId: string;
+  templateId: string | null; // null = 양식 없이 직접 추가
   checks: ClinicCheck[];
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];
@@ -172,7 +172,7 @@ export interface MakeupClinicResult {
   id: string;
   makeupClassId: string;
   studentId: string;
-  templateId: string;
+  templateId: string | null; // null = 양식 없이 직접 추가
   checks: ClinicCheck[];
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];
@@ -188,7 +188,7 @@ export interface MakeupClinicResult {
 export interface MakeupClinicResultUpsertInput {
   makeupClassId: string;
   studentId: string;
-  templateId: string;
+  templateId: string | null; // null = 양식 없이 직접 추가
   checks: ClinicCheck[];
   customItems: ClinicCustomItem[];
   hiddenItemIds: string[];

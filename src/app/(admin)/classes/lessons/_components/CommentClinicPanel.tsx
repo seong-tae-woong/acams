@@ -162,9 +162,20 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
 
   // 학생/양식 변경 시 Clinic 상태 복원
   useEffect(() => {
-    if (!selectedStudentId || !selectedTemplateId) {
+    if (!selectedStudentId) {
       setLocalChecks([]);
       setLocalCustomItems([]);
+      setLocalHiddenItemIds([]);
+      return;
+    }
+    // 양식 미선택 → 양식 없이 저장된 커스텀 항목만 복원
+    if (!selectedTemplateId) {
+      const noTmpl =
+        scope.kind === 'lesson'
+          ? getClinicResultFor(scope.classId, selectedStudentId, scope.sessionDate, null)
+          : getMakeupClinicResultFor(scope.makeupClassId, selectedStudentId, null);
+      setLocalChecks([]);
+      setLocalCustomItems(noTmpl?.customItems ?? []);
       setLocalHiddenItemIds([]);
       return;
     }
@@ -258,10 +269,10 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
 
   const currentTemplate = templates.find((t) => t.id === selectedTemplateId);
   const savedResult =
-    selectedStudentId && selectedTemplateId
+    selectedStudentId
       ? scope.kind === 'lesson'
-        ? getClinicResultFor(scope.classId, selectedStudentId, scope.sessionDate, selectedTemplateId)
-        : getMakeupClinicResultFor(scope.makeupClassId, selectedStudentId, selectedTemplateId)
+        ? getClinicResultFor(scope.classId, selectedStudentId, scope.sessionDate, selectedTemplateId || null)
+        : getMakeupClinicResultFor(scope.makeupClassId, selectedStudentId, selectedTemplateId || null)
       : undefined;
 
   const handleSave = async () => {
@@ -269,6 +280,9 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
       toast('학생을 선택해 주세요.', 'error');
       return;
     }
+    const clinicTemplateId = selectedTemplateId || null;
+    // 양식이 있으면 항상 저장, 양식이 없으면 직접 추가한 커스텀 항목이 있을 때만 저장
+    const saveClinic = (!!clinicTemplateId && !!currentTemplate) || localCustomItems.length > 0;
     setSaving(true);
     try {
       if (scope.kind === 'lesson') {
@@ -286,12 +300,12 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
           attitudeReason: attitudeReason.trim() || null,
           homeworkDone,
         });
-        if (selectedTemplateId && currentTemplate) {
+        if (saveClinic) {
           await upsertClinicResult({
             classId: scope.classId,
             studentId: selectedStudentId,
             sessionDate: scope.sessionDate,
-            templateId: selectedTemplateId,
+            templateId: clinicTemplateId,
             checks: localChecks,
             customItems: localCustomItems,
             hiddenItemIds: localHiddenItemIds,
@@ -303,11 +317,11 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
           studentId: selectedStudentId,
           comment: commentText,
         });
-        if (selectedTemplateId && currentTemplate) {
+        if (saveClinic) {
           await upsertMakeupClinicResult({
             makeupClassId: scope.makeupClassId,
             studentId: selectedStudentId,
-            templateId: selectedTemplateId,
+            templateId: clinicTemplateId,
             checks: localChecks,
             customItems: localCustomItems,
             hiddenItemIds: localHiddenItemIds,
@@ -426,7 +440,7 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
               onChange={(e) => setSelectedTemplateId(e.target.value)}
               className="text-[12px] border border-[#e2e8f0] rounded-[8px] px-2 py-1 focus:outline-none focus:border-[#4fc3a1]"
             >
-              <option value="">양식 선택</option>
+              <option value="">양식 없이</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -434,14 +448,9 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
           )}
         </div>
 
-        {templates.length === 0 ? (
-          <div className="text-[12px] text-[#9ca3af] py-3 px-3 bg-[#f9fafb] rounded-[8px]">
-            등록된 Clinic 양식이 없습니다. 수업 관리 화면에서 양식을 먼저 만들어 주세요.
-          </div>
-        ) : !currentTemplate ? null : (
-          <div className="space-y-1.5 border border-[#e2e8f0] rounded-[8px] p-3">
-            {/* 양식 항목 */}
-            {[...currentTemplate.items]
+        <div className="space-y-1.5 border border-[#e2e8f0] rounded-[8px] p-3">
+            {/* 양식 항목 (양식 선택 시에만) */}
+            {currentTemplate && [...currentTemplate.items]
               .sort((a, b) => a.order - b.order)
               .filter((item) => !localHiddenItemIds.includes(item.id))
               .map((item) => {
@@ -518,8 +527,8 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
               </div>
             ))}
 
-            {/* 숨긴 항목 복원 */}
-            {localHiddenItemIds.length > 0 && (
+            {/* 숨긴 항목 복원 (양식 선택 시) */}
+            {currentTemplate && localHiddenItemIds.length > 0 && (
               <div className="pt-2 mt-2 border-t border-[#f1f5f9]">
                 <div className="text-[10.5px] text-[#9ca3af] mb-1">숨긴 양식 항목 (이 수업)</div>
                 <div className="flex flex-wrap gap-1.5">
@@ -567,13 +576,18 @@ export default function CommentClinicPanel({ scope, selectedStudentId }: Comment
               </button>
             </div>
 
-            {currentTemplate.items.length === 0 && localCustomItems.length === 0 && (
+            {currentTemplate && currentTemplate.items.length === 0 && localCustomItems.length === 0 && (
               <div className="text-[12px] text-[#9ca3af] py-1 px-1.5">
                 양식에 항목이 없습니다. 위 입력란으로 이 수업에만 쓸 항목을 추가하세요.
               </div>
             )}
+            {!currentTemplate && localCustomItems.length === 0 && (
+              <div className="text-[12px] text-[#9ca3af] py-1 px-1.5">
+                {templates.length === 0 ? '등록된 Clinic 양식이 없습니다. ' : '양식을 선택하거나, '}
+                아래 입력란으로 이 수업에 쓸 항목을 직접 추가하세요.
+              </div>
+            )}
           </div>
-        )}
 
         {savedResult && (
           <div className="mt-1.5 text-[11px] text-[#9ca3af] flex flex-wrap gap-x-3 gap-y-0.5">

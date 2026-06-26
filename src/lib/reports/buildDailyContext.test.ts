@@ -52,8 +52,8 @@ describe('formatDateLabelShort', () => {
 });
 
 describe('formatClinicFeedback', () => {
-  const labelOf = (tid: string, iid: string): string | undefined =>
-    ((({ t1: { i1: '단어 암기', i2: '독해' } } as Record<string, Record<string, string>>)[tid]) ?? {})[iid];
+  const labelOf = (tid: string | null, iid: string): string | undefined =>
+    tid ? ((({ t1: { i1: '단어 암기', i2: '독해' } } as Record<string, Record<string, string>>)[tid]) ?? {})[iid] : undefined;
 
   it('코멘트 있는 항목만 "• 라벨: 코멘트"로 결합', () => {
     const out = formatClinicFeedback(

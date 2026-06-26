@@ -22,7 +22,7 @@ function serialize(
     id: string;
     makeupClassId: string;
     studentId: string;
-    templateId: string;
+    templateId: string | null;
     checks: Prisma.JsonValue;
     customItems: Prisma.JsonValue;
     hiddenItemIds: Prisma.JsonValue;
@@ -130,12 +130,13 @@ export async function PUT(req: NextRequest) {
 
   try {
     const { makeupClassId, studentId, templateId, checks, customItems, hiddenItemIds } = await req.json();
-    if (!makeupClassId || !studentId || !templateId) {
+    if (!makeupClassId || !studentId) {
       return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 });
     }
     if (!Array.isArray(checks)) {
       return NextResponse.json({ error: 'checks는 배열' }, { status: 400 });
     }
+    const tid: string | null = templateId ?? null; // null = 양식 없이 직접 추가한 항목만
     const safeCustomItems: ClinicCustomItem[] = Array.isArray(customItems) ? customItems : [];
     const safeHiddenItemIds: string[] = Array.isArray(hiddenItemIds) ? hiddenItemIds : [];
 
@@ -145,41 +146,44 @@ export async function PUT(req: NextRequest) {
     });
     if (!mc) return NextResponse.json({ error: '보강 권한 없음' }, { status: 403 });
 
-    const tmpl = await prisma.clinicTemplate.findFirst({ where: { id: templateId, academyId } });
-    if (!tmpl) return NextResponse.json({ error: '양식 권한 없음' }, { status: 403 });
+    if (tid) {
+      const tmpl = await prisma.clinicTemplate.findFirst({ where: { id: tid, academyId } });
+      if (!tmpl) return NextResponse.json({ error: '양식 권한 없음' }, { status: 403 });
+    }
 
-    const whereKey = {
-      makeupClassId_studentId_templateId: { makeupClassId, studentId, templateId },
-    };
+    // 기존 행 조회 — 양식 있으면 유니크키, 없으면(null) makeupClass·student 기준 findFirst
+    const existing = tid
+      ? await prisma.makeupClinicResult.findUnique({
+          where: { makeupClassId_studentId_templateId: { makeupClassId, studentId, templateId: tid } },
+        })
+      : await prisma.makeupClinicResult.findFirst({
+          where: { academyId, makeupClassId, studentId, templateId: null },
+        });
 
-    // 기존 행을 먼저 조회해 "체크 상태가 바뀌었는지"와 "신규 생성인지"를 판단
-    const existing = await prisma.makeupClinicResult.findUnique({ where: whereKey });
     const incomingSig = checkedSignature(checks, safeCustomItems);
     const checkChanged = existing
       ? incomingSig !== checkedSignature(existing.checks, existing.customItems)
       : incomingSig !== '';
 
-    const saved = await prisma.makeupClinicResult.upsert({
-      where: whereKey,
-      update: {
-        checks: checks as unknown as Prisma.InputJsonValue,
-        customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
-        hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
-        // authorId(작성자)는 최초 생성자로 고정 — 갱신 시 덮어쓰지 않음
-        ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}),
-      },
-      create: {
-        academyId,
-        makeupClassId,
-        studentId,
-        templateId,
-        checks: checks as unknown as Prisma.InputJsonValue,
-        customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
-        hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
-        authorId: userId,
-        ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}),
-      },
-    });
+    const jsonData = {
+      checks: checks as unknown as Prisma.InputJsonValue,
+      customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
+      hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
+    };
+    const saved = existing
+      ? await prisma.makeupClinicResult.update({
+          where: { id: existing.id },
+          // authorId(작성자)는 최초 생성자로 고정 — 갱신 시 덮어쓰지 않음
+          data: { ...jsonData, ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}) },
+        })
+      : await prisma.makeupClinicResult.create({
+          data: {
+            academyId, makeupClassId, studentId, templateId: tid,
+            ...jsonData,
+            authorId: userId,
+            ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}),
+          },
+        });
 
     const nameMap = await buildNameMap([saved.authorId, saved.checkedById]);
     return NextResponse.json(serialize(saved, nameMap));

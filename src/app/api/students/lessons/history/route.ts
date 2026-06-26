@@ -248,10 +248,11 @@ export async function GET(req: NextRequest) {
 
     // 정규 + 보강 Clinic 결과를 함께 집계
     const aggregateClinic = (r: {
-      templateId: string;
+      templateId: string | null;
       checks: unknown;
       hiddenItemIds: unknown;
     }) => {
+      if (!r.templateId) return; // 양식 없는 클리닉은 양식별 집계에서 제외 (커스텀 항목은 {{클리닉피드백}}에 반영)
       const tmpl = templateMap.get(r.templateId);
       const tmplName = tmpl?.name ?? '(삭제된 양식)';
       const tmplActive = tmpl?.isActive ?? false;
@@ -326,6 +327,7 @@ export async function GET(req: NextRequest) {
     }
 
     for (const r of clinicResults) {
+      if (!r.templateId) continue; // 양식 없는 클리닉은 양식별 타임라인에서 제외
       const date = dateOnly(r.sessionDate);
       const key = `${r.classId}|${date}`;
       let entry = timelineMap.get(key);
@@ -450,6 +452,7 @@ export async function GET(req: NextRequest) {
       entry.comment = c.comment;
     }
     for (const r of makeupClinicResults) {
+      if (!r.templateId) continue; // 양식 없는 클리닉은 양식별 타임라인에서 제외
       const entry = ensureMakeupEntry(r.makeupClass);
       const tmpl = templateMap.get(r.templateId);
       const tmplName = tmpl?.name ?? '(삭제된 양식)';

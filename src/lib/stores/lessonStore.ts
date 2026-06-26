@@ -79,13 +79,13 @@ interface LessonStore {
     classId: string,
     studentId: string,
     sessionDate: string,
-    templateId: string,
+    templateId: string | null,
   ) => ClinicResult | undefined;
   getMakeupCommentFor: (makeupClassId: string, studentId: string) => MakeupComment | undefined;
   getMakeupClinicResultFor: (
     makeupClassId: string,
     studentId: string,
-    templateId: string,
+    templateId: string | null,
   ) => MakeupClinicResult | undefined;
 }
 

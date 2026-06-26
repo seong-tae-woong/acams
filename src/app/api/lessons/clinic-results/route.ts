@@ -26,7 +26,7 @@ function serialize(
     id: string;
     classId: string;
     studentId: string;
-    templateId: string;
+    templateId: string | null;
     sessionDate: Date;
     checks: Prisma.JsonValue;
     customItems: Prisma.JsonValue;
@@ -132,59 +132,62 @@ export async function PUT(req: NextRequest) {
 
   try {
     const { classId, studentId, sessionDate, templateId, checks, customItems, hiddenItemIds } = await req.json();
-    if (!classId || !studentId || !sessionDate || !templateId) {
+    if (!classId || !studentId || !sessionDate) {
       return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 });
     }
     if (!Array.isArray(checks)) {
       return NextResponse.json({ error: 'checks는 배열' }, { status: 400 });
     }
+    const tid: string | null = templateId ?? null; // null = 양식 없이 직접 추가한 항목만
     const safeCustomItems: ClinicCustomItem[] = Array.isArray(customItems) ? customItems : [];
     const safeHiddenItemIds: string[] = Array.isArray(hiddenItemIds) ? hiddenItemIds : [];
 
     const cls = await prisma.class.findFirst({ where: { id: classId, academyId } });
     if (!cls) return NextResponse.json({ error: '반 권한 없음' }, { status: 403 });
 
-    const tmpl = await prisma.clinicTemplate.findFirst({ where: { id: templateId, academyId } });
-    if (!tmpl) return NextResponse.json({ error: '양식 권한 없음' }, { status: 403 });
+    if (tid) {
+      const tmpl = await prisma.clinicTemplate.findFirst({ where: { id: tid, academyId } });
+      if (!tmpl) return NextResponse.json({ error: '양식 권한 없음' }, { status: 403 });
+    }
 
-    const whereKey = {
-      classId_studentId_sessionDate_templateId: {
-        classId,
-        studentId,
-        sessionDate: toDateOnly(sessionDate),
-        templateId,
-      },
-    };
+    // 기존 행 조회 — 양식 있으면 유니크키, 없으면(null) class·student·date 기준 findFirst
+    const existing = tid
+      ? await prisma.clinicResult.findUnique({
+          where: {
+            classId_studentId_sessionDate_templateId: {
+              classId, studentId, sessionDate: toDateOnly(sessionDate), templateId: tid,
+            },
+          },
+        })
+      : await prisma.clinicResult.findFirst({
+          where: { academyId, classId, studentId, sessionDate: toDateOnly(sessionDate), templateId: null },
+        });
 
-    // 기존 행을 먼저 조회해 "체크 상태가 바뀌었는지"와 "신규 생성인지"를 판단
-    const existing = await prisma.clinicResult.findUnique({ where: whereKey });
     const incomingSig = checkedSignature(checks, safeCustomItems);
     const checkChanged = existing
       ? incomingSig !== checkedSignature(existing.checks, existing.customItems)
       : incomingSig !== '';
 
-    const saved = await prisma.clinicResult.upsert({
-      where: whereKey,
-      update: {
-        checks: checks as unknown as Prisma.InputJsonValue,
-        customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
-        hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
-        // authorId(작성자)는 최초 생성자로 고정 — 갱신 시 덮어쓰지 않음
-        ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}),
-      },
-      create: {
-        academyId,
-        classId,
-        studentId,
-        templateId,
-        sessionDate: toDateOnly(sessionDate),
-        checks: checks as unknown as Prisma.InputJsonValue,
-        customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
-        hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
-        authorId: userId,
-        ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}),
-      },
-    });
+    const jsonData = {
+      checks: checks as unknown as Prisma.InputJsonValue,
+      customItems: safeCustomItems as unknown as Prisma.InputJsonValue,
+      hiddenItemIds: safeHiddenItemIds as unknown as Prisma.InputJsonValue,
+    };
+    const saved = existing
+      ? await prisma.clinicResult.update({
+          where: { id: existing.id },
+          // authorId(작성자)는 최초 생성자로 고정 — 갱신 시 덮어쓰지 않음
+          data: { ...jsonData, ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}) },
+        })
+      : await prisma.clinicResult.create({
+          data: {
+            academyId, classId, studentId, templateId: tid,
+            sessionDate: toDateOnly(sessionDate),
+            ...jsonData,
+            authorId: userId,
+            ...(checkChanged ? { checkedById: userId, checkedAt: new Date() } : {}),
+          },
+        });
 
     const nameMap = await buildNameMap([saved.authorId, saved.checkedById]);
     return NextResponse.json(serialize(saved, nameMap));
