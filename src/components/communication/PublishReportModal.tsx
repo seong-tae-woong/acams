@@ -402,9 +402,13 @@ export default function PublishReportModal({
   }, [open, editedBody, firstTargetId, passThreshold, activeExam]);
 
   // DAILY 미리보기 fetch — 선택된 시험(examIds)을 반영
+  // deps는 원시값으로 (dailyTarget은 매 렌더 새 객체라 그대로 넣으면 effect가 무한 재실행됨)
   const examIdsForApi = dayExams.length > 0 ? selectedExamIds : undefined;
+  const previewClassId = dailyTarget?.classId;
+  const previewStudentId = dailyTarget?.studentId;
+  const examIdsKey = (examIdsForApi ?? ['__all__']).join(',');
   useEffect(() => {
-    if (!open || kind !== 'DAILY' || !dailyTarget || !editedBody || !activeDate) {
+    if (!open || kind !== 'DAILY' || !previewClassId || !previewStudentId || !editedBody || !activeDate) {
       setDailyPreview(null);
       return;
     }
@@ -414,7 +418,7 @@ export default function PublishReportModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          classId: dailyTarget.classId, date: activeDate, studentId: dailyTarget.studentId,
+          classId: previewClassId, date: activeDate, studentId: previewStudentId,
           passThreshold, bodyMarkdown: editedBody, examIds: examIdsForApi,
         }),
       })
@@ -423,7 +427,8 @@ export default function PublishReportModal({
         .finally(() => setDailyPreviewLoading(false));
     }, 300);
     return () => clearTimeout(handle);
-  }, [open, kind, editedBody, dailyTarget, passThreshold, activeDate, examIdsForApi, selectedExamIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, kind, editedBody, previewClassId, previewStudentId, passThreshold, activeDate, examIdsKey]);
 
   // 통합 발행 모달의 대상 인원 계산
   const targetCount = (() => {
