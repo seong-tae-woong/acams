@@ -16,10 +16,11 @@ export async function POST(req: NextRequest) {
   const { academyId } = auth;
 
   try {
-    const { templateId, classId, date, studentId, passThreshold, bodyMarkdown } = await req.json();
+    const { templateId, classId, date, studentId, passThreshold, bodyMarkdown, examIds } = await req.json();
     if (!classId || !date || !studentId) {
       return NextResponse.json({ error: 'classId, date, studentId 필수' }, { status: 400 });
     }
+    const examIdsArr = Array.isArray(examIds) ? (examIds as string[]) : undefined;
 
     let body: string | null = null;
     let threshold = typeof passThreshold === 'number' ? passThreshold : 70;
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
       if (typeof passThreshold !== 'number') threshold = template.passThreshold;
     }
 
-    const ctxMap = await buildDailyContexts(academyId, classId, date, [studentId], threshold);
+    const ctxMap = await buildDailyContexts(academyId, classId, date, [studentId], threshold, examIdsArr);
     const ctx = ctxMap.get(studentId);
     if (!ctx) return NextResponse.json({ error: '학생 정보 없음' }, { status: 404 });
 

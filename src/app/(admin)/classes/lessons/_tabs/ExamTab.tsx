@@ -557,9 +557,12 @@ export default function ExamTab({ selectedClassId, setSelectedClassId, mainTab, 
                   <span className="text-[12.5px] font-semibold text-[#111827]">학생별 성적</span>
                   <span className="text-[11px] text-[#9ca3af]">점수·코멘트를 클릭하면 수정할 수 있습니다</span>
                 </div>
-                <Button variant="primary" size="sm" onClick={() => setPublishModalOpen(true)}>
-                  <Send size={13} /> 리포트 발행
-                </Button>
+                {/* 시험별 리포트 발행 숨김 — 수업 리포트로 일원화 (코드 보존). 다시 켜려면 false→true */}
+                {false && (
+                  <Button variant="primary" size="sm" onClick={() => setPublishModalOpen(true)}>
+                    <Send size={13} /> 리포트 발행
+                  </Button>
+                )}
               </div>
               <table className="w-full text-[12.5px]">
                 <thead>

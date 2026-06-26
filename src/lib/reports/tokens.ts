@@ -36,7 +36,8 @@ export interface TokenContext {
   태도사유?: string;
   과제수행?: string;              // "완료" | "미완료" | "-"
   코멘트?: string;                // 학생별 코멘트
-  시험점수?: number | null;       // 그날 대표 시험 점수 (시험명·만점·백분율은 PER_EXAM 필드 재사용)
+  시험점수?: number | null;       // 그날 대표(첫 선택) 시험 점수 (시험명·만점·백분율은 PER_EXAM 필드 재사용)
+  시험결과?: string;              // 선택된 시험 전체를 "• 시험명: 점수/만점" 줄로 (여러 시험 대응)
   클리닉피드백?: string;          // 항목별 코멘트 결합
 
   // 합격 임계값(%) — 발행 시점에 원장이 조정 가능, 기본 70
@@ -150,9 +151,10 @@ const DAILY_GROUPS: TokenGroup[] = [
   {
     label: '시험',
     tokens: [
-      { token: '시험명', description: '그날 시험 이름 (여러 개면 쉼표)' },
-      { token: '시험점수', description: '그날 대표 시험 점수' },
-      { token: '만점', description: '대표 시험 만점' },
+      { token: '시험결과', description: '선택된 시험 전체 (• 시험명: 점수/만점, 여러 개면 여러 줄)' },
+      { token: '시험명', description: '대표(첫 선택) 시험 이름' },
+      { token: '시험점수', description: '대표(첫 선택) 시험 점수' },
+      { token: '만점', description: '대표(첫 선택) 시험 만점' },
     ],
   },
   {

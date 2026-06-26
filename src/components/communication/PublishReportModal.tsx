@@ -81,7 +81,8 @@ export default function PublishReportModal({
   allClasses, studentsByClass, allExams,
   onPublished,
 }: Props) {
-  const [kind, setKind] = useState<Kind>(source === 'session' ? 'DAILY' : 'PER_EXAM');
+  // 시험별(PER_EXAM)은 숨김 — exam 진입(고정 컨텍스트)에서만 사용. tab/session 기본은 수업(DAILY)
+  const [kind, setKind] = useState<Kind>(source === 'exam' ? 'PER_EXAM' : 'DAILY');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
   const [mode, setMode] = useState<Mode>('class');
@@ -114,6 +115,9 @@ export default function PublishReportModal({
 
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  // DAILY 다중 시험: 그날 시험 중 리포트에 포함할 시험 (기본 전체 체크). session 진입은 allExams가 없어 직접 fetch
+  const [selectedExamIds, setSelectedExamIds] = useState<string[]>([]);
+  const [fetchedDayExams, setFetchedDayExams] = useState<ExamLite[]>([]);
   const [passThreshold, setPassThreshold] = useState(70);
   const [summary, setSummary] = useState('');
   const [editedBody, setEditedBody] = useState<string>('');           // 본문 (수정 가능)
@@ -259,14 +263,81 @@ export default function PublishReportModal({
     return undefined;
   }, [kind, mode, selectedStudentIds, selectedClassIds, activeClassId, activeClassStudents, activeExam]);
 
-  // DAILY 미리보기: 첫 대상 학생 결정
-  const dailyFirstTargetId = useMemo(() => {
-    if (kind !== 'DAILY') return undefined;
-    if (!activeClassId || !activeDate) return undefined;
-    if (mode === 'student') return selectedStudentIds[0];
-    if (selectedClassIds.includes(activeClassId)) return activeClassStudents[0]?.id;
-    return undefined;
-  }, [kind, mode, selectedStudentIds, selectedClassIds, activeClassId, activeDate, activeClassStudents]);
+  // DAILY 미리보기: 첫 대상의 (반, 학생) 결정 — 다중 반이라 학생이 속한 반까지 알아야 함
+  const dailyTarget = useMemo<{ classId: string; studentId: string } | null>(() => {
+    if (kind !== 'DAILY' || !activeDate) return null;
+    if (source === 'session') {
+      if (!activeClassId) return null;
+      const sid = mode === 'student'
+        ? selectedStudentIds[0]
+        : (selectedClassIds.includes(activeClassId) ? activeClassStudents[0]?.id : undefined);
+      return sid ? { classId: activeClassId, studentId: sid } : null;
+    }
+    // tab DAILY (다중 반)
+    if (mode === 'student') {
+      const sid = selectedStudentIds[0];
+      if (!sid || !studentsByClass) return null;
+      const cid = Object.keys(studentsByClass).find((k) => (studentsByClass[k] ?? []).some((s) => s.id === sid));
+      return cid ? { classId: cid, studentId: sid } : null;
+    }
+    if (!studentsByClass) return null;
+    for (const cid of selectedClassIds) {
+      const list = studentsByClass[cid];
+      if (list && list.length > 0) return { classId: cid, studentId: list[0].id };
+    }
+    return null;
+  }, [kind, source, mode, selectedStudentIds, selectedClassIds, activeClassId, activeDate, activeClassStudents, studentsByClass]);
+
+  // DAILY 그날 시험 목록 — tab은 allExams에서 필터, session은 직접 fetch한 것에서
+  const dailyExamClassIds = useMemo(
+    () => (source === 'session' ? (sessionClassId ? [sessionClassId] : []) : selectedClassIds),
+    [source, sessionClassId, selectedClassIds],
+  );
+  const dayExams = useMemo<ExamLite[]>(() => {
+    if (kind !== 'DAILY' || !activeDate || dailyExamClassIds.length === 0) return [];
+    const pool = (allExams && allExams.length) ? allExams : fetchedDayExams;
+    return pool.filter((e) => dailyExamClassIds.includes(e.classId) && e.date.slice(0, 10) === activeDate);
+  }, [kind, activeDate, dailyExamClassIds, allExams, fetchedDayExams]);
+
+  // session 진입은 allExams가 없으므로 그날 그 반 시험을 직접 조회
+  useEffect(() => {
+    if (!open || kind !== 'DAILY' || source !== 'session') return;
+    if (allExams && allExams.length) return; // tab은 prop 사용
+    if (!sessionClassId || !activeDate) return;
+    fetch(`/api/exams?classId=${sessionClassId}&from=${activeDate}&to=${activeDate}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setFetchedDayExams(
+            data.map((e) => ({ id: e.id, name: e.name, classId: e.classId, totalScore: e.totalScore, date: e.date })),
+          );
+        }
+      })
+      .catch(() => {});
+  }, [open, kind, source, sessionClassId, activeDate, allExams]);
+
+  // 그날 시험 집합이 바뀌면 전체 선택으로 리셋 (기본 전체 포함)
+  const dayExamsKey = dayExams.map((e) => e.id).join(',');
+  useEffect(() => {
+    setSelectedExamIds(dayExams.map((e) => e.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayExamsKey]);
+
+  // 시험 체크리스트 표시용 반별 그룹
+  const examGroups = useMemo(() => {
+    const byClass = new Map<string, { classId: string; className: string; exams: ExamLite[] }>();
+    for (const e of dayExams) {
+      const className = source === 'session'
+        ? (sessionClassName ?? '')
+        : ((allClasses ?? []).find((c) => c.id === e.classId)?.name ?? '');
+      if (!byClass.has(e.classId)) byClass.set(e.classId, { classId: e.classId, className, exams: [] });
+      byClass.get(e.classId)!.exams.push(e);
+    }
+    return [...byClass.values()];
+  }, [dayExams, allClasses, source, sessionClassName]);
+
+  const toggleExam = (id: string) =>
+    setSelectedExamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   // PERIODIC 미리보기: 첫 대상 학생 결정 (mode=class면 첫 반의 첫 학생, mode=student면 첫 학생)
   const periodicFirstTargetId = useMemo(() => {
@@ -330,9 +401,10 @@ export default function PublishReportModal({
     return () => clearTimeout(handle);
   }, [open, editedBody, firstTargetId, passThreshold, activeExam]);
 
-  // DAILY 미리보기 fetch
+  // DAILY 미리보기 fetch — 선택된 시험(examIds)을 반영
+  const examIdsForApi = dayExams.length > 0 ? selectedExamIds : undefined;
   useEffect(() => {
-    if (!open || kind !== 'DAILY' || !dailyFirstTargetId || !editedBody || !activeClassId || !activeDate) {
+    if (!open || kind !== 'DAILY' || !dailyTarget || !editedBody || !activeDate) {
       setDailyPreview(null);
       return;
     }
@@ -341,22 +413,27 @@ export default function PublishReportModal({
       fetch('/api/reports/preview-daily', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classId: activeClassId, date: activeDate, studentId: dailyFirstTargetId, passThreshold, bodyMarkdown: editedBody }),
+        body: JSON.stringify({
+          classId: dailyTarget.classId, date: activeDate, studentId: dailyTarget.studentId,
+          passThreshold, bodyMarkdown: editedBody, examIds: examIdsForApi,
+        }),
       })
         .then((r) => r.json())
         .then((data) => { if (data.error) setDailyPreview(null); else setDailyPreview(data); })
         .finally(() => setDailyPreviewLoading(false));
     }, 300);
     return () => clearTimeout(handle);
-  }, [open, kind, editedBody, dailyFirstTargetId, passThreshold, activeClassId, activeDate]);
+  }, [open, kind, editedBody, dailyTarget, passThreshold, activeDate, examIdsForApi, selectedExamIds]);
 
   // 통합 발행 모달의 대상 인원 계산
   const targetCount = (() => {
     if (mode === 'student') return selectedStudentIds.length;
-    if (kind === 'PER_EXAM' || kind === 'DAILY') {
+    // 단일 반 로스터: PER_EXAM, 세션 DAILY
+    if (kind === 'PER_EXAM' || (kind === 'DAILY' && source === 'session')) {
       if (!activeClassId) return 0;
       return selectedClassIds.includes(activeClassId) ? activeClassStudents.length : 0;
     }
+    // 다중 반: PERIODIC, 탭 DAILY
     if (!studentsByClass) return 0;
     return selectedClassIds.reduce((sum, cid) => sum + (studentsByClass[cid]?.length ?? 0), 0);
   })();
@@ -383,8 +460,8 @@ export default function PublishReportModal({
         toast('시험을 선택하세요.', 'error');
         return;
       }
-      if (kind === 'DAILY' && (!activeClassId || !activeDate)) {
-        toast('반과 날짜를 선택하세요.', 'error');
+      if (kind === 'DAILY' && !activeDate) {
+        toast('날짜를 선택하세요.', 'error');
         return;
       }
       const url = kind === 'PER_EXAM'
@@ -398,11 +475,25 @@ export default function PublishReportModal({
       };
       let payload: Record<string, unknown>;
       if (kind === 'DAILY') {
+        // 반별 대상: 세션=고정 반, 탭=멀티선택 반(반단위는 서버 로스터, 개별은 반별로 묶음)
+        const dailyTargets: Array<{ classId: string; studentIds?: string[] }> =
+          source === 'session'
+            ? [{ classId: activeClassId, studentIds: mode === 'student' ? selectedStudentIds : undefined }]
+            : mode === 'class'
+              ? selectedClassIds.map((cid) => ({ classId: cid }))
+              : Object.keys(studentsByClass ?? {})
+                  .map((cid) => ({
+                    classId: cid,
+                    studentIds: (studentsByClass?.[cid] ?? [])
+                      .filter((s) => selectedStudentIds.includes(s.id))
+                      .map((s) => s.id),
+                  }))
+                  .filter((t) => (t.studentIds?.length ?? 0) > 0);
         payload = {
           templateId,
-          classId: activeClassId,
           date: activeDate,
-          ...targetIds,
+          targets: dailyTargets,
+          examIds: dayExams.length > 0 ? selectedExamIds : undefined,
           passThreshold,
           summary,
           overrideBody: bodyDirty ? editedBody : undefined,
@@ -497,7 +588,8 @@ export default function PublishReportModal({
           <div>
             <label className="text-[11.5px] font-medium text-[#374151] block mb-1.5">리포트 종류</label>
             <div className="flex gap-2">
-              {(['PER_EXAM', 'DAILY', 'PERIODIC'] as const).map((k) => (
+              {/* 시험별(PER_EXAM)은 숨김 — 수업/주기별만 노출 */}
+              {(['DAILY', 'PERIODIC'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => setKind(k)}
@@ -506,7 +598,7 @@ export default function PublishReportModal({
                     kind === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
                   )}
                 >
-                  {k === 'PER_EXAM' ? '시험별 리포트' : k === 'DAILY' ? '수업 리포트' : '주기별 리포트'}
+                  {k === 'DAILY' ? '수업 리포트' : '주기별 리포트'}
                 </button>
               ))}
             </div>
@@ -555,31 +647,16 @@ export default function PublishReportModal({
           </div>
         )}
 
-        {/* 'tab' & DAILY: 반·날짜 선택 */}
+        {/* 'tab' & DAILY: 날짜만 선택 (반은 아래 대상에서 멀티선택) */}
         {source === 'tab' && kind === 'DAILY' && (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11.5px] font-medium text-[#374151] block mb-1">반 선택</label>
-              <select
-                value={tabClassId}
-                onChange={(e) => setTabClassId(e.target.value)}
-                className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
-              >
-                <option value="">반을 선택하세요</option>
-                {(allClasses ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-[11.5px] font-medium text-[#374151] block mb-1">날짜 선택</label>
-              <input
-                type="date"
-                value={tabDate}
-                onChange={(e) => setTabDate(e.target.value)}
-                className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
-              />
-            </div>
+          <div>
+            <label className="text-[11.5px] font-medium text-[#374151] block mb-1">날짜 선택</label>
+            <input
+              type="date"
+              value={tabDate}
+              onChange={(e) => setTabDate(e.target.value)}
+              className="w-full px-3 py-1.5 border border-[#e2e8f0] rounded-[8px] text-[12.5px]"
+            />
           </div>
         )}
 
@@ -630,14 +707,16 @@ export default function PublishReportModal({
                 )}
               >
                 {m === 'class'
-                  ? (kind === 'PERIODIC' ? '반 단위' : `반 전체${activeClassName ? ` (${activeClassName})` : ''}`)
+                  ? ((kind === 'PERIODIC' || (kind === 'DAILY' && source === 'tab'))
+                      ? '반 단위'
+                      : `반 전체${activeClassName ? ` (${activeClassName})` : ''}`)
                   : '개별 학생 선택'}
               </button>
             ))}
           </div>
 
-          {/* PER_EXAM·DAILY 학생 선택 — 해당 반의 학생만 */}
-          {(kind === 'PER_EXAM' || kind === 'DAILY') && mode === 'student' && (
+          {/* PER_EXAM·세션 DAILY 학생 선택 — 해당 단일 반의 학생만 (탭 DAILY는 아래 멀티선택) */}
+          {(kind === 'PER_EXAM' || (kind === 'DAILY' && source === 'session')) && mode === 'student' && (
             <div className="border border-[#e2e8f0] rounded-[8px] max-h-44 overflow-y-auto p-2">
               {activeClassStudents.length === 0 ? (
                 <div className="text-[12px] text-[#9ca3af] p-2">{activeClassId ? '반에 활성 학생이 없습니다.' : (kind === 'DAILY' ? '먼저 반·날짜를 선택하세요.' : '먼저 반·시험을 선택하세요.')}</div>
@@ -672,8 +751,8 @@ export default function PublishReportModal({
             </div>
           )}
 
-          {/* PERIODIC 반 멀티선택 */}
-          {kind === 'PERIODIC' && mode === 'class' && (
+          {/* 다중 반 멀티선택 — PERIODIC, 탭 DAILY */}
+          {(kind === 'PERIODIC' || (kind === 'DAILY' && source === 'tab')) && mode === 'class' && (
             <div className="border border-[#e2e8f0] rounded-[8px] max-h-44 overflow-y-auto p-2">
               {periodicClasses.length === 0 ? (
                 <div className="text-[12px] text-[#9ca3af] p-2">반 정보 없음</div>
@@ -694,8 +773,8 @@ export default function PublishReportModal({
             </div>
           )}
 
-          {/* PERIODIC 학생 멀티선택 (반별 그룹) */}
-          {kind === 'PERIODIC' && mode === 'student' && (
+          {/* 다중 반 학생 멀티선택 (반별 그룹) — PERIODIC, 탭 DAILY */}
+          {(kind === 'PERIODIC' || (kind === 'DAILY' && source === 'tab')) && mode === 'student' && (
             <div className="border border-[#e2e8f0] rounded-[8px] max-h-44 overflow-y-auto p-2 space-y-2">
               {periodicClasses.map((c) => {
                 const list = periodicStudentsByClass[c.id] ?? [];
@@ -722,6 +801,51 @@ export default function PublishReportModal({
             </div>
           )}
         </div>
+
+        {/* DAILY: 포함할 시험 — 그날 시험이 있으면 리포트에 넣을 시험 선택 (기본 전체) */}
+        {kind === 'DAILY' && dayExams.length > 0 && (
+          <div>
+            <label className="text-[11.5px] font-medium text-[#374151] block mb-1.5">
+              포함할 시험{' '}
+              <span className="text-[#9ca3af] font-normal">({selectedExamIds.length}/{dayExams.length} 선택)</span>
+            </label>
+            <div className="border border-[#e2e8f0] rounded-[8px] max-h-40 overflow-y-auto p-2 space-y-2">
+              {examGroups.map((g) => (
+                <div key={g.classId}>
+                  {examGroups.length > 1 && (
+                    <div className="text-[10.5px] font-semibold text-[#6b7280] mt-1 mb-1">{g.className}</div>
+                  )}
+                  {g.exams.map((e) => (
+                    <label key={e.id} className="flex items-center gap-2 py-0.5 pl-1 cursor-pointer hover:bg-[#f4f6f8] rounded">
+                      <input type="checkbox" checked={selectedExamIds.includes(e.id)} onChange={() => toggleExam(e.id)} />
+                      <span className="text-[12.5px] text-[#111827] flex-1">{e.name}</span>
+                      <span className="text-[10.5px] text-[#9ca3af]">{e.totalScore}점</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+              <div className="border-t border-[#f1f5f9] mt-1 pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedExamIds(dayExams.map((e) => e.id))}
+                  className="text-[11px] text-[#4fc3a1] cursor-pointer hover:underline"
+                >
+                  전체 선택
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedExamIds([])}
+                  className="text-[11px] text-[#6b7280] cursor-pointer hover:underline"
+                >
+                  선택 해제
+                </button>
+              </div>
+            </div>
+            <div className="text-[10.5px] text-[#9ca3af] mt-1">
+              선택한 시험이 <code className="bg-[#f1f5f9] px-1 rounded">{'{{시험결과}}'}</code> 토큰에 모두 표시됩니다. 전체 해제하면 시험은 리포트에 들어가지 않습니다.
+            </div>
+          </div>
+        )}
 
         {/* PERIODIC: 집계 설정(직접 작성 시 입력) + 대상 시험 카테고리 */}
         {kind === 'PERIODIC' && templateId && (
@@ -963,7 +1087,7 @@ export default function PublishReportModal({
         {kind === 'DAILY' && (
           <div>
             <label className="text-[11.5px] font-medium text-[#374151] block mb-1">
-              미리보기 {dailyFirstTargetId ? '(첫 번째 대상 학생 기준)' : ''}
+              미리보기 {dailyTarget ? '(첫 번째 대상 학생 기준)' : ''}
             </label>
             <div className="bg-[#f9fafb] border border-[#e2e8f0] rounded-[8px] p-3 min-h-[80px] text-[12.5px] whitespace-pre-wrap leading-relaxed">
               {dailyPreviewLoading && <span className="text-[#9ca3af]">불러오는 중…</span>}

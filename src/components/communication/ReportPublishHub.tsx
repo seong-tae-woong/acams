@@ -103,7 +103,8 @@ export default function ReportPublishHub() {
             <span className="text-[12.5px] font-semibold text-[#111827]">발행 이력</span>
             <span className="text-[11px] text-[#9ca3af]">{filtered.length}건</span>
             <div className="flex gap-1 ml-2">
-              {(['all', 'PER_EXAM', 'DAILY', 'PERIODIC'] as const).map((k) => (
+              {/* 시험별(PER_EXAM) 필터 숨김 — 과거 시험별 이력은 '전체'에서 계속 표시 */}
+              {(['all', 'DAILY', 'PERIODIC'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => setFilter(k)}
@@ -112,7 +113,7 @@ export default function ReportPublishHub() {
                     filter === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
                   )}
                 >
-                  {k === 'all' ? '전체' : k === 'PER_EXAM' ? '시험별' : k === 'DAILY' ? '수업' : '주기별'}
+                  {k === 'all' ? '전체' : k === 'DAILY' ? '수업' : '주기별'}
                 </button>
               ))}
             </div>

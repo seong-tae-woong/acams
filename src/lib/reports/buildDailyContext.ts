@@ -91,20 +91,32 @@ export interface ShapeDailyInput {
   attitudeReason: string | null;
   homeworkDone: boolean | null;
   comment: string | null;
-  exams: Array<{ name: string; totalScore: number }>; // 그날 그 반 시험들 (대표 = 첫)
-  examScore: number | null; // 대표 시험의 이 학생 점수
+  // 그날 그 반 시험들 + 이 학생 점수 (발행 시 선택된 시험으로 필터됨, 대표 = 첫)
+  exams: Array<{ name: string; totalScore: number; score: number | null }>;
   clinicFeedback: string; // formatClinicFeedback 결과
   passThreshold: number;
 }
 
+/** 그날 시험들을 "• 시험명: 점수/만점" 줄로 결합 ({{시험결과}} 토큰용). 없으면 "-" */
+export function formatExamResults(
+  exams: Array<{ name: string; totalScore: number; score: number | null }>,
+): string {
+  if (exams.length === 0) return '-';
+  return exams.map((e) => `• ${e.name}: ${e.score ?? '-'}/${e.totalScore}`).join('\n');
+}
+
 /** 가져온 데이터 → TokenContext + raw. 모든 DAILY 토큰 키를 항상 포함(누락 키는 토큰 원문이 노출되므로). */
 export function shapeDailyContext(i: ShapeDailyInput): DailyContextResult {
+  // 대표 = 선택된 첫 시험. 스칼라 토큰(시험명/시험점수/만점/백분율)은 모두 대표 기준으로 일치시켜
+  // "이름은 전부, 점수는 첫 시험"이던 불일치를 제거한다. 여러 시험은 {{시험결과}}로 모두 노출.
   const repExam = i.exams[0] ?? null;
-  const examName = i.exams.length > 0 ? i.exams.map((e) => e.name).join(', ') : null;
+  const examName = repExam?.name ?? null;
+  const examScore = repExam?.score ?? null;
   const examTotal = repExam?.totalScore ?? null;
+  const examResults = formatExamResults(i.exams);
   const pct =
-    i.examScore != null && examTotal != null && examTotal > 0
-      ? Math.round((i.examScore / examTotal) * 100)
+    examScore != null && examTotal != null && examTotal > 0
+      ? Math.round((examScore / examTotal) * 100)
       : null;
   const homework = i.homeworkDone === true ? '완료' : i.homeworkDone === false ? '미완료' : '-';
   const assignmentMemo = i.assignmentMemos.filter((m) => m && m.trim()).join('\n') || null;
@@ -121,9 +133,10 @@ export function shapeDailyContext(i: ShapeDailyInput): DailyContextResult {
     과제수행: homework,
     코멘트: i.comment ?? undefined,
     시험명: examName ?? undefined,
-    시험점수: i.examScore,
+    시험점수: examScore,
     만점: examTotal ?? undefined,
     백분율: pct, // {{합격/불합격}} 조건부용
+    시험결과: examResults, // 선택된 시험들을 "• 시험명: 점수/만점" 줄로
     클리닉피드백: i.clinicFeedback,
     passThreshold: i.passThreshold,
   };
@@ -139,7 +152,7 @@ export function shapeDailyContext(i: ShapeDailyInput): DailyContextResult {
     homeworkDone: i.homeworkDone,
     comment: i.comment,
     examName,
-    examScore: i.examScore,
+    examScore,
     examTotal,
     clinicFeedback: i.clinicFeedback,
   };
@@ -170,6 +183,7 @@ export async function buildDailyContexts(
   date: string, // YYYY-MM-DD
   studentIds: string[],
   passThreshold: number,
+  examIds?: string[], // 지정 시 그날 시험 중 이 시험들만 포함 (발행 시 사용자 선택). 미지정=그날 전체
 ): Promise<Map<string, DailyContextResult>> {
   const sessionDate = new Date(`${date}T00:00:00.000Z`);
   const dayStart = new Date(`${date}T00:00:00.000Z`);
@@ -188,7 +202,11 @@ export async function buildDailyContexts(
         select: { memo: true },
       }),
       prisma.exam.findMany({
-        where: { academyId, classId, levelTestFormId: null, date: { gte: dayStart, lte: dayEnd } },
+        where: {
+          academyId, classId, levelTestFormId: null, date: { gte: dayStart, lte: dayEnd },
+          // examIds 지정(빈 배열 포함) 시 그 시험들만 — 빈 배열은 "시험 없음"(전체 해제 의도). undefined면 그날 전체
+          ...(examIds ? { id: { in: examIds } } : {}),
+        },
         orderBy: { date: 'asc' },
         select: { id: true, name: true, totalScore: true },
       }),
@@ -208,12 +226,12 @@ export async function buildDailyContexts(
       }),
     ]);
 
-  // 2파: 대표 시험(그날 첫 시험)에 대한 학생별 점수
-  const repExam = exams[0] ?? null;
-  const grades = repExam
+  // 2파: 그날 (선택된) 모든 시험에 대한 학생별 점수 — {{시험결과}}가 시험별 점수를 나열하므로 전부 조회
+  const examIdsAll = exams.map((e) => e.id);
+  const grades = examIdsAll.length
     ? await prisma.gradeRecord.findMany({
-        where: { examId: repExam.id, studentId: { in: studentIds } },
-        select: { studentId: true, score: true },
+        where: { examId: { in: examIdsAll }, studentId: { in: studentIds } },
+        select: { examId: true, studentId: true, score: true },
       })
     : [];
 
@@ -227,7 +245,6 @@ export async function buildDailyContexts(
 
   const studentMap = new Map(students.map((s) => [s.id, s]));
   const assignmentMemos = assignments.map((a) => a.memo);
-  const examsLite = exams.map((e) => ({ name: e.name, totalScore: e.totalScore }));
 
   const result = new Map<string, DailyContextResult>();
   for (const sid of studentIds) {
@@ -244,9 +261,11 @@ export async function buildDailyContexts(
         hiddenItemIds: (c.hiddenItemIds as unknown as string[]) ?? [],
       }));
     const clinicFeedback = formatClinicFeedback(studentClinics, labelOf);
-    const examScore = repExam
-      ? grades.find((g) => g.studentId === sid)?.score ?? null
-      : null;
+    const examsWithScores = exams.map((e) => ({
+      name: e.name,
+      totalScore: e.totalScore,
+      score: grades.find((g) => g.examId === e.id && g.studentId === sid)?.score ?? null,
+    }));
 
     result.set(
       sid,
@@ -262,8 +281,7 @@ export async function buildDailyContexts(
         attitudeReason: ev?.attitudeReason ?? null,
         homeworkDone: ev?.homeworkDone ?? null,
         comment: cm?.comment ?? null,
-        exams: examsLite,
-        examScore,
+        exams: examsWithScores,
         clinicFeedback,
         passThreshold,
       }),

@@ -48,7 +48,8 @@ function computeEndLabel(ref: Date = new Date()): string {
 const PAGE_SIZE = 10;
 
 export default function ReportTemplatesEditor() {
-  const [kind, setKind] = useState<Kind>('PER_EXAM');
+  // 시험별(PER_EXAM)은 숨김 — 기본 수업(DAILY)
+  const [kind, setKind] = useState<Kind>('DAILY');
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -321,7 +322,8 @@ export default function ReportTemplatesEditor() {
       {/* 좌측: 양식 목록 */}
       <div className="w-60 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden">
         <div className="px-3 py-2.5 border-b border-[#f1f5f9] flex gap-1">
-          {(['PER_EXAM', 'DAILY', 'PERIODIC'] as const).map((k) => (
+          {/* 시험별(PER_EXAM)은 숨김 — 수업/주기별만 노출 */}
+          {(['DAILY', 'PERIODIC'] as const).map((k) => (
             <button
               key={k}
               onClick={() => setKind(k)}
@@ -330,7 +332,7 @@ export default function ReportTemplatesEditor() {
                 kind === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
               )}
             >
-              {k === 'PER_EXAM' ? '시험별' : k === 'DAILY' ? '수업' : '주기별'}
+              {k === 'DAILY' ? '수업' : '주기별'}
             </button>
           ))}
         </div>

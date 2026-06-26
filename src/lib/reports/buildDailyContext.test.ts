@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   formatDateLabel,
   formatClinicFeedback,
+  formatExamResults,
   shapeDailyContext,
   hasDailyData,
   type ShapeDailyInput,
@@ -20,8 +21,7 @@ const base: ShapeDailyInput = {
   attitudeReason: '집중 잘함',
   homeworkDone: true,
   comment: '발표 적극적',
-  exams: [{ name: '단어시험', totalScore: 100 }],
-  examScore: 80,
+  exams: [{ name: '단어시험', totalScore: 100, score: 80 }],
   clinicFeedback: '• 단어 암기: 부족',
   passThreshold: 70,
 };
@@ -78,6 +78,23 @@ describe('formatClinicFeedback', () => {
   });
 });
 
+describe('formatExamResults', () => {
+  it('시험 없으면 "-"', () => {
+    expect(formatExamResults([])).toBe('-');
+  });
+  it('단일 시험 → "• 이름: 점수/만점"', () => {
+    expect(formatExamResults([{ name: '단어', totalScore: 100, score: 88 }])).toBe('• 단어: 88/100');
+  });
+  it('여러 시험 → 줄바꿈, 점수 없으면 "-"', () => {
+    expect(
+      formatExamResults([
+        { name: '단어', totalScore: 50, score: 45 },
+        { name: '문법', totalScore: 100, score: null },
+      ]),
+    ).toBe('• 단어: 45/50\n• 문법: -/100');
+  });
+});
+
 describe('shapeDailyContext', () => {
   it('전 항목 존재 → 컨텍스트 채움', () => {
     const { context } = shapeDailyContext(base);
@@ -85,6 +102,7 @@ describe('shapeDailyContext', () => {
     expect(context.시험명).toBe('단어시험');
     expect(context.시험점수).toBe(80);
     expect(context.백분율).toBe(80);
+    expect(context.시험결과).toBe('• 단어시험: 80/100');
     expect(context.날짜).toMatch(/^2026-06-25 \(.\)$/);
   });
 
@@ -93,15 +111,24 @@ describe('shapeDailyContext', () => {
     expect(shapeDailyContext({ ...base, homeworkDone: null }).context.과제수행).toBe('-');
   });
 
-  it('시험 여러 개 → 시험명 결합, 만점·백분율은 대표(첫) 시험', () => {
+  it('시험 여러 개 → 스칼라는 대표(첫) 시험, 시험결과는 전부 나열', () => {
     const { context } = shapeDailyContext({
       ...base,
-      exams: [{ name: '단어', totalScore: 50 }, { name: '문법', totalScore: 100 }],
-      examScore: 40,
+      exams: [{ name: '단어', totalScore: 50, score: 40 }, { name: '문법', totalScore: 100, score: 90 }],
     });
-    expect(context.시험명).toBe('단어, 문법');
+    expect(context.시험명).toBe('단어');       // 첫 시험만 (불일치 제거)
+    expect(context.시험점수).toBe(40);
     expect(context.만점).toBe(50);
-    expect(context.백분율).toBe(80); // 40/50
+    expect(context.백분율).toBe(80);           // 40/50
+    expect(context.시험결과).toBe('• 단어: 40/50\n• 문법: 90/100');
+  });
+
+  it('점수 미입력 시험은 시험결과에 "-"로', () => {
+    const { context } = shapeDailyContext({
+      ...base,
+      exams: [{ name: '단어', totalScore: 50, score: null }, { name: '문법', totalScore: 100, score: 90 }],
+    });
+    expect(context.시험결과).toBe('• 단어: -/50\n• 문법: 90/100');
   });
 
   it('과제 메모 여러 개 → 줄바꿈 결합, 없으면 미포함', () => {
@@ -117,13 +144,13 @@ describe('renderBody로 DAILY 토큰 치환', () => {
   });
 
   it('시험 없으면 시험 토큰·합격/불합격 모두 "-"', () => {
-    const { context } = shapeDailyContext({ ...base, exams: [], examScore: null });
-    expect(renderBody('{{시험명}} {{시험점수}} {{합격/불합격}}', context)).toBe('- - -');
+    const { context } = shapeDailyContext({ ...base, exams: [] });
+    expect(renderBody('{{시험명}} {{시험점수}} {{시험결과}} {{합격/불합격}}', context)).toBe('- - - -');
   });
 
   it('합격/불합격: 백분율 ≥ 임계 → 합격, 미만 → 불합격', () => {
     expect(renderBody('{{합격/불합격}}', shapeDailyContext(base).context)).toBe('합격'); // 80 ≥ 70
-    expect(renderBody('{{합격/불합격}}', shapeDailyContext({ ...base, examScore: 60 }).context)).toBe('불합격'); // 60 < 70
+    expect(renderBody('{{합격/불합격}}', shapeDailyContext({ ...base, exams: [{ name: '단어시험', totalScore: 100, score: 60 }] }).context)).toBe('불합격'); // 60 < 70
   });
 
   it('태도·날짜 정상 치환', () => {
@@ -137,7 +164,7 @@ describe('hasDailyData', () => {
   const emptyRaw = shapeDailyContext({
     ...base,
     sessionNote: null, assignmentMemos: [], attitude: null, attitudeReason: null,
-    homeworkDone: null, comment: null, exams: [], examScore: null, clinicFeedback: '-',
+    homeworkDone: null, comment: null, exams: [], clinicFeedback: '-',
   }).raw;
 
   it('전부 비면 false', () => {
