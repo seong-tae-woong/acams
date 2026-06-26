@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { ReportTemplateKind } from '@/generated/prisma/client';
 import { renderBody } from '@/lib/reports/tokens';
 import { buildPeriodicData } from '@/lib/reports/buildPeriodic';
+import { formatDateLabelShort } from '@/lib/reports/buildDailyContext';
 import { sendPushToStudents } from '@/lib/push/sendPush';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
         학년: student.grade,
         반: student.classEnrollments[0]?.class.name ?? '',
         기간: `${data.period.label} (${data.period.startLabel} ~ ${data.period.endLabel})`,
+        월일: formatDateLabelShort(data.period.endLabel),
         대상카테고리: data.categoryLabels.length > 0 ? data.categoryLabels.join(', ') : '전체',
         기간평균: data.averageScore,
         기간최고: data.highestScore,

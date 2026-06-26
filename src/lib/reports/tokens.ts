@@ -28,6 +28,9 @@ export interface TokenContext {
   기간시험수?: number;
   대상카테고리?: string;          // 선택된 category1들의 이름 콤마 결합
 
+  // ── 짧은 날짜 (DAILY=수업일, PERIODIC=발행일) ──
+  월일?: string;                  // "06/25 (수)" — 월/일 (요일)
+
   // ── DAILY 전용 ────────────────────────────
   날짜?: string;                  // "2026-06-25 (수)"
   수업내용?: string;              // 그날 반 공통 수업 내용
@@ -98,6 +101,7 @@ const PERIODIC_GROUPS: TokenGroup[] = [
       { token: '학년', description: '학년' },
       { token: '반', description: '반 이름' },
       { token: '기간', description: '발행 기간 (예: 2026-05, 2026-Q2)' },
+      { token: '월일', description: '발행일 — 월/일 (요일) · 예: 06/26 (금)' },
       { token: '대상카테고리', description: '양식에서 선택한 시험 카테고리' },
     ],
   },
@@ -125,7 +129,8 @@ const DAILY_GROUPS: TokenGroup[] = [
       { token: '학생', description: '학생 이름' },
       { token: '학년', description: '학년' },
       { token: '반', description: '반 이름' },
-      { token: '날짜', description: '수업 날짜 (예: 2026-06-25 (수))' },
+      { token: '날짜', description: '수업 날짜 — 연/월/일 (요일) · 예: 2026-06-25 (수)' },
+      { token: '월일', description: '수업 날짜 — 월/일 (요일) · 예: 06/25 (수)' },
     ],
   },
   {
@@ -151,10 +156,7 @@ const DAILY_GROUPS: TokenGroup[] = [
   {
     label: '시험',
     tokens: [
-      { token: '시험결과', description: '선택된 시험 전체 (• 시험명: 점수/만점, 여러 개면 여러 줄)' },
-      { token: '시험명', description: '대표(첫 선택) 시험 이름' },
-      { token: '시험점수', description: '대표(첫 선택) 시험 점수' },
-      { token: '만점', description: '대표(첫 선택) 시험 만점' },
+      { token: '시험결과', description: '그날 선택한 시험 전체 (• 시험명: 점수/만점, 여러 개면 여러 줄)' },
     ],
   },
   {

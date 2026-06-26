@@ -42,6 +42,15 @@ export function formatDateLabel(date: string): string {
   return `${date} (${DOW[d.getUTCDay()]})`;
 }
 
+/** 'YYYY-MM-DD' → 'MM/DD (요일)' — 짧은 날짜 토큰({{월일}})용 */
+export function formatDateLabelShort(date: string): string {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return date;
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${mm}/${dd} (${DOW[d.getUTCDay()]})`;
+}
+
 interface ClinicResultLike {
   templateId: string;
   checks: ClinicCheck[];
@@ -126,6 +135,7 @@ export function shapeDailyContext(i: ShapeDailyInput): DailyContextResult {
     학년: i.grade,
     반: i.className,
     날짜: formatDateLabel(i.date),
+    월일: formatDateLabelShort(i.date),
     수업내용: i.sessionNote ?? undefined,
     과제내용: assignmentMemo ?? undefined,
     태도점수: i.attitude,

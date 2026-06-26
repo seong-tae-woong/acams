@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatDateLabel,
+  formatDateLabelShort,
   formatClinicFeedback,
   formatExamResults,
   shapeDailyContext,
@@ -35,6 +36,18 @@ describe('formatDateLabel', () => {
   });
   it('잘못된 날짜는 원문 반환', () => {
     expect(formatDateLabel('not-a-date')).toBe('not-a-date');
+  });
+});
+
+describe('formatDateLabelShort', () => {
+  it('월/일 (요일) 형식 (1970-01-01 = 목)', () => {
+    expect(formatDateLabelShort('1970-01-01')).toBe('01/01 (목)');
+  });
+  it('월·일 0 패딩', () => {
+    expect(formatDateLabelShort('2026-06-11')).toBe('06/11 (목)');
+  });
+  it('잘못된 날짜는 원문 반환', () => {
+    expect(formatDateLabelShort('not-a-date')).toBe('not-a-date');
   });
 });
 
@@ -104,6 +117,7 @@ describe('shapeDailyContext', () => {
     expect(context.백분율).toBe(80);
     expect(context.시험결과).toBe('• 단어시험: 80/100');
     expect(context.날짜).toMatch(/^2026-06-25 \(.\)$/);
+    expect(context.월일).toMatch(/^06\/25 \(.\)$/);
   });
 
   it('homeworkDone false/null → 미완료/-', () => {
