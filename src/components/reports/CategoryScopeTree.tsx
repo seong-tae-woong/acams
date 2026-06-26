@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ExamCategory } from '@/lib/types/grade';
 
-// 주기별 리포트 "대상 시험 카테고리" 선택 트리 (Level 1·2·3 계층)
+// 기간 리포트 "대상 시험 카테고리" 선택 트리 (Level 1·2·3 계층)
 // 양식 편집기와 리포트 발행 모달에서 공용. readOnly=true면 양식에서 가져온 값 고정 표시.
 export interface CategoryScope {
   category1Ids: string[];

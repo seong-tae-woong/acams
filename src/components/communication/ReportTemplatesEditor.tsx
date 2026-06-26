@@ -322,7 +322,7 @@ export default function ReportTemplatesEditor() {
       {/* 좌측: 양식 목록 */}
       <div className="w-60 shrink-0 border-r border-[#e2e8f0] bg-white flex flex-col overflow-hidden">
         <div className="px-3 py-2.5 border-b border-[#f1f5f9] flex gap-1">
-          {/* 시험별(PER_EXAM)은 숨김 — 수업/주기별만 노출 */}
+          {/* 시험별(PER_EXAM)은 숨김 — 수업/기간만 노출 */}
           {(['DAILY', 'PERIODIC'] as const).map((k) => (
             <button
               key={k}
@@ -332,7 +332,7 @@ export default function ReportTemplatesEditor() {
                 kind === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
               )}
             >
-              {k === 'DAILY' ? '수업' : '주기별'}
+              {k === 'DAILY' ? '수업' : '기간'}
             </button>
           ))}
         </div>
@@ -366,7 +366,7 @@ export default function ReportTemplatesEditor() {
                 <div className="text-[10.5px] text-[#0D9E7A] truncate mt-0.5">@ {t.alias}</div>
               )}
               <div className="text-[10.5px] text-[#9ca3af] mt-0.5">
-                {t.kind === 'PER_EXAM' ? '시험별' : t.kind === 'DAILY' ? '수업' : `주기별 · 최근 ${t.periodMonths ?? '?'}개월`}
+                {t.kind === 'PER_EXAM' ? '시험별' : t.kind === 'DAILY' ? '수업' : `기간 · 최근 ${t.periodMonths ?? '?'}개월`}
               </div>
             </button>
           ))}

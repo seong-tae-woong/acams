@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, academyId } });
       if (!template) return NextResponse.json({ error: '양식 없음' }, { status: 404 });
       if (template.kind !== ReportTemplateKind.PERIODIC || !template.periodMonths) {
-        return NextResponse.json({ error: '주기별 양식 + 집계 개월 수 필요' }, { status: 400 });
+        return NextResponse.json({ error: '기간 양식 + 집계 개월 수 필요' }, { status: 400 });
       }
       periodMonths = template.periodMonths;
       scope = (template.scopeFilter as Record<string, string[]>) ?? {};

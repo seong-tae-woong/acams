@@ -26,7 +26,7 @@ interface Batch {
 const KIND_STYLE: Record<'PER_EXAM' | 'PERIODIC' | 'DAILY', { bg: string; text: string; label: string }> = {
   PER_EXAM: { bg: '#DBEAFE', text: '#1d4ed8', label: '시험별' },
   DAILY: { bg: '#E1F5EE', text: '#0D9E7A', label: '수업' },
-  PERIODIC: { bg: '#EDE9FE', text: '#5B4FBE', label: '주기별' },
+  PERIODIC: { bg: '#FEF3C7', text: '#B45309', label: '기간' },
 };
 
 function formatDateTime(iso: string) {
@@ -113,7 +113,7 @@ export default function ReportPublishHub() {
                     filter === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
                   )}
                 >
-                  {k === 'all' ? '전체' : k === 'DAILY' ? '수업' : '주기별'}
+                  {k === 'all' ? '전체' : k === 'DAILY' ? '수업' : '기간'}
                 </button>
               ))}
             </div>
@@ -183,7 +183,7 @@ export default function ReportPublishHub() {
         )}
       </div>
 
-      {/* 발행 모달 (탭 진입 — 시험별/주기별 토글, 시험별은 반·시험 드롭다운) */}
+      {/* 발행 모달 (탭 진입 — 수업/기간 토글) */}
       {publishOpen && (
         <PublishReportModal
           open={publishOpen}

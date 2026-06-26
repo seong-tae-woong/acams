@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       const template = await prisma.reportTemplate.findFirst({ where: { id: templateId, academyId } });
       if (!template) return NextResponse.json({ error: '양식 없음' }, { status: 404 });
       if (template.kind !== ReportTemplateKind.PERIODIC || !template.periodMonths) {
-        return NextResponse.json({ error: '주기별 양식 + 집계 개월 수 설정 필요' }, { status: 400 });
+        return NextResponse.json({ error: '기간 양식 + 집계 개월 수 설정 필요' }, { status: 400 });
       }
       resolvedTemplateId = template.id;
       periodMonths = template.periodMonths;
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       };
       passThreshold = typeof directPassThreshold === 'number' ? directPassThreshold : 70;
       baseBody = typeof directBody === 'string' ? directBody : '';
-      baseTitle = (typeof directTitle === 'string' && directTitle.trim()) ? directTitle.trim() : '정기 리포트';
+      baseTitle = (typeof directTitle === 'string' && directTitle.trim()) ? directTitle.trim() : '기간 리포트';
       baseLayout = Array.isArray(directLayout) ? directLayout : [];
     }
 
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
 
     if (created.length > 0) {
       await sendPushToStudents(created.map((c) => c.studentId), {
-        title: '새 정기 리포트가 도착했습니다',
+        title: '새 기간 리포트가 도착했습니다',
         body: `${periodLabel} 리포트를 확인하세요.`,
         url: '/mobile/reports',
         tag: `report-periodic-${periodLabel}`,

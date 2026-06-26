@@ -175,7 +175,7 @@ export default function PublishReportModal({
             setLayoutDirty(false);
             setEditedLayout(Array.isArray(data[0].layout) ? (data[0].layout as LayoutBlock[]) : []);
           } else {
-            // 양식이 하나도 없을 때: 주기별은 '직접 작성'으로, 시험별은 빈 값으로
+            // 양식이 하나도 없을 때: 기간은 '직접 작성'으로, 시험별은 빈 값으로
             setTemplateId(kind === 'PERIODIC' ? DIRECT : '');
             setEditedBody('');
             setEditedTitle('');
@@ -593,7 +593,7 @@ export default function PublishReportModal({
           <div>
             <label className="text-[11.5px] font-medium text-[#374151] block mb-1.5">리포트 종류</label>
             <div className="flex gap-2">
-              {/* 시험별(PER_EXAM)은 숨김 — 수업/주기별만 노출 */}
+              {/* 시험별(PER_EXAM)은 숨김 — 수업/기간만 노출 */}
               {(['DAILY', 'PERIODIC'] as const).map((k) => (
                 <button
                   key={k}
@@ -603,7 +603,7 @@ export default function PublishReportModal({
                     kind === k ? 'bg-[#1a2535] text-white' : 'bg-[#f1f5f9] text-[#6b7280]',
                   )}
                 >
-                  {k === 'DAILY' ? '수업 리포트' : '주기별 리포트'}
+                  {k === 'DAILY' ? '수업 리포트' : '기간 리포트'}
                 </button>
               ))}
             </div>
@@ -964,7 +964,7 @@ export default function PublishReportModal({
           </div>
         )}
 
-        {/* 본문 편집 (시험별·주기별 모두 — 이번 발행만 한정 수정) */}
+        {/* 본문 편집 (시험별·기간 모두 — 이번 발행만 한정 수정) */}
         {templateId && (
           <div>
             <div className="flex items-center justify-between mb-1">

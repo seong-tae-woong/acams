@@ -108,7 +108,7 @@ export default function BatchReportsModal({ batch, onClose }: Props) {
           <div className="bg-[#f9fafb] border border-[#e2e8f0] rounded-[8px] px-3 py-2.5 text-[12px] text-[#374151] space-y-1">
             <div className="font-semibold text-[#111827] text-[12.5px]">{batch.templateName}</div>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[#6b7280]">
-              <span>{batch.kind === 'PER_EXAM' ? '시험별' : batch.kind === 'DAILY' ? '수업' : '주기별'}</span>
+              <span>{batch.kind === 'PER_EXAM' ? '시험별' : batch.kind === 'DAILY' ? '수업' : '기간'}</span>
               <span>{batch.kind === 'PER_EXAM' ? (batch.examName ?? '-') : batch.periodLabel}</span>
               <span>발행 {formatDateTime(batch.publishedAt)}</span>
               <span>대상 {batch.totalCount}명 · 미열람 {batch.totalCount - batch.readCount}명</span>
