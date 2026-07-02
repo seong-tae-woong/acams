@@ -11,6 +11,7 @@ export interface CurrentUser {
   academyName: string;
   permissions?: Partial<Record<
     'manageStudents' | 'manageClasses' | 'manageAttendance' | 'manageGrades'
+    | 'manageQuestionBank'
     | 'manageFinance' | 'manageNotifications' | 'viewReports' | 'admin', boolean
   >> | null;
 }

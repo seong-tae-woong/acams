@@ -5,6 +5,7 @@ export interface TeacherPermissions {
   manageClasses: boolean; // 반 관리
   manageAttendance: boolean; // 출결 관리
   manageGrades: boolean; // 수업 관리
+  manageQuestionBank: boolean; // 문제 출제 (AI 생성 — 비용 유발이라 별도 권한)
   manageFinance: boolean; // 재무 관리
   manageNotifications: boolean; // 알림/공지 관리
   viewReports: boolean; // 리포트 조회
@@ -47,6 +48,7 @@ export const DEFAULT_PERMISSIONS: TeacherPermissions = {
   manageClasses: false,
   manageAttendance: true,
   manageGrades: true,
+  manageQuestionBank: false,
   manageFinance: false,
   manageNotifications: false,
   viewReports: true,

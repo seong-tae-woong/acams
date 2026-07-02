@@ -38,6 +38,7 @@ const TABLET_ALLOWED = ['/ingang-tablet', '/api/ingang-tablet'];
 // permKey 'admin'은 admin 권한 보유자만 접근(예: /settings) — admin은 아래 분기에서 이미 전체 통과하므로 사실상 차단
 type PermKey =
   | 'manageStudents' | 'manageClasses' | 'manageAttendance' | 'manageGrades'
+  | 'manageQuestionBank'
   | 'manageFinance' | 'manageNotifications' | 'viewReports' | 'admin';
 
 // 경로 접두사 → 필요 권한. 더 구체적인 경로가 먼저 와야 함(앞에서부터 매칭)
@@ -47,6 +48,7 @@ const TEACHER_PAGE_RULES: Array<[string, PermKey]> = [
   ['/students/grades', 'manageGrades'],
   ['/students', 'manageStudents'],
   ['/level-tests', 'manageGrades'],
+  ['/questions', 'manageQuestionBank'],
   ['/classes/attendance', 'manageAttendance'],
   ['/classes/lessons', 'manageGrades'],
   ['/classes/makeup', 'manageClasses'],
@@ -62,6 +64,7 @@ const TEACHER_API_RULES: Array<[string, PermKey]> = [
   ['/api/level-test-comment-templates', 'manageGrades'],
   ['/api/level-test-forms', 'manageGrades'],
   ['/api/level-tests', 'manageGrades'],
+  ['/api/question-bank', 'manageQuestionBank'],
   ['/api/attendance', 'manageAttendance'],
   ['/api/exam-categories', 'manageGrades'],
   ['/api/exams', 'manageGrades'],
@@ -96,6 +99,7 @@ function firstAllowedPage(perms: Partial<Record<PermKey, boolean>>): string {
   if (perms.manageClasses) return '/classes';
   if (perms.manageAttendance) return '/classes/attendance';
   if (perms.manageGrades) return '/classes/lessons';
+  if (perms.manageQuestionBank) return '/questions';
   if (perms.manageFinance) return '/finance/billing';
   if (perms.manageNotifications) return '/communication/notifications';
   if (perms.viewReports) return '/analytics';
@@ -194,6 +198,7 @@ export async function proxy(req: NextRequest) {
   const isAdminPage =
     pathname.startsWith('/students') ||
     pathname.startsWith('/level-tests') ||
+    pathname.startsWith('/questions') ||
     pathname.startsWith('/classes') ||
     pathname.startsWith('/finance') ||
     pathname.startsWith('/calendar') ||

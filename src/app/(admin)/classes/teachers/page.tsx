@@ -23,6 +23,7 @@ const PERM_LABELS: Record<string, string> = {
   manageClasses: '반 관리',
   manageAttendance: '출결 관리',
   manageGrades: '수업 관리',
+  manageQuestionBank: '문제 출제',
   manageFinance: '재무 관리',
   manageNotifications: '알림/공지',
   viewReports: '리포트 조회',

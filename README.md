@@ -105,7 +105,7 @@ npm run dev               # http://localhost:3000
 | 역할 | 이메일 / 로그인ID | 초기 비밀번호 | 비고 |
 |------|------------------|-------------|------|
 | 슈퍼어드민 | superadmin@acams.kr | acams2026! | 배포 후 반드시 변경 |
-| 원장 | director@segyero.kr | segyero2026! | 세계로 학원 |
+| 원장 | director@segyero.kr | xodnd2369@ | 세계로 학원 |
 | 강사 (3명) | kim·park·lee@segyero.kr | teacher2026! | 김·박·이 선생 |
 | 학생 (20명) | SGR1001 ~ SGR1020 | SeedSt24 | `loginId = 학원 loginKey + 출석번호` |
 | 학부모 (20명) | 전화번호 (010-xxxx-xxxx) | SeedPr24 | 학생 1인당 1보호자 |

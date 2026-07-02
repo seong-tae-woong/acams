@@ -5,12 +5,13 @@ import { useEffect } from 'react';
 import clsx from 'clsx';
 import {
   Users, BookOpen, Wallet, BarChart2,
-  Settings, UserCheck, Calendar, Bell, TrendingUp, ClipboardList, CalendarPlus, History, ClipboardCheck,
+  Settings, UserCheck, Calendar, Bell, TrendingUp, ClipboardList, CalendarPlus, History, ClipboardCheck, FileText,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 type PermKey =
   | 'manageStudents' | 'manageClasses' | 'manageAttendance' | 'manageGrades'
+  | 'manageQuestionBank'
   | 'manageFinance' | 'manageNotifications' | 'viewReports' | 'admin';
 
 interface NavItem {
@@ -31,6 +32,7 @@ const NAV: NavSection[] = [
     items: [
       { href: '/students', label: '학생 등록/정보 관리', icon: Users, perm: 'manageStudents' },
       { href: '/level-tests', label: '레벨 테스트', icon: ClipboardCheck, perm: 'manageGrades' },
+      { href: '/questions', label: '문제 출제', icon: FileText, perm: 'manageQuestionBank' },
       { href: '/students/lessons', label: '수업 이력', icon: History, perm: 'manageGrades' },
     ],
   },

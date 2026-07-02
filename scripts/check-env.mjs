@@ -16,6 +16,8 @@ const REQUIRED = [
   'CF_STREAM_API_TOKEN',
   // Vercel Cron (결석/지각 자동 알림 인증)
   'CRON_SECRET',
+  // 문제 출제 AI 생성·검수 (없으면 생성 라우트 런타임 500)
+  'ANTHROPIC_API_KEY',
 ];
 
 const missing = REQUIRED.filter((k) => !process.env[k]);
