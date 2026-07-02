@@ -4,7 +4,7 @@
 //    @react-pdf는 fontkit.layout에 features=undefined(리거처 on)로 넘기고 disable API가 없음.
 //    fontkit(=@react-pdf와 동일 인스턴스, deduped)의 layout을 패치해 리거처를 끈다.
 import { Font } from '@react-pdf/renderer';
-import fontkit from 'fontkit';
+import { openSync } from 'fontkit';
 import path from 'path';
 
 let registered = false;
@@ -17,7 +17,7 @@ const KOREAN_700 = path.join(FONT_DIR, 'noto-sans-kr-korean-700-normal.woff');
 // openSync·create가 프로토타입을 공유하므로 @react-pdf가 만드는 폰트에도 적용됨.
 function disableLigatures(): void {
   try {
-    const sample = fontkit.openSync(KOREAN_400);
+    const sample = openSync(KOREAN_400);
     const proto = Object.getPrototypeOf(sample) as {
       layout: (...a: unknown[]) => unknown;
       __ligDisabled?: boolean;

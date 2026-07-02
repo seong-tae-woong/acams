@@ -10,6 +10,5 @@ declare module 'fontkit' {
       direction?: unknown,
     ): unknown;
   }
-  const fontkit: { openSync(path: string): FontkitFont };
-  export default fontkit;
+  export function openSync(path: string): FontkitFont;
 }
