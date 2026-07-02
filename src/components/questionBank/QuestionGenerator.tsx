@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import clsx from 'clsx';
 import { Sparkles, ChevronRight, Bookmark, X, Layers } from 'lucide-react';
 import Button from '@/components/shared/Button';
@@ -195,12 +194,14 @@ export default function QuestionGenerator() {
               <span className="text-[14px] font-semibold text-[#111827]">AI 문제 생성</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Link
-                href="/questions/mock"
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] text-[#4338ca] border border-[#c7d2fe] bg-[#eef2ff] rounded-[8px] hover:bg-[#e0e7ff]"
+              {/* 모의고사는 추후 정식 오픈 — 버튼은 남기되 비활성(hover 시 안내) */}
+              <span
+                title="추후 개발 예정입니다"
+                aria-disabled="true"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] text-[#9ca3af] border border-[#e2e8f0] bg-[#f8fafc] rounded-[8px] cursor-not-allowed select-none"
               >
                 <Layers size={13} /> 모의고사 만들기
-              </Link>
+              </span>
               <Button variant="ghost" size="sm" onClick={savePreset}>
                 <Bookmark size={14} /> 양식으로 저장
               </Button>
