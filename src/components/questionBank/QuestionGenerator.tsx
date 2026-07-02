@@ -16,7 +16,8 @@ import {
   type PresetListItem,
 } from './types';
 
-const MAX_COUNT = 20;
+// Hobby(Vercel 60초 상한) 안전 여유 — 서버 spec.ts와 동일. Pro 전환 시 함께 상향.
+const MAX_COUNT = 10;
 
 function StatusBadge({ status }: { status: DraftStatus }) {
   return (
@@ -82,7 +83,7 @@ export default function QuestionGenerator() {
     setGradeLevel(p.spec?.gradeLevel ?? '');
     setType(p.spec?.type ?? '');
     setDifficulty(p.spec?.difficulty ?? 3);
-    setCount(p.spec?.count ?? 10);
+    setCount(Math.min(MAX_COUNT, Math.max(1, p.spec?.count ?? 10)));
     setIsKiller(!!p.spec?.isKiller);
     setFormat(p.spec?.format ?? 'choice');
     setComment(p.spec?.comment ?? '');
@@ -288,7 +289,9 @@ export default function QuestionGenerator() {
           </label>
 
           <div className="flex items-center justify-between mt-3">
-            <span className="text-[11.5px] text-[#9ca3af]">생성 후 자동 검수 → 강사 검토·피드백 → 승인 순서로 진행됩니다.</span>
+            <span className="text-[11.5px] text-[#9ca3af]">
+              한 번에 최대 {MAX_COUNT}문항 · 생성 후 자동 검수 → 강사 검토·피드백 → 승인
+            </span>
             <Button variant="dark" size="lg" onClick={generate} disabled={generating}>
               <Sparkles size={15} /> {generating ? '생성 중… (최대 1분)' : '문제 생성'}
             </Button>

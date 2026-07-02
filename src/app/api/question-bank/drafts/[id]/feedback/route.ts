@@ -8,8 +8,8 @@ import { reviewGeneratedQuestions } from '@/lib/ai/review';
 import { persistItems } from '@/lib/questionBank/persist';
 import type { TestSpec } from '@/lib/types/questionBank';
 
-// AI 생성+검수는 수십 초 → 함수 실행시간 상향(T6와 동일).
-export const maxDuration = 300;
+// AI 생성+검수 시간. Hobby 상한 60초(10문항 안전). Pro면 300으로 상향 가능.
+export const maxDuration = 60;
 
 // POST /api/question-bank/drafts/[id]/feedback — 강사 피드백으로 재생성(문항 교체, 라운드+1)
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

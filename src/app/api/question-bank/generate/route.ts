@@ -8,8 +8,8 @@ import { reviewGeneratedQuestions } from '@/lib/ai/review';
 import { persistItems } from '@/lib/questionBank/persist';
 import { parseTestSpec, parseLayout } from '@/lib/questionBank/spec';
 
-// Vercel Pro — 생성+검수는 수십 초 걸릴 수 있어 함수 실행시간 상향(eng-review D3).
-export const maxDuration = 300;
+// AI 생성+검수 시간. Hobby 상한 60초(10문항 안전). Pro면 300으로 상향 가능.
+export const maxDuration = 60;
 
 // POST /api/question-bank/generate — 정형 입력 → 생성 → 자동검수 → 시험지 초안 저장
 export async function POST(req: NextRequest) {

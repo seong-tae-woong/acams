@@ -1,7 +1,8 @@
 // 출제 스펙 파싱·검증 — generate 라우트·preset 라우트 공용(중복 방지).
 import type { TestSpec, QuestionFormat, TestLayout } from '@/lib/types/questionBank';
 
-export const MAX_COUNT = 20;
+// Hobby(Vercel) 함수 60초 상한 안전 여유 — 10문항 ≈ 35~45초. Pro(300초) 전환 시 상향 가능.
+export const MAX_COUNT = 10;
 
 export type SpecParse = { ok: true; spec: TestSpec } | { ok: false; error: string };
 
