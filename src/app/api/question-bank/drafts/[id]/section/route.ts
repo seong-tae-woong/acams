@@ -6,12 +6,13 @@ import { Prisma } from '@/generated/prisma/client';
 import { generateQuestions } from '@/lib/ai/generate';
 import { reviewGeneratedQuestions } from '@/lib/ai/review';
 import { persistItems } from '@/lib/questionBank/persist';
-import type { TestSpec } from '@/lib/types/questionBank';
+import { sectionToTestSpec } from '@/lib/questionBank/spec';
+import type { MockSpec } from '@/lib/types/questionBank';
 
-// AI 생성+검수 시간. Hobby 상한 60초(10문항 안전). Pro면 300으로 상향 가능.
+// 섹션당 ≤10문항 → 60초 안전(Hobby). 클라이언트가 섹션을 순차 호출.
 export const maxDuration = 60;
 
-// POST /api/question-bank/drafts/[id]/feedback — 강사 피드백으로 재생성(문항 교체, 라운드+1)
+// POST /api/question-bank/drafts/[id]/section — 모의고사 한 섹션 생성·검수·추가
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
@@ -23,9 +24,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const body = await req.json();
-    const feedback = typeof body.feedback === 'string' ? body.feedback.trim() : '';
-    if (!feedback) {
-      return NextResponse.json({ error: '피드백 내용을 입력해주세요.' }, { status: 400 });
+    const sectionIndex = Number(body.sectionIndex);
+    if (!Number.isInteger(sectionIndex) || sectionIndex < 0) {
+      return NextResponse.json({ error: '잘못된 섹션 인덱스입니다.' }, { status: 400 });
     }
 
     const draft = await prisma.testDraft.findFirst({
@@ -35,52 +36,49 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!draft) {
       return NextResponse.json({ error: '초안을 찾을 수 없습니다.' }, { status: 404 });
     }
-    if (draft.layout === 'MOCK') {
-      return NextResponse.json(
-        { error: '모의고사는 영역별로 재생성하세요.' },
-        { status: 400 },
-      );
+    if (draft.layout !== 'MOCK') {
+      return NextResponse.json({ error: '모의고사 초안이 아닙니다.' }, { status: 400 });
     }
     if (draft.status === 'APPROVED' || draft.status === 'ARCHIVED') {
-      return NextResponse.json(
-        { error: '이미 확정된 초안은 수정할 수 없습니다.' },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: '이미 확정된 초안입니다.' }, { status: 409 });
+    }
+    const mock = draft.spec as unknown as MockSpec;
+    if (!Array.isArray(mock.sections) || sectionIndex >= mock.sections.length) {
+      return NextResponse.json({ error: '잘못된 섹션입니다.' }, { status: 400 });
     }
 
-    const spec = draft.spec as unknown as TestSpec;
+    const sectionSpec = sectionToTestSpec(mock, sectionIndex);
+    const isLast = sectionIndex === mock.sections.length - 1;
 
     // ── AI 호출은 트랜잭션 '밖' (Neon P2028 회피) ──
-    const gen = await generateQuestions(spec, feedback);
+    const gen = await generateQuestions(sectionSpec);
     const review =
       gen.questions.length > 0 && !gen.refused
         ? await reviewGeneratedQuestions(gen.questions)
         : { reviews: [], usage: null, refused: false };
     const flagsByOrder = new Map(review.reviews.map((r) => [r.index, r.flags]));
 
-    // 다음 라운드 번호(기존 최대 + 1)
-    const last = await prisma.generationTurn.findFirst({
-      where: { testDraftId: id },
-      orderBy: { round: 'desc' },
-      select: { round: true },
-    });
-    const round = (last?.round ?? 0) + 1;
-
-    // ── 저장: 기존 문항 삭제(플래그 cascade) 후 재생성 ──
     await prisma.$transaction(
       async (tx) => {
-        await tx.testDraftItem.deleteMany({ where: { testDraftId: id } });
-        await persistItems(tx, id, gen.questions, flagsByOrder, review.usage?.model ?? null);
+        // 재생성 대비: 이 섹션 기존 문항 제거 후, 앞 섹션 문항 수를 order 오프셋으로
+        await tx.testDraftItem.deleteMany({ where: { testDraftId: id, section: sectionIndex } });
+        const orderOffset = await tx.testDraftItem.count({
+          where: { testDraftId: id, section: { lt: sectionIndex } },
+        });
+        await persistItems(tx, id, gen.questions, flagsByOrder, review.usage?.model ?? null, {
+          section: sectionIndex,
+          orderOffset,
+        });
         await tx.generationTurn.create({
           data: {
             testDraftId: id,
-            round,
-            role: 'AI_REVISION',
-            input: { feedback, spec } as unknown as Prisma.InputJsonValue,
+            round: sectionIndex,
+            role: 'AI_GENERATION',
+            input: sectionSpec as unknown as Prisma.InputJsonValue,
             output: {
+              section: sectionIndex,
               generated: gen.questions.length,
               requested: gen.requested,
-              dropped: gen.dropped,
               refused: gen.refused,
             } as unknown as Prisma.InputJsonValue,
             model: gen.usage?.model ?? review.usage?.model ?? '',
@@ -88,34 +86,27 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
             tokensOut: (gen.usage?.tokensOut ?? 0) + (review.usage?.tokensOut ?? 0),
           },
         });
-        // status 유지(REVIEW) + updatedAt 갱신
-        await tx.testDraft.update({ where: { id }, data: { status: 'REVIEW' } });
+        if (isLast) {
+          await tx.testDraft.update({ where: { id }, data: { status: 'REVIEW' } });
+        }
       },
       { timeout: 20000 },
     );
 
-    const full = await prisma.testDraft.findFirst({
-      where: { id, academyId },
-      include: {
-        items: { orderBy: { order: 'asc' }, include: { flags: true } },
-        turns: { orderBy: { round: 'asc' } },
-      },
-    });
-
     return NextResponse.json({
-      draft: full,
-      round,
-      requested: gen.requested,
+      section: sectionIndex,
+      label: mock.sections[sectionIndex].label ?? null,
       generated: gen.questions.length,
-      dropped: gen.dropped,
+      requested: gen.requested,
       incomplete: gen.incomplete,
       refused: gen.refused,
       reviewSkipped: review.refused,
+      done: isLast,
     });
   } catch (err) {
     await logServerError(req, err);
     console.error(
-      '[POST /api/question-bank/drafts/[id]/feedback]',
+      '[POST /api/question-bank/drafts/[id]/section]',
       err instanceof Error ? err.message : String(err),
     );
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

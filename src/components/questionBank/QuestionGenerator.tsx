@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import clsx from 'clsx';
-import { Sparkles, ChevronRight, Bookmark, X } from 'lucide-react';
+import { Sparkles, ChevronRight, Bookmark, X, Layers } from 'lucide-react';
 import Button from '@/components/shared/Button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
@@ -11,6 +12,7 @@ import {
   STATUS_LABELS,
   STATUS_BADGE_CLASS,
   diffLabel,
+  isMockSpec,
   type DraftListItem,
   type DraftStatus,
   type PresetListItem,
@@ -192,9 +194,17 @@ export default function QuestionGenerator() {
               <Sparkles size={16} className="text-[#4fc3a1]" />
               <span className="text-[14px] font-semibold text-[#111827]">AI 문제 생성</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={savePreset}>
-              <Bookmark size={14} /> 양식으로 저장
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Link
+                href="/questions/mock"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[12px] text-[#4338ca] border border-[#c7d2fe] bg-[#eef2ff] rounded-[8px] hover:bg-[#e0e7ff]"
+              >
+                <Layers size={13} /> 모의고사 만들기
+              </Link>
+              <Button variant="ghost" size="sm" onClick={savePreset}>
+                <Bookmark size={14} /> 양식으로 저장
+              </Button>
+            </div>
           </div>
 
           {/* 저장된 양식(프리셋) */}
@@ -311,30 +321,35 @@ export default function QuestionGenerator() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {drafts.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => router.push(`/questions/${d.id}`)}
-                  className="text-left bg-white border border-[#e2e8f0] rounded-[12px] p-4 hover:border-[#cbd5e1] transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-medium text-[#111827] truncate">
-                        {d.spec?.subject} · {d.spec?.type}
-                        {d.spec?.isKiller ? ' · 킬러' : ''}
+              {drafts.map((d) => {
+                const spec = d.spec;
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => router.push(`/questions/${d.id}`)}
+                    className="text-left bg-white border border-[#e2e8f0] rounded-[12px] p-4 hover:border-[#cbd5e1] transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[14px] font-medium text-[#111827] truncate">
+                          {isMockSpec(spec)
+                            ? spec.title?.trim() || `${spec.subject} 모의고사`
+                            : `${spec.subject} · ${spec.type}${spec.isKiller ? ' · 킬러' : ''}`}
+                        </div>
+                        <div className="text-[12px] text-[#6b7280] mt-0.5 tabular-nums">
+                          {isMockSpec(spec)
+                            ? `${spec.gradeLevel} · 모의고사 ${spec.sections?.length ?? 0}영역 · ${d._count?.items ?? 0}문항 · ${formatDate(d.createdAt)}`
+                            : `${spec.gradeLevel} · 난이도 ${diffLabel(spec.difficulty)} · ${d._count?.items ?? 0}문항 · ${formatDate(d.createdAt)}`}
+                        </div>
                       </div>
-                      <div className="text-[12px] text-[#6b7280] mt-0.5 tabular-nums">
-                        {d.spec?.gradeLevel} · 난이도 {diffLabel(d.spec?.difficulty)} · {d._count?.items ?? 0}문항 ·{' '}
-                        {formatDate(d.createdAt)}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <StatusBadge status={d.status} />
+                        <ChevronRight size={16} className="text-[#cbd5e1]" />
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <StatusBadge status={d.status} />
-                      <ChevronRight size={16} className="text-[#cbd5e1]" />
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

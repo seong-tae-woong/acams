@@ -1777,6 +1777,7 @@ enum TestDraftStatus {
 enum TestLayout {
   BASIC // 기본 문제지 (번호형)
   VOCAB // 단어 시험지 (2단 목록)
+  MOCK  // 모의고사 (섹션 구분)
 }
 
 enum TurnRole {
@@ -1900,6 +1901,7 @@ model TestDraftItem {
   question   BankQuestion? @relation(fields: [questionId], references: [id], onDelete: SetNull)
 
   order       Int
+  section     Int  @default(0) // 모의고사 섹션 인덱스(단일 시험지는 0)
   content     Json  // { blocks: [...] }
   answer      Json
   explanation Json?

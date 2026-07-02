@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { buildDraftPdfDocument, type DraftPdfItem } from './pdfDocument';
 import { ensureQuestionBankFonts } from './pdfFont';
-import type { TestSpec } from '@/lib/types/questionBank';
+import type { TestSpec, MockSpec } from '@/lib/types/questionBank';
 
 // 실제 렌더까지 수행하는 스모크 테스트 — 폰트 로드·createElement 트리·PDF 바이트 생성 검증.
 const spec: TestSpec = { subject: '영어', gradeLevel: '중3', type: '어법', difficulty: 4, count: 2 };
@@ -68,6 +68,52 @@ describe('buildDraftPdfDocument — VOCAB(단어시험형) 레이아웃', () => 
     ensureQuestionBankFonts();
     const buf = await renderToBuffer(
       buildDraftPdfDocument({ academyName: '테스트학원', spec, items: vocabItems, variant: 'answer', layout: 'VOCAB' }),
+    );
+    expect(isPdf(buf)).toBe(true);
+  }, 20000);
+});
+
+const mockSpec: MockSpec = {
+  subject: '영어',
+  gradeLevel: '고1',
+  title: '3월 모의고사',
+  sections: [
+    { label: '어법', type: '어법', count: 1, difficulty: 3 },
+    { label: '독해', type: '독해', count: 1, difficulty: 4 },
+  ],
+};
+const mockItems: DraftPdfItem[] = [
+  {
+    id: 'm0',
+    section: 0,
+    content: { stem: [{ type: 'text', text: '어법 문항' }], choices: [[{ type: 'text', text: 'a' }], [{ type: 'text', text: 'b' }]] },
+    answer: { kind: 'choice', index: 0 },
+    explanation: '해설1',
+    isKiller: false,
+  },
+  {
+    id: 'm1',
+    section: 1,
+    content: { stem: [{ type: 'text', text: '독해 문항' }], choices: [[{ type: 'text', text: 'c' }], [{ type: 'text', text: 'd' }]] },
+    answer: { kind: 'choice', index: 1 },
+    explanation: '해설2',
+    isKiller: false,
+  },
+];
+
+describe('buildDraftPdfDocument — MOCK(모의고사) 레이아웃', () => {
+  it('모의고사 시험지(섹션 구분) — 유효한 PDF', async () => {
+    ensureQuestionBankFonts();
+    const buf = await renderToBuffer(
+      buildDraftPdfDocument({ academyName: '테스트학원', spec: mockSpec, items: mockItems, variant: 'exam', layout: 'MOCK' }),
+    );
+    expect(isPdf(buf)).toBe(true);
+  }, 20000);
+
+  it('모의고사 정답지 — 유효한 PDF', async () => {
+    ensureQuestionBankFonts();
+    const buf = await renderToBuffer(
+      buildDraftPdfDocument({ academyName: '테스트학원', spec: mockSpec, items: mockItems, variant: 'answer', layout: 'MOCK' }),
     );
     expect(isPdf(buf)).toBe(true);
   }, 20000);

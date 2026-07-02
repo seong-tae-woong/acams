@@ -30,6 +30,8 @@ import { POST as feedbackPOST } from './drafts/[id]/feedback/route';
 import { POST as approvePOST } from './drafts/[id]/approve/route';
 import { GET as presetsGET, POST as presetsPOST } from './presets/route';
 import { DELETE as presetDELETE } from './presets/[id]/route';
+import { POST as mockPOST } from './mock/route';
+import { POST as sectionPOST } from './drafts/[id]/section/route';
 
 function mkReq(method: string, body?: unknown): NextRequest {
   return new NextRequest('http://localhost/api/question-bank/x', {
@@ -210,5 +212,50 @@ describe('프리셋(양식) API 보안·검증', () => {
     expect(prismaMock.testPreset.deleteMany).toHaveBeenCalledWith({
       where: { id: 'other', academyId: 'A' },
     });
+  });
+});
+
+describe('모의고사(P2) API 보안·검증', () => {
+  const mockBody = {
+    subject: '영어',
+    gradeLevel: '고1',
+    sections: [{ type: '어법', count: 5, difficulty: 3 }],
+  };
+
+  it('mock 생성: parent → 403', async () => {
+    mockAuth.mockResolvedValue({ academyId: 'A', userId: 'u', role: 'parent' });
+    expect((await mockPOST(mkReq('POST', mockBody))).status).toBe(403);
+  });
+
+  it('mock 생성: 섹션 0개 → 400', async () => {
+    mockAuth.mockResolvedValue(director);
+    expect((await mockPOST(mkReq('POST', { ...mockBody, sections: [] }))).status).toBe(400);
+  });
+
+  it('section 생성: student → 403', async () => {
+    mockAuth.mockResolvedValue({ academyId: 'A', userId: 'u', role: 'student' });
+    expect((await sectionPOST(mkReq('POST', { sectionIndex: 0 }), ctx('d1'))).status).toBe(403);
+  });
+
+  it('section 생성: 타 학원 → 404 + academyId 스코프', async () => {
+    mockAuth.mockResolvedValue(director);
+    prismaMock.testDraft.findFirst.mockResolvedValue(null);
+    const res = await sectionPOST(mkReq('POST', { sectionIndex: 0 }), ctx('other'));
+    expect(res.status).toBe(404);
+    expect(prismaMock.testDraft.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'other', academyId: 'A' } }),
+    );
+  });
+
+  it('section 생성: 모의고사 아님(BASIC) → 400', async () => {
+    mockAuth.mockResolvedValue(director);
+    prismaMock.testDraft.findFirst.mockResolvedValue({
+      id: 'd1',
+      status: 'REVIEW',
+      layout: 'BASIC',
+      spec: {},
+    });
+    const res = await sectionPOST(mkReq('POST', { sectionIndex: 0 }), ctx('d1'));
+    expect(res.status).toBe(400);
   });
 });

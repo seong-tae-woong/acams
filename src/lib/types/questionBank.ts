@@ -38,12 +38,31 @@ export interface TestSpec {
 export type QuestionFormat = 'choice' | 'text';
 
 /** 인쇄 레이아웃 — Prisma enum TestLayout과 동기화 (내용 스펙과 분리된 출력 형태) */
-export type TestLayout = 'BASIC' | 'VOCAB';
+export type TestLayout = 'BASIC' | 'VOCAB' | 'MOCK';
 
 export const LAYOUT_LABELS: Record<TestLayout, string> = {
   BASIC: '기본형',
   VOCAB: '단어시험형',
+  MOCK: '모의고사형',
 };
+
+/** 모의고사 한 섹션 스펙 (P2) */
+export interface SectionSpec {
+  label?: string; // "어법" | "어휘" | "독해"
+  type: string;
+  count: number; // ≤10 (섹션별 60초 안전)
+  difficulty: number; // 1~5
+  format?: QuestionFormat;
+  isKiller?: boolean;
+}
+
+/** 모의고사 스펙 — 다중 섹션. TestDraft.spec에 sections 있으면 모의고사(P2) */
+export interface MockSpec {
+  subject: string;
+  gradeLevel: string;
+  title?: string;
+  sections: SectionSpec[];
+}
 
 /** 자동 검수 플래그 코드 — Prisma enum FlagCode와 동기화 유지 */
 export type FlagCode =

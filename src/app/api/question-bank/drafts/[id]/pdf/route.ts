@@ -14,7 +14,7 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { ensureQuestionBankFonts } from '@/lib/questionBank/pdfFont';
 import { buildDraftPdfDocument } from '@/lib/questionBank/pdfDocument';
 import { parseLayout } from '@/lib/questionBank/spec';
-import type { TestSpec } from '@/lib/types/questionBank';
+import type { TestSpec, MockSpec } from '@/lib/types/questionBank';
 
 export const runtime = 'nodejs';
 
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         academy: { select: { name: true } },
         items: {
           orderBy: { order: 'asc' },
-          select: { id: true, content: true, answer: true, explanation: true, isKiller: true },
+          select: { id: true, content: true, answer: true, explanation: true, isKiller: true, section: true },
         },
       },
     });
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const doc = buildDraftPdfDocument({
       academyName: draft.academy?.name ?? '',
-      spec: draft.spec as unknown as TestSpec,
+      spec: draft.spec as unknown as TestSpec | MockSpec,
       items: draft.items,
       variant,
       layout: layoutOverride ? parseLayout(layoutOverride) : draft.layout,

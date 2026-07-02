@@ -4,7 +4,13 @@ import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { createElement as h, type ReactNode } from 'react';
 import { blocksToText, choiceLabel, answerDisplay, sanitizeForPdf } from './pdfContent';
 import { DIFFICULTY_LABELS } from '@/lib/types/questionBank';
-import type { TestSpec, QuestionContent, QuestionAnswer, TestLayout } from '@/lib/types/questionBank';
+import type {
+  TestSpec,
+  MockSpec,
+  QuestionContent,
+  QuestionAnswer,
+  TestLayout,
+} from '@/lib/types/questionBank';
 
 export type DraftPdfItem = {
   id: string;
@@ -12,14 +18,15 @@ export type DraftPdfItem = {
   answer: unknown;
   explanation: unknown;
   isKiller: boolean;
+  section?: number; // 모의고사 섹션 인덱스(단일 시험지는 0/undefined)
 };
 
 export interface DraftPdfOptions {
   academyName: string;
-  spec: TestSpec;
+  spec: TestSpec | MockSpec; // MOCK이면 MockSpec
   items: DraftPdfItem[];
   variant: 'exam' | 'answer';
-  layout?: TestLayout; // 기본 BASIC. VOCAB=2단 단어시험형
+  layout?: TestLayout; // BASIC / VOCAB / MOCK
 }
 
 const styles = StyleSheet.create({
@@ -56,6 +63,9 @@ const styles = StyleSheet.create({
   vocabStem: { fontSize: 11, marginRight: 6 },
   vocabBlank: { flexGrow: 1, borderBottomWidth: 1, borderBottomColor: '#cbd5e1', height: 12 },
   vocabAnswer: { fontSize: 11, color: '#065f46', flexShrink: 1 },
+  // MOCK(모의고사) — 섹션 헤더
+  sectionHeader: { marginTop: 18, marginBottom: 2, paddingBottom: 4, borderBottomWidth: 1.5, borderBottomColor: '#334155' },
+  sectionTitle: { fontSize: 13, fontWeight: 700, color: '#1a2535' },
 });
 
 function examQuestion(item: DraftPdfItem, idx: number) {
@@ -125,10 +135,22 @@ function vocabItem(item: DraftPdfItem, idx: number, isAnswer: boolean) {
 export function buildDraftPdfDocument(opts: DraftPdfOptions) {
   const { academyName, spec, items, variant } = opts;
   const isAnswer = variant === 'answer';
+  const layout = opts.layout ?? 'BASIC';
+  const isMock = layout === 'MOCK';
+  const isVocab = layout === 'VOCAB';
 
-  const titleText = `${spec.subject} ${spec.type}`.trim() + (isAnswer ? ' 정답 및 해설' : '');
-  const diffLabel = DIFFICULTY_LABELS[spec.difficulty] ?? String(spec.difficulty);
-  const subText = `${spec.gradeLevel} · 난이도 ${diffLabel} · 총 ${items.length}문항`;
+  let titleText: string;
+  let subText: string;
+  if (isMock) {
+    const m = spec as MockSpec;
+    titleText = (m.title?.trim() || `${m.subject} 모의고사`) + (isAnswer ? ' 정답 및 해설' : '');
+    subText = `${m.gradeLevel} · 총 ${items.length}문항 · ${m.sections?.length ?? 0}개 영역`;
+  } else {
+    const s = spec as TestSpec;
+    const diffLabel = DIFFICULTY_LABELS[s.difficulty] ?? String(s.difficulty);
+    titleText = `${s.subject} ${s.type}`.trim() + (isAnswer ? ' 정답 및 해설' : '');
+    subText = `${s.gradeLevel} · 난이도 ${diffLabel} · 총 ${items.length}문항`;
+  }
 
   const header = h(
     View,
@@ -146,10 +168,35 @@ export function buildDraftPdfDocument(opts: DraftPdfOptions) {
       : null,
   );
 
-  const isVocab = (opts.layout ?? 'BASIC') === 'VOCAB';
   let body: ReactNode[];
   if (items.length === 0) {
     body = [h(Text, { style: styles.emptyNote, key: 'empty' }, '문항이 없습니다.')];
+  } else if (isMock) {
+    // 섹션별 그룹핑 + 헤더. 번호는 전역 연속(gi).
+    const m = spec as MockSpec;
+    const bySection = new Map<number, { item: DraftPdfItem; gi: number }[]>();
+    items.forEach((it, gi) => {
+      const sk = it.section ?? 0;
+      const arr = bySection.get(sk) ?? [];
+      arr.push({ item: it, gi });
+      bySection.set(sk, arr);
+    });
+    body = [...bySection.keys()]
+      .sort((a, b) => a - b)
+      .flatMap((sk) => {
+        const label = m.sections?.[sk]?.label || `영역 ${sk + 1}`;
+        const rows = bySection
+          .get(sk)!
+          .map(({ item, gi }) => (isAnswer ? answerRow(item, gi) : examQuestion(item, gi)));
+        return [
+          h(
+            View,
+            { style: styles.sectionHeader, key: `sh${sk}`, wrap: false },
+            h(Text, { style: styles.sectionTitle }, `[${sk + 1}] ${label}`),
+          ),
+          ...rows,
+        ];
+      });
   } else if (isVocab) {
     body = [
       h(

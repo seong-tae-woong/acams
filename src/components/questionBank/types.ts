@@ -5,6 +5,7 @@ import type {
   QuestionContent,
   QuestionAnswer,
   TestSpec,
+  MockSpec,
   TestLayout,
 } from '@/lib/types/questionBank';
 
@@ -30,6 +31,7 @@ export interface DraftFlag {
 export interface DraftItem {
   id: string;
   order: number;
+  section: number; // 모의고사 섹션 인덱스(단일 시험지는 0)
   content: QuestionContent;
   answer: QuestionAnswer;
   explanation: string | null;
@@ -52,7 +54,7 @@ export interface DraftTurn {
 
 export interface DraftDetail {
   id: string;
-  spec: TestSpec;
+  spec: TestSpec | MockSpec; // MOCK이면 MockSpec
   status: DraftStatus;
   layout: TestLayout;
   title: string;
@@ -64,12 +66,18 @@ export interface DraftDetail {
 
 export interface DraftListItem {
   id: string;
-  spec: TestSpec;
+  spec: TestSpec | MockSpec;
   status: DraftStatus;
+  layout: TestLayout;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   _count: { items: number };
+}
+
+/** 스펙이 모의고사(다중 섹션)인지 */
+export function isMockSpec(spec: TestSpec | MockSpec): spec is MockSpec {
+  return Array.isArray((spec as MockSpec).sections);
 }
 
 export const STATUS_LABELS: Record<DraftStatus, string> = {

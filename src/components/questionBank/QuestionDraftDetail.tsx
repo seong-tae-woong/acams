@@ -21,9 +21,24 @@ import {
   FLAG_LABELS,
   blocksToPlainText,
   diffLabel,
+  isMockSpec,
   type DraftDetail,
   type DraftItem,
 } from './types';
+
+// 모의고사: 문항을 섹션별로 그룹핑(전역 순번 gi 보존)
+function groupBySection(
+  items: DraftItem[],
+): { section: number; items: { item: DraftItem; gi: number }[] }[] {
+  const map = new Map<number, { item: DraftItem; gi: number }[]>();
+  items.forEach((item, gi) => {
+    const sk = item.section ?? 0;
+    const arr = map.get(sk) ?? [];
+    arr.push({ item, gi });
+    map.set(sk, arr);
+  });
+  return [...map.keys()].sort((a, b) => a - b).map((section) => ({ section, items: map.get(section)! }));
+}
 
 function ItemCard({ item, index }: { item: DraftItem; index: number }) {
   const choices = item.content?.choices ?? [];
@@ -209,12 +224,20 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
   }
 
   const spec = draft.spec;
+  const mockSpec = isMockSpec(spec) ? spec : null;
+  const single = isMockSpec(spec) ? null : spec;
   const isApproved = draft.status === 'APPROVED';
   const unresolved = draft.items.flatMap((i) => i.flags).filter((f) => !f.resolved);
   const errorCount = unresolved.filter((f) => f.severity === 'ERROR').length;
   const warnCount = unresolved.filter((f) => f.severity === 'WARNING').length;
   const rounds = draft.turns.length;
-  const incomplete = spec?.count != null && draft.items.length < spec.count;
+  const expectedCount = mockSpec
+    ? mockSpec.sections.reduce((n, s) => n + (s.count ?? 0), 0)
+    : (single?.count ?? 0);
+  const incomplete = expectedCount > 0 && draft.items.length < expectedCount;
+  const headerTitle = mockSpec
+    ? mockSpec.title?.trim() || `${mockSpec.subject} 모의고사`
+    : `${single!.subject} · ${single!.type}`;
   const pdfBtn =
     'inline-flex items-center gap-1 px-2.5 py-1.5 text-[12px] text-[#0F6E56] border border-[#cfeee2] bg-[#f0faf6] rounded-[8px] hover:bg-[#e4f5ee]';
 
@@ -230,9 +253,7 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[15px] font-semibold text-[#111827]">
-                  {spec?.subject} · {spec?.type}
-                </span>
+                <span className="text-[15px] font-semibold text-[#111827]">{headerTitle}</span>
                 <span
                   className={clsx(
                     'inline-flex items-center px-2 py-0.5 rounded-[20px] text-[11px] font-medium',
@@ -244,11 +265,13 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
                 {rounds > 1 && <span className="text-[11px] text-[#9ca3af]">{rounds}회차</span>}
               </div>
               <div className="text-[12px] text-[#6b7280] mt-1 tabular-nums">
-                {spec?.gradeLevel} · 난이도 {diffLabel(spec?.difficulty)} · {draft.items.length}문항 ·{' '}
-                {spec?.format === 'text' ? '주관식' : '객관식'} · {LAYOUT_LABELS[draft.layout] ?? '기본형'}
-                {spec?.isKiller ? ' · 킬러' : ''}
+                {mockSpec
+                  ? `${mockSpec.gradeLevel} · 모의고사 ${mockSpec.sections.length}영역 · ${draft.items.length}문항`
+                  : `${single!.gradeLevel} · 난이도 ${diffLabel(single!.difficulty)} · ${draft.items.length}문항 · ${single!.format === 'text' ? '주관식' : '객관식'} · ${LAYOUT_LABELS[draft.layout] ?? '기본형'}${single!.isKiller ? ' · 킬러' : ''}`}
               </div>
-              {spec?.comment && <div className="text-[12px] text-[#6b7280] mt-1">“{spec.comment}”</div>}
+              {!mockSpec && single!.comment && (
+                <div className="text-[12px] text-[#6b7280] mt-1">“{single!.comment}”</div>
+              )}
             </div>
             {draft.items.length > 0 && (
               <div className="flex items-center gap-1.5 shrink-0">
@@ -277,7 +300,8 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
               )}
               {incomplete && (
                 <span className="text-[#9ca3af]">
-                  요청 {spec?.count}개 중 {draft.items.length}개 생성됨 — 피드백으로 재생성 가능
+                  요청 {expectedCount}개 중 {draft.items.length}개 생성됨 —{' '}
+                  {mockSpec ? '영역에서 재생성 가능' : '피드백으로 재생성 가능'}
                 </span>
               )}
             </div>
@@ -296,6 +320,22 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
           <div className="bg-white border border-[#e2e8f0] rounded-[12px] p-10 text-center text-[13px] text-[#9ca3af]">
             생성된 문항이 없습니다. 아래 피드백으로 재생성해보세요.
           </div>
+        ) : mockSpec ? (
+          <div className="space-y-3">
+            {groupBySection(draft.items).map(({ section, items }) => (
+              <div key={section} className="space-y-3">
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[13px] font-semibold text-[#1a2535]">
+                    [{section + 1}] {mockSpec.sections[section]?.label || `영역 ${section + 1}`}
+                  </span>
+                  <span className="text-[11px] text-[#9ca3af]">{items.length}문항</span>
+                </div>
+                {items.map(({ item, gi }) => (
+                  <ItemCard key={item.id} item={item} index={gi} />
+                ))}
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="space-y-3">
             {draft.items.map((item, i) => (
@@ -307,6 +347,7 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
         {/* 피드백 · 승인 (미승인 상태만) */}
         {!isApproved && (
           <>
+            {!mockSpec && (
             <div className="bg-white border border-[#e2e8f0] rounded-[12px] p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles size={15} className="text-[#4fc3a1]" />
@@ -327,6 +368,7 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
                 </Button>
               </div>
             </div>
+            )}
 
             {draft.items.length > 0 && (
               <div className="flex items-center justify-between bg-white border border-[#e2e8f0] rounded-[12px] p-4">
