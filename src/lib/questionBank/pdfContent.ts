@@ -45,9 +45,7 @@ export function sanitizeForPdf(s: string): string {
     if (cp !== undefined && inSymbolStripRange(cp)) continue;
     out += ch;
   }
-  // fi·fl·ff ligature 차단(ZWNJ) — korean subset의 fi 리거처 글리프가 i를 안 그려서
-  // "finish"→"fnish"로 렌더되는 문제. f 뒤 f/i/l 사이에 zero-width non-joiner 삽입.
-  return out.replace(/f(?=[fil])/g, 'f‌');
+  return out;
 }
 
 /** 블록 배열 → 표시용 평문. P1은 text만, math·figure는 자리표시자(렌더 P2·P3). */
