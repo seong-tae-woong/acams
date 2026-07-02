@@ -25,7 +25,7 @@ vi.mock('@/lib/ai/review', () => ({ reviewGeneratedQuestions: vi.fn() }));
 
 import { POST as generatePOST } from './generate/route';
 import { GET as draftsGET } from './drafts/route';
-import { GET as detailGET } from './drafts/[id]/route';
+import { GET as detailGET, PATCH as layoutPATCH } from './drafts/[id]/route';
 import { POST as feedbackPOST } from './drafts/[id]/feedback/route';
 import { POST as approvePOST } from './drafts/[id]/approve/route';
 import { GET as presetsGET, POST as presetsPOST } from './presets/route';
@@ -257,5 +257,41 @@ describe('모의고사(P2) API 보안·검증', () => {
     });
     const res = await sectionPOST(mkReq('POST', { sectionIndex: 0 }), ctx('d1'));
     expect(res.status).toBe(400);
+  });
+});
+
+describe('인쇄 양식 변경 PATCH', () => {
+  it('parent → 403', async () => {
+    mockAuth.mockResolvedValue({ academyId: 'A', userId: 'u', role: 'parent' });
+    expect((await layoutPATCH(mkReq('PATCH', { layout: 'BASIC' }), ctx('d1'))).status).toBe(403);
+  });
+
+  it('미지원 레이아웃 → 400', async () => {
+    mockAuth.mockResolvedValue(director);
+    expect((await layoutPATCH(mkReq('PATCH', { layout: 'XXX' }), ctx('d1'))).status).toBe(400);
+  });
+
+  it('모의고사(MOCK)는 변경 불가 → 400', async () => {
+    mockAuth.mockResolvedValue(director);
+    prismaMock.testDraft.findFirst.mockResolvedValue({ id: 'd1', layout: 'MOCK' });
+    expect((await layoutPATCH(mkReq('PATCH', { layout: 'BASIC' }), ctx('d1'))).status).toBe(400);
+  });
+
+  it('타 학원 → 404 + academyId 스코프', async () => {
+    mockAuth.mockResolvedValue(director);
+    prismaMock.testDraft.findFirst.mockResolvedValue(null);
+    const res = await layoutPATCH(mkReq('PATCH', { layout: 'BASIC' }), ctx('other'));
+    expect(res.status).toBe(404);
+    expect(prismaMock.testDraft.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'other', academyId: 'A' } }),
+    );
+  });
+
+  it('BASIC↔VOCAB 정상 변경 → 200', async () => {
+    mockAuth.mockResolvedValue(director);
+    prismaMock.testDraft.findFirst.mockResolvedValue({ id: 'd1', layout: 'VOCAB' });
+    prismaMock.testDraft.update.mockResolvedValue({});
+    const res = await layoutPATCH(mkReq('PATCH', { layout: 'BASIC' }), ctx('d1'));
+    expect(res.status).toBe(200);
   });
 });

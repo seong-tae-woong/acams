@@ -173,6 +173,25 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
     }
   };
 
+  const changeLayout = async (layout: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/question-bank/drafts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? '인쇄 양식 변경 실패');
+      toast('인쇄 양식을 변경했습니다.', 'success');
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '인쇄 양식 변경 실패', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const approve = async (override = false) => {
     setBusy(true);
     try {
@@ -275,6 +294,18 @@ export default function QuestionDraftDetail({ id }: { id: string }) {
             </div>
             {draft.items.length > 0 && (
               <div className="flex items-center gap-1.5 shrink-0">
+                {!mockSpec && (
+                  <select
+                    value={draft.layout}
+                    onChange={(e) => changeLayout(e.target.value)}
+                    disabled={busy}
+                    title="인쇄 양식"
+                    className="border border-[#e2e8f0] rounded-[8px] px-2 py-1 text-[11.5px] bg-white"
+                  >
+                    <option value="BASIC">기본형</option>
+                    <option value="VOCAB">단어시험형</option>
+                  </select>
+                )}
                 <a href={`/api/question-bank/drafts/${id}/pdf?variant=exam`} target="_blank" rel="noopener noreferrer" className={pdfBtn}>
                   <FileText size={13} /> 시험지
                 </a>

@@ -7,7 +7,7 @@ import { Sparkles, ChevronRight, Bookmark, X, Layers } from 'lucide-react';
 import Button from '@/components/shared/Button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { toast } from '@/lib/stores/toastStore';
-import { DIFFICULTY_LABELS, LAYOUT_LABELS, type QuestionFormat, type TestLayout } from '@/lib/types/questionBank';
+import { DIFFICULTY_LABELS, type QuestionFormat, type TestLayout } from '@/lib/types/questionBank';
 import {
   STATUS_LABELS,
   STATUS_BADGE_CLASS,
@@ -271,14 +271,11 @@ export default function QuestionGenerator() {
           </div>
 
           <div className="flex items-end gap-5 mt-3">
-            <label className="block w-44">
+            <label className="block w-56">
               <span className="text-[12px] text-[#6b7280]">인쇄 양식</span>
               <select value={layout} onChange={(e) => setLayout(e.target.value as TestLayout)} className={clsx(inputCls, 'bg-white')}>
-                {(Object.keys(LAYOUT_LABELS) as TestLayout[]).map((k) => (
-                  <option key={k} value={k}>
-                    {LAYOUT_LABELS[k]}
-                  </option>
-                ))}
+                <option value="BASIC">기본형 (일반 문제지)</option>
+                <option value="VOCAB">단어시험형 (2단, 짧은 단어용)</option>
               </select>
             </label>
             <label className="flex items-center gap-2 pb-2.5">

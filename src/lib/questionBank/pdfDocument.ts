@@ -56,13 +56,13 @@ const styles = StyleSheet.create({
   ansNum: { fontWeight: 700 },
   explain: { fontSize: 10, color: '#4b5563', marginLeft: 14, marginTop: 3 },
   emptyNote: { marginTop: 60, fontSize: 12, color: '#6b7280', textAlign: 'center' },
-  // VOCAB(단어시험형) — 2단 목록
+  // VOCAB(단어시험형) — 2단 목록. 번호+지문을 위, 빈칸/정답을 아래(긴 지문도 안 깨지게)
   vocabGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 },
-  vocabItem: { width: '50%', flexDirection: 'row', alignItems: 'flex-end', paddingRight: 14, marginTop: 11 },
-  vocabNum: { fontSize: 11, fontWeight: 700, marginRight: 4 },
-  vocabStem: { fontSize: 11, marginRight: 6 },
-  vocabBlank: { flexGrow: 1, borderBottomWidth: 1, borderBottomColor: '#cbd5e1', height: 12 },
-  vocabAnswer: { fontSize: 11, color: '#065f46', flexShrink: 1 },
+  vocabItem: { width: '50%', paddingRight: 16, marginTop: 10 },
+  vocabQ: { fontSize: 11, lineHeight: 1.4 },
+  vocabNum: { fontWeight: 700 },
+  vocabBlank: { borderBottomWidth: 1, borderBottomColor: '#cbd5e1', height: 12, marginTop: 3, marginLeft: 12 },
+  vocabAnswer: { fontSize: 11, color: '#065f46', marginTop: 2, marginLeft: 12 },
   // MOCK(모의고사) — 섹션 헤더
   sectionHeader: { marginTop: 18, marginBottom: 2, paddingBottom: 4, borderBottomWidth: 1.5, borderBottomColor: '#334155' },
   sectionTitle: { fontSize: 13, fontWeight: 700, color: '#1a2535' },
@@ -122,8 +122,12 @@ function vocabItem(item: DraftPdfItem, idx: number, isAnswer: boolean) {
   const answer = (item.answer ?? {}) as QuestionAnswer;
   const stemText = blocksToText(content.stem ?? []);
   const children: ReactNode[] = [
-    h(Text, { style: styles.vocabNum, key: 'n' }, `${idx + 1}.`),
-    h(Text, { style: styles.vocabStem, key: 's' }, stemText),
+    h(
+      Text,
+      { style: styles.vocabQ, key: 'q' },
+      h(Text, { style: styles.vocabNum }, `${idx + 1}. `),
+      stemText,
+    ),
     isAnswer
       ? h(Text, { style: styles.vocabAnswer, key: 'a' }, answerDisplay(answer, content))
       : h(View, { style: styles.vocabBlank, key: 'b' }),
