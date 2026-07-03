@@ -17,8 +17,8 @@ import {
   type PresetListItem,
 } from './types';
 
-// Hobby(Vercel 60초 상한) 안전 여유 — 서버 spec.ts와 동일. Pro 전환 시 함께 상향.
-const MAX_COUNT = 10;
+// 서버 spec.ts의 MAX_COUNT와 동일하게 유지(Fluid Compute 300초 → 20문항).
+const MAX_COUNT = 20;
 
 function StatusBadge({ status }: { status: DraftStatus }) {
   return (

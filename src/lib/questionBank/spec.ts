@@ -7,8 +7,8 @@ import type {
   SectionSpec,
 } from '@/lib/types/questionBank';
 
-// Hobby(Vercel) 함수 60초 상한 안전 여유 — 10문항 ≈ 35~45초. Pro(300초) 전환 시 상향 가능.
-export const MAX_COUNT = 10;
+// Vercel Fluid Compute 300초 상한 안전 여유 — 20문항 ≈ 70~90초. (구 Hobby 60초 상한은 Fluid Compute로 해소)
+export const MAX_COUNT = 20;
 
 export type SpecParse = { ok: true; spec: TestSpec } | { ok: false; error: string };
 

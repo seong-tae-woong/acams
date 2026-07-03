@@ -8,7 +8,7 @@ import Button from '@/components/shared/Button';
 import { toast } from '@/lib/stores/toastStore';
 import { DIFFICULTY_LABELS, type QuestionFormat } from '@/lib/types/questionBank';
 
-const MAX_COUNT = 10;
+const MAX_COUNT = 20;
 const MAX_SECTIONS = 10;
 
 interface SectionInput {

@@ -9,8 +9,8 @@ import { persistItems } from '@/lib/questionBank/persist';
 import { sectionToTestSpec } from '@/lib/questionBank/spec';
 import type { MockSpec } from '@/lib/types/questionBank';
 
-// 섹션당 ≤10문항 → 60초 안전(Hobby). 클라이언트가 섹션을 순차 호출.
-export const maxDuration = 60;
+// 섹션당 ≤20문항 → 300초 안전(Fluid Compute). 클라이언트가 섹션을 순차 호출.
+export const maxDuration = 300;
 
 // POST /api/question-bank/drafts/[id]/section — 모의고사 한 섹션 생성·검수·추가
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

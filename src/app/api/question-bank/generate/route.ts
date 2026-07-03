@@ -8,8 +8,8 @@ import { reviewGeneratedQuestions } from '@/lib/ai/review';
 import { persistItems } from '@/lib/questionBank/persist';
 import { parseTestSpec, parseLayout } from '@/lib/questionBank/spec';
 
-// AI 생성+검수 시간. Hobby 상한 60초(10문항 안전). Pro면 300으로 상향 가능.
-export const maxDuration = 60;
+// AI 생성+검수 시간. Fluid Compute 300초 상한(20문항 안전). Active CPU 과금이라 AI 대기시간은 사실상 미과금.
+export const maxDuration = 300;
 
 // POST /api/question-bank/generate — 정형 입력 → 생성 → 자동검수 → 시험지 초안 저장
 export async function POST(req: NextRequest) {

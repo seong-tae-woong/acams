@@ -28,8 +28,8 @@ describe('parseMockSpec', () => {
     expect(parseMockSpec({ ...mbase, sections: [] }).ok).toBe(false);
   });
 
-  it('섹션 문항수>10 → error', () => {
-    expect(parseMockSpec({ ...mbase, sections: [{ type: '어법', count: 11, difficulty: 3 }] }).ok).toBe(false);
+  it('섹션 문항수>20 → error', () => {
+    expect(parseMockSpec({ ...mbase, sections: [{ type: '어법', count: 21, difficulty: 3 }] }).ok).toBe(false);
   });
 
   it('섹션 유형 누락 → error', () => {
